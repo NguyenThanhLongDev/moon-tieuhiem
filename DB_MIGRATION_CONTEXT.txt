@@ -1,0 +1,26 @@
+We are upgrading the project database to a full architecture.
+
+The target schema is defined in:
+TARGET_DATABASE_SCHEMA.sql
+
+Important business priorities:
+1. accurate revenue
+2. accurate order count
+3. accurate inventory
+4. accurate POS profit/loss
+
+Rules:
+- Telegram/reporting consistency must be preserved
+- Do not break existing dashboard logic during migration
+- Do not rewrite the whole system at once
+- Use phased migration
+- Backward compatibility first
+
+Permission model:
+- admin: all shops
+- leader: all shops in their team
+- staff: assigned shops only
+
+Current task:
+Compare current project storage structure with TARGET_DATABASE_SCHEMA.sql
+and propose a safe migration + implementation plan.

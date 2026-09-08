@@ -1,0 +1,119 @@
+{% extends "hr/_base.html" %}
+{% block title %}Quản lý hồ sơ NV — HR{% endblock %}
+{% block content %}
+
+{% set status_labels = {
+  'submitted': ('⏳ Chờ duyệt', 'submitted'),
+  'rejected':  ('⚠️ Cần bổ sung', 'rejected'),
+  'draft':     ('📝 Đang khai', 'draft'),
+  'approved':  ('✅ Đã duyệt', 'approved'),
+  'none':      ('— Chưa tạo', 'none'),
+} %}
+
+<div class="hr-card">
+  <div class="hr-card-title"><i class="bi bi-people-fill"></i> Quản lý hồ sơ nhân viên</div>
+
+  {# Stat tabs #}
+  <div class="d-flex gap-2 flex-wrap mb-3">
+    {% for key, label_class in [
+      ('submitted','⏳ Chờ duyệt'),
+      ('rejected','⚠️ Cần bổ sung'),
+      ('draft','📝 Đang khai'),
+      ('approved','✅ Đã duyệt'),
+      ('none','— Chưa tạo'),
+    ] %}
+    <a href="?status={{ key }}{% if q %}&q={{ q }}{% endif %}{% if team_filter %}&team={{ team_filter }}{% endif %}"
+       class="status-badge status-{{ key }}"
+       style="text-decoration:none; {% if status_filter==key %}box-shadow:0 0 0 2px var(--brand);{% endif %}">
+      {{ label_class }} <strong>{{ stats.get(key, 0) }}</strong>
+    </a>
+    {% endfor %}
+    <a href="?{% if q %}q={{ q }}{% endif %}{% if team_filter %}{% if q %}&{% endif %}team={{ team_filter }}{% endif %}" class="status-badge"
+       style="text-decoration:none; background:#fff; border:1px solid var(--border); color:#475569;
+              {% if not status_filter %}box-shadow:0 0 0 2px var(--brand);{% endif %}">
+      Tất cả <strong>{{ employees|length }}</strong>
+    </a>
+  </div>
+
+  {# Search + lọc team #}
+  <form method="get" class="d-flex gap-2 mb-3 flex-wrap" data-mfilter>
+    {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+    <input type="search" name="q" value="{{ q }}" class="form-control" style="max-width:340px"
+           placeholder="🔎 Tìm username / họ tên / SĐT…">
+    <button class="btn btn-outline-secondary"><i class="bi bi-search"></i></button>
+    <select name="team" class="form-select" style="max-width:220px" onchange="this.form.submit()">
+      <option value="">— Tất cả team —</option>
+      {% for t in teams_list %}
+      <option value="{{ t.id }}" {% if team_filter == t.id %}selected{% endif %}>{{ t.team_name }} ({{ t.so_nv }})</option>
+      {% endfor %}
+    </select>
+    {% if q or status_filter or team_filter %}
+    <a href="{{ url_for('hr.employees_list') }}" class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i> Xoá lọc</a>
+    {% endif %}
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle" style="font-size:13px">
+      <thead style="background:#f8fafc">
+        <tr>
+          <th style="width:36px">#</th>
+          <th>Nhân viên</th>
+          <th>Vai trò / Team</th>
+          <th>SĐT / Địa chỉ</th>
+          <th>File</th>
+          <th>Trạng thái</th>
+          <th style="width:100px">Hành động</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in employees %}
+        <tr {% if e.resigned_at %}style="background:#f8fafc;opacity:.72;"{% endif %}>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td>
+            <div class="fw-semibold">{{ e.full_name or '(chưa có tên)' }}</div>
+            <code class="text-muted small">{{ e.username }}</code>
+            {% if e.resigned_at %}
+            <div style="margin-top:4px;">
+              <span style="background:#fee2e2;color:#dc2626;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;display:inline-block;">
+                <i class="bi bi-person-dash"></i> Đã nghỉ · {{ e.resigned_at.strftime('%d/%m/%Y') if e.resigned_at.strftime is defined else e.resigned_at }}
+              </span>
+            </div>
+            {% endif %}
+          </td>
+          <td class="small">
+            <span class="badge bg-light text-dark border">{{ e.role }}</span>
+            {% if e.team_name %}<br><span class="text-muted">{{ e.team_name }}</span>{% endif %}
+          </td>
+          <td class="small">
+            {{ e.phone or '—' }}<br>
+            <span class="text-muted">{{ (e.current_address or '')[:50] }}{% if e.current_address and e.current_address|length > 50 %}…{% endif %}</span>
+          </td>
+          <td class="small text-center">
+            {% if e.has_photo %}<i class="bi bi-camera-fill text-success" title="Có ảnh chân dung"></i>{% else %}<i class="bi bi-camera text-muted"></i>{% endif %}
+            {% if e.has_id_card %}<i class="bi bi-card-image text-success" title="Có CCCD"></i>{% else %}<i class="bi bi-card-image text-muted"></i>{% endif %}
+          </td>
+          <td>
+            {% set st = e.hr_status %}
+            {% set lbl, css = status_labels.get(st, ('?','none')) %}
+            <span class="status-badge status-{{ css }}">{{ lbl }}</span>
+            {% if e.submitted_at and st == 'submitted' %}
+              <div class="text-muted small">{{ e.submitted_at.strftime('%d/%m %H:%M') }}</div>
+            {% elif e.approved_at and st == 'approved' %}
+              <div class="text-muted small">{{ e.approved_at.strftime('%d/%m/%Y') }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('hr.employee_detail', uid=e.id) }}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-eye"></i> Xem
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Không có nhân viên nào.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

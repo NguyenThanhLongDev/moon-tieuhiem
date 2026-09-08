@@ -1,0 +1,17 @@
+{
+  "name": "zalo_bridge",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "image-size": "^2.0.2",
+    "zca-js": "^2.1.2"
+  }
+}

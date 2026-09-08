@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📊 Tổng Hợp Ngân Sách</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="/static/cc-theme.css">
+<style>
+body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; overflow-x:hidden; }
+.topbar { background:#1a1a1a; padding:0 20px; min-height:48px; display:flex; align-items:center; gap:12px; box-shadow:0 2px 8px rgba(0,0,0,.25); }
+.topbar .brand { font-weight:700; font-size:15px; color:#F59E0B; }
+.topbar a { color:rgba(255,255,255,.75); text-decoration:none; font-size:13px; padding:4px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.2); }
+.topbar a:hover { background:rgba(255,255,255,.08); color:#fff; }
+.page-wrap { max-width:1200px; margin:0 auto; padding:16px; }
+.kpi-card { background:#fff; border-radius:12px; padding:14px 16px; box-shadow:0 1px 3px rgba(0,0,0,.06); border-left:4px solid #F59E0B; }
+.kpi-card.green { border-left-color:#16a34a; }
+.kpi-card.red { border-left-color:#dc2626; }
+.kpi-label { color:#64748b; font-size:12px; font-weight:600; text-transform:uppercase; }
+.kpi-value { font-size:22px; font-weight:700; color:#1f2937; }
+.kpi-sub { color:#94a3b8; font-size:12px; margin-top:2px; }
+.team-row { display:flex; align-items:center; gap:12px; padding:10px 14px; background:#fff; border-radius:8px; margin-bottom:6px; box-shadow:0 1px 2px rgba(0,0,0,.04); flex-wrap:wrap; }
+.team-row > .team-head { min-width:160px; flex:1 1 200px; }
+.team-name { font-weight:600; }
+.team-amt { font-weight:700; color:#1f2937; min-width:120px; text-align:right; font-variant-numeric:tabular-nums; }
+.bar { flex:1 1 100px; min-width:60px; height:10px; background:#e5e7eb; border-radius:5px; overflow:hidden; }
+.bar > div { height:100%; background:linear-gradient(90deg,#F59E0B,#fbbf24); }
+.team-nv { color:#64748b; font-size:12px; min-width:60px; text-align:right; }
+.team-nv.warn { color:#dc2626; font-weight:600; }
+
+/* Mobile: stack chỉnh lại, ẩn thanh bar, button full-width */
+@media (max-width:640px) {
+  .team-row { gap:6px; padding:10px 12px; }
+  .team-row > .team-head { flex:1 1 100%; min-width:0; }
+  .team-amt { flex:1 1 auto; text-align:left; font-size:15px; }
+  .team-nv { flex:0 0 auto; }
+  .bar { display:none; }
+  .team-row .btn { flex:0 0 auto; }
+  .tk-split { flex-wrap:wrap; gap:8px; font-size:11px; }
+  .page-wrap { padding:10px; }
+  .kpi-card { padding:10px 12px; }
+  .kpi-value { font-size:18px; }
+}
+.table-users th { background:#f8fafc; font-size:12.5px; }
+.table-users td { font-size:13px; vertical-align:middle; }
+.badge-ok { background:#d1fae5; color:#065f46; }
+.badge-warn { background:#fef3c7; color:#92400e; }
+.badge-cty { background:#dbeafe; color:#1e40af; font-weight:600; padding:2px 8px; border-radius:6px; font-size:11px; }
+.badge-hkd { background:#fde68a; color:#92400e; font-weight:600; padding:2px 8px; border-radius:6px; font-size:11px; }
+.kpi-card.blue { border-left-color:#1e40af; }
+.kpi-card.amber { border-left-color:#d97706; }
+
+/* Grid auto-fit gom hết KPI 1 chỗ — căn gọn cho laptop, wrap mobile */
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; }
+.kpi-grid .kpi-card { padding:11px 14px; }
+.kpi-grid .kpi-card .kpi-label { font-size:11.5px; }
+.kpi-grid .kpi-card .kpi-value { font-size:18px; line-height:1.25; }
+.kpi-grid .kpi-card .kpi-sub { font-size:11.5px; }
+@media (max-width:560px) {
+  .kpi-grid { grid-template-columns:repeat(2, 1fr); }
+  .kpi-grid .kpi-card .kpi-value { font-size:16px; }
+}
+.tk-split { display:flex; gap:14px; margin-top:6px; font-size:12px; color:#475569; }
+.tk-split b { color:#0f172a; font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">📊 Tổng Hợp NS</span>
+  <a href="/">🏠 Trang chủ</a>
+  {% set _role = (current_user.role or '')|lower %}
+  {% if teams_all and _role in ('manager','admin','superadmin','accountant','ketoan') %}
+    <a href="{{ url_for('budget_chat.team_room', team_id=teams_all[0].team_id) }}">💬 Chat</a>
+  {% endif %}
+  {% if _role in ('manager','admin','superadmin') %}
+    <a href="{{ url_for('budget_chat.zalo_mapping') }}">🧸 Map Zalo</a>
+    <a href="#" id="tgToggleBtn" onclick="toggleTelegram();return false;"
+       style="background:{% if telegram_enabled %}#16a34a{% else %}#dc2626{% endif %}; border-color:transparent">
+      📢 TG: <b id="tgState">{{ 'BẬT' if telegram_enabled else 'TẮT' }}</b>
+    </a>
+  {% endif %}
+</div>
+
+<div class="page-wrap">
+  <form method="get" class="d-flex gap-2 align-items-center mb-3 flex-wrap">
+    <label class="fw-semibold mb-0">Ngày báo cáo:</label>
+    <input type="date" name="date" value="{{ target_date }}" class="form-control" style="max-width:170px">
+    <select name="team" class="form-select" style="max-width:180px">
+      <option value="">— Tất cả team —</option>
+      {% for t in teams_all %}
+        <option value="{{ t.team_id }}" {% if t.team_id==team_filter %}selected{% endif %}>{{ t.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Xem</button>
+    <div class="ms-auto d-flex gap-1">
+      <a href="?date={{ (target_date|string)[:10] }}" class="btn btn-sm btn-outline-secondary">Hôm nay</a>
+    </div>
+  </form>
+
+  {# Xuất Excel — kế toán + manager #}
+  <div class="d-flex gap-2 align-items-center mb-3 flex-wrap" style="background:#f1f5f9; padding:10px 12px; border-radius:10px">
+    <span class="fw-semibold small" style="color:#0f172a">📥 Xuất Excel:</span>
+    <label class="small text-muted mb-0">Từ</label>
+    <input type="date" id="exFrom" value="{{ target_date }}" class="form-control form-control-sm" style="max-width:150px">
+    <label class="small text-muted mb-0">đến</label>
+    <input type="date" id="exTo" value="{{ target_date }}" class="form-control form-control-sm" style="max-width:150px">
+    <select id="exTeam" class="form-select form-select-sm" style="max-width:200px">
+      <option value="">— Tất cả team (mỗi team 1 sheet) —</option>
+      {% for t in teams_all %}
+        <option value="{{ t.team_id }}">{{ t.name }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-sm btn-success" onclick="exportExcel()"><i class="bi bi-download"></i> Xuất .xlsx</button>
+    <div class="ms-auto d-flex gap-1">
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setRange('today')">Hôm nay</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setRange('week')">7 ngày</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setRange('month')">Tháng này</button>
+    </div>
+  </div>
+  <script>
+  function exportExcel() {
+    const df = document.getElementById('exFrom').value;
+    const dt = document.getElementById('exTo').value;
+    const tm = document.getElementById('exTeam').value;
+    if (!df || !dt) { alert('Chọn khoảng ngày trước nhé'); return; }
+    const qs = new URLSearchParams({date_from: df, date_to: dt});
+    if (tm) qs.append('team', tm);
+    window.location = '/ngan-sach/export-excel?' + qs.toString();
+  }
+  function setRange(kind) {
+    const now = new Date();
+    const fmt = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    let from, to;
+    if (kind === 'today') { from = to = fmt(now); }
+    else if (kind === 'week') { const x = new Date(now); x.setDate(x.getDate()-6); from = fmt(x); to = fmt(now); }
+    else if (kind === 'month') { from = fmt(new Date(now.getFullYear(), now.getMonth(), 1)); to = fmt(new Date(now.getFullYear(), now.getMonth()+1, 0)); }
+    document.getElementById('exFrom').value = from;
+    document.getElementById('exTo').value = to;
+  }
+  </script>
+
+  {# KPI all-in-one — gom 5 card vào grid auto-fit, gọn gàng #}
+  <div class="kpi-grid mb-3">
+    <div class="kpi-card">
+      <div class="kpi-label">💰 Tổng ngân sách</div>
+      <div class="kpi-value">{{ '{:,.0f}'.format(total_all) }}đ</div>
+      <div class="kpi-sub">{{ teams_summary|length }} team đã báo</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">👥 Đã báo</div>
+      <div class="kpi-value">{{ reported_count }} / {{ should_count }} NV</div>
+      <div class="kpi-sub">{% if should_count > 0 %}{{ '%.0f'|format(100*reported_count/should_count) }}%{% else %}0%{% endif %} hoàn thành</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-label">⚠ Chưa báo</div>
+      <div class="kpi-value">{{ not_reported|length }} NV</div>
+      <div class="kpi-sub">
+        {% if not_reported %}
+          {{ not_reported[0].full_name }}{% if not_reported|length > 1 %}, +{{ not_reported|length - 1 }}{% endif %}
+        {% else %}
+          ✓ Đầy đủ
+        {% endif %}
+      </div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-label">🏢 TK QC Cty <span class="badge-cty">TH+số</span></div>
+      <div class="kpi-value">{{ '{:,.0f}'.format(tk_type_summary.total_cty) }}đ</div>
+      <div class="kpi-sub">{{ tk_type_summary.tk_cty }} TK</div>
+    </div>
+    <div class="kpi-card amber">
+      <div class="kpi-label">🧾 TK HKĐ <span class="badge-hkd">không TH</span></div>
+      <div class="kpi-value">{{ '{:,.0f}'.format(tk_type_summary.total_hkd) }}đ</div>
+      <div class="kpi-sub">{{ tk_type_summary.tk_hkd }} TK</div>
+    </div>
+  </div>
+
+  {# Per-team breakdown #}
+  <h6 class="text-muted mb-2 mt-3">▶ Theo team</h6>
+  {% set max_team_total = teams_summary | map(attribute='total') | max | default(1) %}
+  {% for t in teams_summary %}
+    {% set team_name = (t.team_id or '').replace('team-', 'Team ').title() %}
+    {% set ratio = (t.total / max_team_total * 100) if max_team_total > 0 else 0 %}
+    {# Đếm NV team này #}
+    {% set team_should = not_reported | selectattr('team_id', 'equalto', t.team_id) | list %}
+    <div class="team-row">
+      <div class="team-head">
+        <div class="team-name">{{ team_name }}</div>
+        <div class="tk-split">
+          <span>🏢 Cty: <b>{{ '{:,.0f}'.format(t.total_cty) }}đ</b> ({{ t.tk_cty }})</span>
+          <span>🧾 HKĐ: <b>{{ '{:,.0f}'.format(t.total_hkd) }}đ</b> ({{ t.tk_hkd }})</span>
+        </div>
+      </div>
+      <span class="team-amt">{{ '{:,.0f}'.format(t.total) }}đ</span>
+      <div class="bar"><div style="width:{{ ratio }}%"></div></div>
+      <span class="team-nv">{{ t.users }} NV</span>
+      <a href="{{ url_for('budget_chat.team_room', team_id=t.team_id) }}" class="btn btn-sm btn-outline-primary">Mở chat</a>
+    </div>
+  {% endfor %}
+  {% if not teams_summary %}
+    <div class="alert alert-warning">Chưa có team nào báo ngân sách cho ngày này.</div>
+  {% endif %}
+
+  {# Per-NV table #}
+  <h6 class="text-muted mb-2 mt-4">▶ Chi tiết theo NV — đã báo</h6>
+  <div class="table-responsive">
+    <table class="table table-sm table-users align-middle">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Nhân viên</th>
+          <th>Team</th>
+          <th class="text-end">Tổng</th>
+          <th class="text-center">Số TK</th>
+          <th>Báo lúc</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users_summary %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><strong>{{ u.full_name }}</strong> <span class="text-muted">({{ u.username }})</span></td>
+          <td>{{ (u.team_id or '').replace('team-','').title() }}</td>
+          <td class="text-end text-success fw-bold">{{ '{:,.0f}'.format(u.total) }}đ</td>
+          <td class="text-center">{{ u.tk_count }} TK</td>
+          <td class="text-muted small">{{ u.first_sent[:16].replace('T',' ') if u.first_sent else '—' }}</td>
+        </tr>
+        {% endfor %}
+        {% if not users_summary %}
+        <tr><td colspan="6" class="text-center text-muted py-3">Chưa có NV nào báo cho ngày này.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  {# Chi tiết TK theo loại — cty vs HKĐ #}
+  <h6 class="text-muted mb-2 mt-4">▶ Danh sách TK theo loại</h6>
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="kpi-card blue" style="padding:0">
+        <div style="padding:10px 14px; border-bottom:1px solid #e2e8f0; font-weight:600">
+          🏢 TK QC Công ty
+          <span class="text-muted small ms-2">{{ items_cty|length }} TK · {{ '{:,.0f}'.format(tk_type_summary.total_cty) }}đ</span>
+        </div>
+        <div class="table-responsive" style="max-height:380px; overflow-y:auto">
+          <table class="table table-sm table-users mb-0 align-middle">
+            <thead><tr><th>TK</th><th>NV</th><th>Team</th><th class="text-end">Tiền</th></tr></thead>
+            <tbody>
+              {% for it in items_cty %}
+              <tr>
+                <td><span class="badge-cty">{{ it.tk_name_raw }}</span>{% if it.card_last4 %} <span class="text-muted small">· thẻ {{ it.card_last4 }}</span>{% endif %}</td>
+                <td class="small">{{ it.who }}</td>
+                <td class="small">{{ (it.team_id or '').replace('team-','').title() }}</td>
+                <td class="text-end fw-bold text-success">{{ '{:,.0f}'.format(it.amount_vnd) }}đ</td>
+              </tr>
+              {% endfor %}
+              {% if not items_cty %}
+              <tr><td colspan="4" class="text-center text-muted py-3">Chưa có TK Cty.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="kpi-card amber" style="padding:0">
+        <div style="padding:10px 14px; border-bottom:1px solid #e2e8f0; font-weight:600">
+          🧾 TK HKĐ
+          <span class="text-muted small ms-2">{{ items_hkd|length }} TK · {{ '{:,.0f}'.format(tk_type_summary.total_hkd) }}đ</span>
+        </div>
+        <div class="table-responsive" style="max-height:380px; overflow-y:auto">
+          <table class="table table-sm table-users mb-0 align-middle">
+            <thead><tr><th>TK</th><th>NV</th><th>Team</th><th class="text-end">Tiền</th></tr></thead>
+            <tbody>
+              {% for it in items_hkd %}
+              <tr>
+                <td><span class="badge-hkd">{{ it.tk_name_raw }}</span>{% if it.card_last4 %} <span class="text-muted small">· thẻ {{ it.card_last4 }}</span>{% endif %}</td>
+                <td class="small">{{ it.who }}</td>
+                <td class="small">{{ (it.team_id or '').replace('team-','').title() }}</td>
+                <td class="text-end fw-bold text-success">{{ '{:,.0f}'.format(it.amount_vnd) }}đ</td>
+              </tr>
+              {% endfor %}
+              {% if not items_hkd %}
+              <tr><td colspan="4" class="text-center text-muted py-3">Chưa có TK HKĐ.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Chưa báo #}
+  {% if not_reported %}
+  <h6 class="text-muted mb-2 mt-4">⚠ NV chưa báo ({{ not_reported|length }})</h6>
+  <div class="d-flex flex-wrap gap-2">
+    {% for u in not_reported %}
+      <span class="badge badge-warn px-3 py-2" style="font-size:12.5px">
+        <i class="bi bi-person-exclamation"></i>
+        {{ u.full_name }}
+        <span class="text-muted">· {{ (u.team_id or '').replace('team-','').title() }}</span>
+      </span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="mt-4 text-muted small text-center">
+    Cron Telegram digest 21:00 hàng ngày tổng hợp ngày mai.
+  </div>
+</div>
+
+<script>
+async function toggleTelegram() {
+  const btn = document.getElementById('tgToggleBtn');
+  const state = document.getElementById('tgState');
+  const cur = state.innerText.trim();
+  const turnOn = (cur === 'TẮT');
+  if (!confirm(turnOn ? 'BẬT forward Telegram cho chat NS?' : 'TẮT forward Telegram? Tin báo NS sẽ không gửi sang Telegram nữa.')) return;
+  try {
+    const r = await fetch('/ngan-sach/telegram-toggle', {
+      method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body: 'enabled=' + (turnOn ? '1' : '0'),
+    });
+    const j = await r.json();
+    if (j.ok) {
+      state.innerText = j.enabled ? 'BẬT' : 'TẮT';
+      btn.style.background = j.enabled ? '#16a34a' : '#dc2626';
+    } else {
+      alert('Lỗi: ' + (j.error || r.status));
+    }
+  } catch (e) { alert('Lỗi mạng: ' + e); }
+}
+</script>
+</body>
+</html>

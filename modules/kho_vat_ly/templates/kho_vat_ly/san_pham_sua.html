@@ -1,0 +1,184 @@
+{% extends "kho_vat_ly/base.html" %}
+{% block title %}Sửa sản phẩm — {{ prod.sku }}{% endblock %}
+
+{% block content %}
+<style>
+.section-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:20px; }
+.section-header { background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:12px 18px; display:flex; align-items:center; gap:10px; }
+.section-header .title { font-weight:700; font-size:14px; color:#1e293b; }
+.section-header .sub  { font-size:12px; color:#64748b; margin-left:auto; }
+.form-label-sm { font-size:12px; font-weight:600; color:#475569; margin-bottom:4px; }
+.form-control-clean { border:1px solid #cbd5e1; border-radius:7px; padding:7px 12px; font-size:13px; width:100%; outline:none; }
+.form-control-clean:focus { border-color:#3b82f6; box-shadow:0 0 0 2px rgba(59,130,246,.15); }
+.sp-sku-badge { font-family:monospace; font-size:13px; font-weight:700; background:#f1f5f9; color:#334155; border-radius:6px; padding:4px 10px; }
+.var-row { display:flex; align-items:flex-start; gap:14px; padding:12px 18px; border-bottom:1px solid #f1f5f9; }
+.var-row:last-child { border-bottom:none; }
+.var-idx { width:24px; min-width:24px; height:24px; border-radius:50%; background:#e2e8f0; color:#475569; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:6px; }
+.var-uuid { font-family:monospace; font-size:9.5px; color:#94a3b8; word-break:break-all; user-select:all; margin-top:3px; cursor:pointer; }
+.var-uuid:hover { color:#3b82f6; }
+.badge-pos-qty { background:#e8f5e9; color:#2e7d32; font-size:10px; font-weight:600; border-radius:5px; padding:2px 7px; display:inline-block; margin-top:3px; }
+.badge-vl-qty  { background:#ede9fe; color:#5b21b6; font-size:10px; font-weight:600; border-radius:5px; padding:2px 7px; display:inline-block; margin-top:3px; }
+.qty-stat { font-size:12px; color:#475569; text-align:center; }
+.qty-stat .val { font-size:20px; font-weight:700; line-height:1; }
+</style>
+
+<div style="max-width:840px;margin:0 auto;padding:16px">
+
+  {# Breadcrumb #}
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb" style="font-size:13px">
+      <li class="breadcrumb-item"><a href="{{ url_for('.san_pham_list') }}">Sản phẩm</a></li>
+      <li class="breadcrumb-item active">{{ prod.sku }} — {{ prod.name }}</li>
+    </ol>
+  </nav>
+
+  {# Flash #}
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat,msg in msgs %}
+    <div class="alert alert-{{ 'success' if cat=='success' else ('warning' if cat=='warning' else 'danger') }} alert-dismissible fade show py-2 px-3" style="font-size:13px" role="alert">
+      {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+  {% endwith %}
+
+  {# Stats mini bar #}
+  <div style="display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+    <div class="section-card" style="flex:1;min-width:180px;padding:14px 20px">
+      <div class="d-flex align-items-center gap-3">
+        <div class="qty-stat text-center" style="flex:1">
+          <div class="val text-success">{{ qty_vl_total | int }}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">Tồn vật lý</div>
+        </div>
+        <div style="width:1px;height:36px;background:#e2e8f0"></div>
+        <div class="qty-stat text-center" style="flex:1">
+          <div class="val text-primary">{{ qty_pos_total | int }}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">Tồn POS</div>
+        </div>
+        {% if variants|length > 1 %}
+        <div style="width:1px;height:36px;background:#e2e8f0"></div>
+        <div class="qty-stat text-center" style="flex:1">
+          <div class="val" style="color:#7c3aed">{{ variants|length }}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">Biến thể</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ──── SECTION 1: THÔNG TIN CƠ BẢN ──── #}
+  <div class="section-card">
+    <div class="section-header">
+      <i class="bi bi-info-circle-fill" style="color:#3b82f6"></i>
+      <span class="title">Thông tin cơ bản</span>
+      <span class="sub">ID: {{ prod.id }}</span>
+    </div>
+    <div style="padding:18px">
+      <form method="POST" action="{{ url_for('.san_pham_sua', product_id=prod.id) }}">
+        <input type="hidden" name="action" value="info">
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <div class="form-label-sm">Tên sản phẩm <span class="text-danger">*</span></div>
+            <input class="form-control-clean" type="text" name="name" value="{{ prod.name }}" required>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="form-label-sm">SKU <span class="text-danger">*</span></div>
+            <input class="form-control-clean" type="text" name="sku" value="{{ prod.sku }}" required
+                   style="font-family:monospace;font-weight:700">
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="form-label-sm">Đơn vị tính</div>
+            <input class="form-control-clean" type="text" name="unit" value="{{ prod.unit or '' }}" placeholder="cái, kg, m…">
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="form-label-sm">Danh mục</div>
+            <input class="form-control-clean" type="text" name="category" value="{{ prod.category or '' }}" placeholder="Không bắt buộc">
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="form-label-sm">Tồn tối thiểu</div>
+            <input class="form-control-clean" type="number" name="min_qty" value="{{ prod.min_qty or 0 }}" min="0">
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="form-label-sm">Giá nhập (đ)</div>
+            <input class="form-control-clean" type="text" name="gia_nhap"
+                   value="{{ "{:,.0f}".format(prod.gia_nhap or 0) }}" placeholder="0">
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="form-label-sm">Giá bán (đ)</div>
+            <input class="form-control-clean" type="text" name="gia_ban"
+                   value="{{ "{:,.0f}".format(prod.gia_ban or 0) }}" placeholder="0">
+          </div>
+        </div>
+        <div class="mt-3 text-end">
+          <button type="submit" class="btn btn-primary btn-sm px-4" style="font-size:13px">
+            <i class="bi bi-check-lg me-1"></i>Lưu thông tin
+          </button>
+        </div>
+      </form>
+
+      {# POS IDs — readonly reference #}
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9">
+        <div class="form-label-sm">POS Product ID <span class="text-muted fw-normal">(chỉ đọc — đồng bộ từ Pancake)</span></div>
+        <code style="font-size:10px;color:#94a3b8;user-select:all">{{ prod.pos_product_id or '—' }}</code>
+        {% if not variants %}
+        <span class="ms-3 form-label-sm">POS Variation ID</span>
+        <code style="font-size:10px;color:#94a3b8;user-select:all">{{ prod.pos_variation_id or '—' }}</code>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ──── SECTION 2: BIẾN THỂ — chỉ xem, tên tự kéo từ Pancake POS #}
+  {% if variants|length > 1 %}
+  <div class="section-card">
+    <div class="section-header">
+      <i class="bi bi-layers-fill" style="color:#7c3aed"></i>
+      <span class="title">Biến thể ({{ variants|length }})</span>
+      <span class="sub">Tên tự động lấy từ Pancake POS · {% if can_edit_qty %}Sửa trực tiếp số lượng tồn vật lý bên dưới{% else %}Chỉ quản lý kho mới sửa được tồn{% endif %}</span>
+    </div>
+    <div style="padding:0 0 4px">
+      {% for v in variants %}
+      <div style="padding:10px 18px;border-bottom:1px solid #f1f5f9">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:24px;text-align:center;font-size:11px;color:#94a3b8;font-weight:600">{{ loop.index }}</div>
+          <div style="flex:1;font-size:13px;font-weight:600;color:#1e293b">
+            {{ v.variant_name or '—' }}
+            {% if v.shop_count > 1 %}
+              <span class="badge bg-light text-muted ms-1" style="font-size:10px;font-weight:500;" title="Có trên {{ v.shop_count }} shop Pancake">{{ v.shop_count }} shop</span>
+            {% endif %}
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            {% if v.pos_remain_qty > 0 or v.pos_remain_updated_at %}
+            <span class="badge-pos-qty"><i class="bi bi-shop me-1"></i>POS: {{ v.pos_remain_qty }}</span>
+            {% endif %}
+            {% if v.qty_vl > 0 %}
+            <span class="badge-vl-qty"><i class="bi bi-building me-1"></i>VL: {{ v.qty_vl }}</span>
+            {% endif %}
+          </div>
+        </div>
+        {% if can_edit_qty %}
+        <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;margin-left:36px;">
+          {% for wh in v.qty_per_wh %}
+          <form method="POST" action="{{ url_for('.san_pham_sua', product_id=prod.id) }}"
+                style="display:flex;align-items:center;gap:6px;background:#f8fafc;padding:4px 8px;border-radius:6px;border:1px solid #e2e8f0;"
+                onsubmit="return confirm('Cập nhật tồn {{ wh.warehouse_name }} của biến thể &quot;{{ v.display_name }}&quot; từ {{ wh.qty }} → ' + this.new_qty.value + '?');">
+            <input type="hidden" name="action" value="variant_qty">
+            <input type="hidden" name="pos_variation_id" value="{{ v.pos_variation_id }}">
+            <input type="hidden" name="warehouse_id" value="{{ wh.warehouse_id }}">
+            <span style="font-size:11px;color:#64748b;"><i class="bi bi-building me-1"></i>{{ wh.warehouse_name }}</span>
+            <input type="number" name="new_qty" value="{{ wh.qty }}" min="0" step="1"
+                   style="width:80px;padding:3px 6px;font-size:12px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;">
+            <button type="submit" class="btn btn-sm btn-outline-primary" style="font-size:11px;padding:2px 8px;">
+              <i class="bi bi-check2"></i>
+            </button>
+          </form>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

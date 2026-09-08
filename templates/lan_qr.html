@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Đăng nhập Zalo cho Lan Moon</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.min.css">
+<style>
+  body{ background:#f5f6fa; }
+  .card-qr{ max-width:430px; margin:30px auto; background:#fff; border:1px solid #e5e7eb;
+    border-radius:16px; padding:26px 24px; text-align:center; box-shadow:0 4px 18px rgba(0,0,0,.06); }
+  .qr-box{ width:260px; height:260px; margin:16px auto; display:flex; align-items:center;
+    justify-content:center; border:2px dashed #d8dee6; border-radius:14px; background:#fafbfc; }
+  .qr-box img{ width:100%; height:100%; border-radius:12px; }
+  .st{ font-weight:700; margin-top:10px; }
+  .st.waiting{ color:#b26a00; } .st.scanned{ color:#1a73e8; }
+  .st.success{ color:#16a34a; } .st.error, .st.expired, .st.declined{ color:#dc2626; }
+  .steps{ text-align:left; font-size:13.5px; color:#475467; background:#f8fafc;
+    border-radius:10px; padding:12px 16px; margin-top:16px; }
+</style>
+</head>
+<body>
+{% include "_main_nav.html" %}
+
+<div class="card-qr">
+  <h5 class="fw-bold"><i class="bi bi-qr-code-scan text-warning"></i> Đăng nhập Zalo cho Lan Moon</h5>
+  <div class="text-muted" style="font-size:13px">Quét bằng app Zalo của <b>tài khoản BOT</b> (không phải Zalo cá nhân)</div>
+
+  <div class="qr-box" id="qrBox"><span class="text-muted">Bấm nút bên dưới để tạo mã</span></div>
+  <div class="st" id="qrSt"></div>
+
+  <button class="btn btn-warning fw-bold mt-2" id="btnStart"><i class="bi bi-arrow-clockwise"></i> Tạo mã QR</button>
+
+  <div class="steps">
+    <b>Cách quét:</b>
+    <ol class="mb-0 ps-3">
+      <li>Mở app Zalo của tài khoản bot trên điện thoại</li>
+      <li>Bấm icon <b>QR</b> (góc trên phải) → quét mã này</li>
+      <li>Bấm <b>Đồng ý</b> khi Zalo hỏi đăng nhập thiết bị khác</li>
+    </ol>
+    Mã hết hạn ~2 phút — bấm "Tạo mã QR" để lấy mã mới.
+  </div>
+</div>
+
+<script>
+(function(){
+  var box=document.getElementById('qrBox'), st=document.getElementById('qrSt'),
+      btn=document.getElementById('btnStart'), timer=null;
+  function setSt(cls, txt){ st.className='st '+cls; st.textContent=txt; }
+  function poll(){
+    fetch('/api/zalo-bridge/qr-status').then(r=>r.json()).then(function(d){
+      if(d.image){ box.innerHTML='<img src="'+d.image+'" alt="QR">'; }
+      if(d.status==='waiting'){ setSt('waiting','⏳ Chờ quét mã...'); }
+      else if(d.status==='scanned'){ setSt('scanned','📷 Đã quét bởi '+(d.display_name||'')+' — bấm Đồng ý trên điện thoại'); }
+      else if(d.status==='success'){
+        setSt('success','✅ ĐĂNG NHẬP THÀNH CÔNG! Lan Moon đã sẵn sàng'+(d.restarted?' (bridge đã khởi động lại)':''));
+        clearInterval(timer);
+        box.innerHTML='<span style="font-size:70px">🌸</span>';
+      }
+      else if(d.status==='expired'){ setSt('expired','⌛ Mã hết hạn — bấm Tạo mã QR để lấy mã mới'); clearInterval(timer); }
+      else if(d.status==='declined'){ setSt('declined','✖ Bị từ chối trên điện thoại — thử lại'); clearInterval(timer); }
+      else if(d.status==='error'){ setSt('error','Lỗi: '+(d.error||'?')); clearInterval(timer); }
+    }).catch(function(e){ setSt('error','Không gọi được bridge: '+e); });
+  }
+  btn.addEventListener('click', function(){
+    btn.disabled=true; setSt('waiting','Đang tạo mã...');
+    fetch('/api/zalo-bridge/qr-start',{method:'POST'}).then(r=>r.json()).then(function(d){
+      btn.disabled=false;
+      if(timer) clearInterval(timer);
+      timer=setInterval(poll, 2000);
+      poll();
+    }).catch(function(e){ btn.disabled=false; setSt('error','Lỗi: '+e); });
+  });
+})();
+</script>
+</body>
+</html>

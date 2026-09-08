@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Báo cáo xuất kho — {{ staff }}</title>
+<style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #222; margin: 18px; }
+  h2 { margin: 0 0 4px 0; }
+  .meta { font-size: 12px; color: #555; margin-bottom: 10px; }
+  .meta b { color: #222; }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+  th, td { border: 1px solid #999; padding: 5px 7px; vertical-align: top; }
+  th { background: #f1f1f1; text-align: left; font-weight: 600; }
+  td.num, th.num { text-align: right; }
+  td.ctr, th.ctr { text-align: center; }
+  tfoot td { font-weight: 700; background: #fafafa; }
+  .toolbar { margin: 8px 0 14px; }
+  .toolbar button { padding: 6px 14px; cursor: pointer; }
+  @media print {
+    .toolbar { display: none; }
+    body { margin: 8mm; }
+    /* Khi in cho shiper: chỉ giữ STT, Mã vận đơn, ĐVVC, Thời điểm quét */
+    .np-col { display: none !important; }
+    tfoot .np-foot { display: none !important; }
+    table { font-size: 14px; }
+    th, td { padding: 7px 9px; }
+  }
+  .small { font-size: 11px; color: #666; }
+  .empty { padding: 30px; text-align: center; color: #888; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button onclick="window.print()">🖨 In</button>
+  <button onclick="window.close()">Đóng</button>
+</div>
+
+<h2>Báo cáo xuất kho theo nhân viên</h2>
+<div class="meta">
+  <div>Nhân viên: <b>{{ staff }}</b></div>
+  <div>
+    Khoảng ngày:
+    <b>{{ date_from or '—' }}</b> → <b>{{ date_to or '—' }}</b>
+    {% if shop_filter %} | Shop: <b>{{ shop_filter }}</b>{% endif %}
+    {% if status_filter %} | Trạng thái: <b>{{ status_filter }}</b>{% endif %}
+  </div>
+  <div>In lúc: {{ printed_at }} | Tổng số đơn: <b>{{ total_orders }}</b> | Tổng SL: <b>{{ '{:,}'.format(total_qty).replace(',', '.') }}</b></div>
+</div>
+
+{% if orders %}
+<table>
+  <thead>
+    <tr>
+      <th class="ctr" style="width:40px">#</th>
+      <th class="np-col">Mã đơn</th>
+      <th>Mã vận đơn</th>
+      <th class="np-col">Shop</th>
+      <th>ĐVVC</th>
+      <th>Thời điểm quét</th>
+      <th class="np-col">Sản phẩm</th>
+      <th class="num np-col">Số món</th>
+      <th class="num np-col">Tổng SL</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for o in orders %}
+    <tr>
+      <td class="ctr">{{ loop.index }}</td>
+      <td class="np-col">{{ o.order_code }}</td>
+      <td class="small" style="font-weight:600;">{{ o.tracking_code or '—' }}</td>
+      <td class="np-col">{{ o.shop_name or '—' }}</td>
+      <td>{{ o.carrier_name or '—' }}</td>
+      <td class="small">{{ o.pre_confirmed_at or o.carrier_picked_up_at or '—' }}</td>
+      <td class="small np-col">{{ o.products_preview or '—' }}</td>
+      <td class="num np-col">{{ o.item_count }}</td>
+      <td class="num np-col">{{ '{:,}'.format(o.total_qty or 0).replace(',', '.') }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr class="np-foot">
+      <td colspan="7" class="ctr">TỔNG CỘNG</td>
+      <td class="num">{{ total_orders }}</td>
+      <td class="num">{{ '{:,}'.format(total_qty).replace(',', '.') }}</td>
+    </tr>
+  </tfoot>
+</table>
+{% else %}
+<div class="empty">Không có đơn nào khớp bộ lọc.</div>
+{% endif %}
+
+</body>
+</html>

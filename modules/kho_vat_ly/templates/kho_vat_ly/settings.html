@@ -1,0 +1,153 @@
+{% extends "kho_vat_ly/base.html" %}
+{% block title %}Cài đặt Kho{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1><i class="bi bi-gear-fill me-2 text-secondary"></i>Cài đặt</h1>
+    <span class="text-muted small">Quản lý API key Pancake POS cho từng shop</span>
+  </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="alert alert-{{ 'success' if cat=='success' else 'warning' if cat=='warning' else 'danger' }} alert-dismissible fade show">
+    {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endfor %}
+{% endwith %}
+
+<form method="post" action="/kho-vat-ly/settings">
+  <input type="hidden" name="action" value="save_keys">
+
+  {# ── Master API Key ── #}
+  <div class="card mb-4">
+    <div class="card-header fw-semibold">
+      <i class="bi bi-key-fill me-1 text-warning"></i> Master POS API Key
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">
+        Key dùng chung cho tất cả shop chưa có key riêng. Đây là <code>pos_api_key</code> đầu tiên có giá trị trong <code>shops.json</code>.
+        Để trống nếu không muốn thay đổi.
+      </p>
+      <div class="row g-2 align-items-center">
+        <div class="col-12 col-md-8">
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-key"></i></span>
+            <input type="text" name="master_key" id="masterKeyInput"
+                   class="form-control font-monospace"
+                   placeholder="Để trống nếu không đổi…"
+                   autocomplete="off">
+            <button type="button" class="btn btn-outline-secondary" onclick="toggleKeyVisibility('masterKeyInput','masterKeyToggle')" id="masterKeyToggle">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+        <div class="col-12 col-md-4">
+          {% if master_key %}
+          <div class="text-success small">
+            <i class="bi bi-check-circle me-1"></i>Đang dùng key: <code>{{ master_key[:12] }}…</code>
+          </div>
+          {% else %}
+          <div class="text-danger small">
+            <i class="bi bi-exclamation-triangle me-1"></i>Chưa có master key
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Per-shop API Keys ── #}
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-shop me-1 text-info"></i> API Key theo từng shop</span>
+      <span class="badge bg-light text-muted border">{{ shops|length }} shop</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width:100px">Shop Key</th>
+              <th style="width:140px">Tên shop</th>
+              <th style="width:140px">POS Shop ID</th>
+              <th>API Key riêng (để trống = dùng master key)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for shop in shops %}
+            <tr>
+              <td><span class="badge bg-primary">{{ shop.shop_key }}</span></td>
+              <td class="small">{{ shop.shop_name }}</td>
+              <td>
+                {% if shop.pos_shop_id %}
+                <a href="https://pos.pancake.vn/shop/{{ shop.pos_shop_id }}/order" target="_blank">
+                  <code class="small">{{ shop.pos_shop_id }}</code>
+                  <i class="bi bi-box-arrow-up-right ms-1 small"></i>
+                </a>
+                {% else %}<span class="text-muted">—</span>{% endif %}
+              </td>
+              <td>
+                <div class="input-group input-group-sm">
+                  <input type="text" name="key_{{ shop.id }}"
+                         id="key_{{ shop.id }}"
+                         class="form-control font-monospace shop-key-input"
+                         value="{{ shop.pos_api_key or '' }}"
+                         placeholder="(dùng master key)"
+                         autocomplete="off">
+                  <button type="button" class="btn btn-outline-secondary btn-sm"
+                          onclick="toggleKeyVisibility('key_{{ shop.id }}','toggle_{{ shop.id }}',true)"
+                          id="toggle_{{ shop.id }}">
+                    <i class="bi bi-eye-slash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-floppy-fill me-1"></i>Lưu tất cả thay đổi
+    </button>
+    <a href="/kho-vat-ly/" class="btn btn-outline-secondary">Huỷ</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Ẩn tất cả shop key inputs ban đầu (hiện dấu sao)
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.shop-key-input').forEach(inp => {
+    if (inp.value) inp.type = 'password';
+  });
+});
+
+function toggleKeyVisibility(inputId, btnId, isPassword) {
+  const inp = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  if (!inp || !btn) return;
+  if (inp.type === 'password' || inp.type === 'text' && isPassword) {
+    // Hiện dạng text
+    inp.type = 'text';
+    btn.innerHTML = '<i class="bi bi-eye-slash"></i>';
+  } else {
+    inp.type = 'password';
+    btn.innerHTML = '<i class="bi bi-eye"></i>';
+  }
+}
+
+// Xác nhận trước khi lưu
+document.querySelector('form').addEventListener('submit', function(e) {
+  if (!confirm('Lưu thay đổi API key? Đảm bảo bạn đã copy key mới đúng từ Pancake POS.')) {
+    e.preventDefault();
+  }
+});
+</script>
+{% endblock %}

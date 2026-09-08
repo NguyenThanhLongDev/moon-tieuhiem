@@ -1,0 +1,444 @@
+{# ── Menu chính DÙNG CHUNG cho mọi trang (include vào đầu <body>) ──
+   Phụ thuộc: has_module() (context_processor), session, url_for — đều global.
+   Cần Bootstrap CSS + bundle JS (cho dropdown) trên trang nhúng. #}
+<style>
+  /* Chuyển trang mượt (cross-fade) thay vì nháy trắng — Chrome hỗ trợ; trình duyệt khác bỏ qua an toàn.
+     Đặt tên cho navbar để nó ĐỨNG YÊN khi đổi trang (chỉ nội dung thay đổi). */
+  @view-transition { navigation: auto; }
+  html { background: #f5f6fa; }
+  /* KHÔNG đặt view-transition-name cho nav — nó làm hỏng position:sticky (Chrome) → nav bị mất khi lướt. */
+  .thn-nav { position: sticky; top: 0; z-index: 1040; }
+  .thn-nav .nav-link { color: rgba(255,255,255,.8) !important; font-size: 13.5px; }
+  .thn-nav .nav-link:hover, .thn-nav .nav-link.active { color: #F59E0B !important; }
+  .thn-nav .navbar-brand { font-weight: 700; letter-spacing: .3px; font-size: 15px; color: #F59E0B !important; }
+  .thn-nav .dropdown-menu { font-size: 13.5px; }
+  /* Nút Bật/Tắt thông báo — pill gọn, không dùng .nav-link để tránh xung đột hover của navbar.
+     Mặc định (chưa bật) = viền cam; đã bật (.is-on) = nền xanh. JS chỉ thêm/bỏ class .is-on. */
+  .push-toggle-btn { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:500; line-height:1;
+                     padding:6px 13px; border-radius:20px; cursor:pointer; white-space:nowrap;
+                     color:#fbbf24; background:transparent; border:1px solid rgba(251,191,36,.55); transition:.15s; }
+  .push-toggle-btn .bi { font-size:14px; }
+  .push-toggle-btn:hover { background:rgba(251,191,36,.15); color:#fde68a; }
+  .push-toggle-btn.is-on { color:#fff; background:#10b981; border-color:#10b981; }
+  .push-toggle-btn.is-on:hover { background:#0ea271; color:#fff; }
+  .push-toggle-btn:disabled { opacity:.6; cursor:default; }
+  /* Mega-menu "Quảng cáo" — nhiều cột có tiêu đề nhóm */
+  .thn-mega { padding:14px 10px; border:none; box-shadow:0 8px 28px rgba(0,0,0,.16); border-radius:12px; }
+  .thn-mega-wrap { display:flex; gap:4px; }
+  .thn-mega-col { flex:1 1 0; min-width:172px; padding:0 6px; }
+  .thn-mega-col + .thn-mega-col { border-left:1px solid #f0f0f0; }
+  .thn-mega-hdr { font-size:10.5px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:.6px; padding:2px 12px 7px; }
+  .thn-mega .dropdown-item { border-radius:7px; padding:7px 12px; font-size:13.5px; color:#1e293b; }
+  .thn-mega .dropdown-item:hover { background:#fff7ed; color:#b45309; }
+  @media (max-width:991px) {
+    .thn-mega { min-width:auto; }
+    .thn-mega-wrap { flex-direction:column; gap:2px; }
+    .thn-mega-col + .thn-mega-col { border-left:none; border-top:1px solid #f0f0f0; padding-top:8px; margin-top:6px; }
+  }
+  /* Hover mở dropdown (desktop) — đưa chuột vào là xổ, khỏi bấm */
+  @media (min-width:992px) {
+    .thn-nav .nav-item.dropdown:hover > .dropdown-menu { display:block; margin-top:0; }
+    .thn-nav .nav-item.dropdown > .dropdown-menu { margin-top:0; }   /* bắc cầu, không rớt menu khi rê chuột */
+  }
+
+  /* ═══ Menu điện thoại kiểu app (bê từ tieuhiem.com): trượt từ trái + nền mờ,
+     thay cho collapse xổ dọc đẩy nội dung. Máy tính giữ nguyên. ═══ */
+  @media(max-width:991.98px){
+    /* ═══ MOBILE: menu cha → DRAWER trượt từ trái (kiểu app), PC giữ nguyên ═══ */
+    #thnMainNav{
+      position:fixed; top:0; left:0; bottom:0; height:100vh!important; height:100dvh!important;
+      width:82vw; max-width:330px; background:#16181d; z-index:2100;
+      display:block!important; overflow-y:auto; -webkit-overflow-scrolling:touch;
+      padding:10px 12px 30px;
+      transform:translateX(-105%); transition:transform .28s cubic-bezier(.2,.8,.3,1);
+      box-shadow:8px 0 32px rgba(0,0,0,.45);
+    }
+    #thnMainNav.drawer-open{ transform:translateX(0); }
+    #thnMainNav .navbar-nav{ gap:2px; }
+    #thnMainNav .nav-item{ width:100%; }
+    #thnMainNav .nav-link{
+      display:flex!important; align-items:center; gap:6px; width:100%;
+      padding:11px 14px!important; font-size:15px!important; border-radius:10px;
+      color:#e7e9ee!important; white-space:normal!important;
+    }
+    #thnMainNav .nav-link.active{ background:#2e323b; color:#F59E0B!important; }
+    #thnMainNav .nav-link:active{ background:#262a31; }
+    #thnMainNav .dropdown-menu{ position:static!important; float:none; }
+    #thnMainNav .dropdown-menu.mega{ background:#1f232a; border-radius:12px; margin:2px 4px 8px; padding:10px; }
+    #thnMainNav .mega .mega-h{ color:#8b93a1; border-bottom-color:#2b2f37; }
+    #thnMainNav .mega .mega-link{ color:#d6dae2; padding:9px 10px; font-size:14px; border-radius:8px; white-space:normal; }
+    #thnMainNav .mega .mega-link:hover,#thnMainNav .mega .mega-link:active{ background:#2a2e36; color:#F59E0B; }
+    #thnMainNav .mega .mega-link i{ color:#7d8594; }
+    /* Khu bên phải (thông báo / user / đăng xuất) → block dưới cùng, có vạch ngăn */
+    #thnMainNav .navbar-nav.ms-auto{ margin-top:12px; padding-top:12px; border-top:1px solid #2b2f37; align-items:stretch!important; }
+    #thnMainNav .navbar-nav.ms-auto .btn{ width:100%; text-align:left; padding:10px 14px!important; border-radius:10px!important; font-size:14px!important; }
+    /* Backdrop mờ sau drawer */
+    #navDrawerBackdrop{ position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:2050; display:none; }
+    #navDrawerBackdrop.show{ display:block; }
+    /* Header trong drawer: brand + nút đóng */
+    .nav-drawer-hd{ display:flex; align-items:center; justify-content:space-between;
+      padding:6px 6px 12px; border-bottom:1px solid #2b2f37; margin-bottom:10px; }
+    .nav-drawer-hd .brand{ color:#F59E0B; font-weight:800; font-size:15px; }
+    .nav-drawer-x{ border:none; background:#2a2e36; color:#cbd5e1; width:36px; height:36px;
+      border-radius:10px; font-size:22px; line-height:1; }
+  }
+  }
+  @media(min-width:992px){
+    .nav-drawer-hd,#navDrawerBackdrop{ display:none!important; }
+  }
+</style>
+<nav class="navbar navbar-expand-lg navbar-dark sticky-top shadow-sm thn-nav" style="background:#1a1a1a;z-index:1030">
+  <div class="container-fluid px-3">
+    <a class="navbar-brand d-flex align-items-center gap-2" href="/" title="Về trang chủ">
+      <i class="bi bi-graph-up-arrow"></i> Tiểu Hiềm Software
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#thnMainNav" aria-expanded="false">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="thnMainNav">
+      <ul class="navbar-nav me-auto">
+        {% if has_module('dashboard') %}
+        <li class="nav-item">
+          <a class="nav-link" href="/"><i class="bi bi-bar-chart-line me-1"></i>Doanh thu</a>
+        </li>
+        {% endif %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-people me-1"></i>Quản lý nhân sự
+          </a>
+          <div class="dropdown-menu thn-mega">
+            <div class="thn-mega-wrap">
+              {% if session.get('role') in ('admin','superadmin','manager','it') %}
+              <div class="thn-mega-col">
+                <div class="thn-mega-hdr"><i class="bi bi-people-fill me-1"></i>Nhân sự &amp; quyền</div>
+                <a class="dropdown-item" href="/settings?tab=staff"><i class="bi bi-person-plus me-2 text-warning"></i>Nhân sự <small class="text-muted">(NV/Team)</small></a>
+                <a class="dropdown-item" href="/settings?tab=phan_quyen"><i class="bi bi-shield-lock me-2 text-warning"></i>Phân quyền</a>
+              </div>
+              {% endif %}
+              <div class="thn-mega-col">
+                <div class="thn-mega-hdr"><i class="bi bi-clipboard-check me-1"></i>Chấm công</div>
+                <a class="dropdown-item" href="/cham-cong/"><i class="bi bi-speedometer2 me-2"></i>Tổng quan</a>
+                <a class="dropdown-item" href="/cham-cong/diem-danh"><i class="bi bi-calendar-check me-2"></i>Chấm công</a>
+                <a class="dropdown-item" href="/cham-cong/cong-viec"><i class="bi bi-kanban me-2"></i>Công việc</a>
+                <a class="dropdown-item" href="/cham-cong/kpi"><i class="bi bi-graph-up-arrow me-2"></i>KPI</a>
+                <a class="dropdown-item" href="/cham-cong/bo-sung-cong"><i class="bi bi-calendar-plus me-2"></i>Bổ sung công</a>
+                <a class="dropdown-item" href="/cham-cong/admin"><i class="bi bi-gear-wide-connected me-2"></i>Quản lý chấm công</a>
+              </div>
+              <div class="thn-mega-col">
+                <div class="thn-mega-hdr"><i class="bi bi-person-vcard me-1"></i>Hồ sơ</div>
+                <a class="dropdown-item" href="/hr/my-profile"><i class="bi bi-person-vcard me-2"></i>Hồ sơ HR</a>
+              </div>
+            </div>
+          </div>
+        </li>
+        {% set _q1 = has_module('chi_phi_qc') %}
+        {% set _q2 = session.get('role') in ('admin','superadmin','manager','it') %}
+        {% if _q1 or _q2 %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-megaphone me-1"></i>Quảng cáo
+          </a>
+          <div class="dropdown-menu thn-mega">
+            <div class="thn-mega-wrap">
+              {% if _q1 %}
+              <div class="thn-mega-col">
+                <div class="thn-mega-hdr"><i class="bi bi-cash-coin me-1"></i>Chi phí QC</div>
+                <a class="dropdown-item" href="/chi-phi-qc/"><i class="bi bi-graph-up-arrow me-2 text-success"></i>Chi phí QC</a>
+                <a class="dropdown-item" href="/chi-phi-qc/bao-cao"><i class="bi bi-file-bar-graph me-2"></i>Báo cáo</a>
+                <a class="dropdown-item" href="/chi-phi-qc/bao-cao-kt"><i class="bi bi-calculator me-2"></i>Bc ads KT</a>
+                <a class="dropdown-item" href="/chi-phi-qc/page-test"><i class="bi bi-clipboard2-pulse me-2 text-warning"></i>Page Test</a>
+              </div>
+              {% endif %}
+              {% if _q2 %}
+              <div class="thn-mega-col">
+                <div class="thn-mega-hdr"><i class="bi bi-diagram-3 me-1"></i>Page &amp; Tài khoản</div>
+                <a class="dropdown-item" href="/page-account/"><i class="bi bi-building me-2"></i>Business Managers</a>
+                <a class="dropdown-item" href="/page-account/page-ads"><i class="bi bi-collection me-2 text-primary"></i>Page &amp; Ads</a>
+                <a class="dropdown-item" href="/page-account/ad-accounts"><i class="bi bi-person-badge me-2"></i>Tài khoản QC</a>
+              </div>
+              <div class="thn-mega-col">
+                <div class="thn-mega-hdr"><i class="bi bi-shield-check me-1 text-danger"></i>Kiểm soát</div>
+                <a class="dropdown-item" href="/page-account/kiem-soat"><i class="bi bi-shield-exclamation me-2"></i>Kiểm soát TK lạ</a>
+                <a class="dropdown-item" href="/bat-gian-lan/"><i class="bi bi-incognito me-2 text-danger"></i>Bắt sale gian lận <span class="badge bg-danger" style="font-size:9px;vertical-align:middle">beta</span></a>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </li>
+        {% endif %}
+        {% if session.get('role') in ['admin','superadmin','manager','it','accountant','ketoan','leader','sale'] %}
+        <li class="nav-item">
+          <a class="nav-link" href="/ladipage/"><i class="bi bi-bag-check me-1"></i>Đơn Ladi</a>
+        </li>
+        {% endif %}
+        {% if has_module('settings') %}
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('settings.settings_page') }}"><i class="bi bi-gear me-1"></i>Cài đặt</a>
+        </li>
+        {% endif %}
+      </ul>
+      <ul class="navbar-nav ms-auto align-items-center gap-1">
+        <li class="nav-item">
+          <button type="button" class="push-toggle-btn" data-push-action="toggle" title="Bật/tắt thông báo đẩy">
+            <i class="bi bi-bell"></i><span data-push-label>Bật thông báo</span>
+          </button>
+        </li>
+        <li class="nav-item" id="ccUserMenu" style="position:relative;">
+          <a href="#" id="ccUserToggle" class="nav-link" title="Tài khoản"
+             style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;transition:background .15s;cursor:pointer;"
+             onmouseover="this.style.background='rgba(255,255,255,.12)'" onmouseout="this.style.background='transparent'">
+            <i class="bi bi-person-circle"></i>{{ session.get('full_name') or session.get('username') or '' }}
+            <i class="bi bi-chevron-down" style="font-size:10px;opacity:.7;"></i>
+          </a>
+          <div id="ccUserDrop"
+               style="display:none;position:absolute;right:0;top:calc(100% + 6px);min-width:210px;background:#fff;border:1px solid #eee;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.28);padding:6px;z-index:2100;">
+            <div style="padding:8px 12px 6px;border-bottom:1px solid #f1f1f1;margin-bottom:4px;">
+              <div style="font-size:11px;color:#999;">Đăng nhập bằng</div>
+              <div style="font-weight:700;color:#1a1a1a;font-size:14px;">{{ session.get('full_name') or session.get('username') or '' }}</div>
+            </div>
+            <a href="/profile" class="cc-user-item"
+               style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;text-decoration:none;color:#333;font-size:14px;">
+              <i class="bi bi-person-circle" style="color:#F59E0B;font-size:16px;"></i> Hồ sơ của tôi
+            </a>
+            {% if (session.get('role','') or '')|lower in ('admin','superadmin','manager') %}
+            <a href="/billing" class="cc-user-item"
+               style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;text-decoration:none;color:#333;font-size:14px;">
+              <i class="bi bi-credit-card" style="color:#F59E0B;font-size:16px;"></i> Thuê bao phần mềm
+            </a>
+            {% endif %}
+            <a href="{{ url_for('auth.logout') }}" class="cc-user-item"
+               style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;text-decoration:none;color:#dc2626;font-size:14px;font-weight:600;">
+              <i class="bi bi-box-arrow-right" style="font-size:16px;"></i> Thoát
+            </a>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+{% if billing_st and billing_st.state in ('sap_het','an_han') %}
+<a href="/gia-han" style="display:block;text-decoration:none;text-align:center;padding:8px 14px;font-size:13.5px;font-weight:600;
+   {% if billing_st.state == 'an_han' %}background:#fee2e2;color:#b91c1c;border-bottom:1px solid #fecaca;{% else %}background:#fef3c7;color:#92600a;border-bottom:1px solid #fde68a;{% endif %}">
+  {% if billing_st.state == 'an_han' %}⛔ Thuê bao phần mềm ĐÃ HẾT HẠN {{ -billing_st.days_left }} ngày — còn {{ billing_st.grace_days + billing_st.days_left }} ngày ân hạn. Bấm để gia hạn ngay.
+  {% else %}⏳ Thuê bao phần mềm còn {{ billing_st.days_left }} ngày là hết hạn. Bấm để gia hạn.{% endif %}
+</a>
+{% endif %}
+<style>.cc-user-item:hover{ background:#faf7f0 !important; }</style>
+<script>
+(function(){
+  var t = document.getElementById('ccUserToggle');
+  var d = document.getElementById('ccUserDrop');
+  if(!t || !d) return;
+  function close(){ d.style.display='none'; }
+  t.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation();
+    d.style.display = (d.style.display==='block') ? 'none' : 'block'; });
+  document.addEventListener('click', function(e){ if(!document.getElementById('ccUserMenu').contains(e.target)) close(); });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') close(); });
+})();
+</script>
+{# Web Push: tự gắn nút [data-push-action] (nút "Bật thông báo" ở navbar) trên mọi trang #}
+<script src="/static/push-client.js" defer></script>
+
+{# Nút "Lên đầu trang" (↑) — hiện khi cuộn, chỉ mobile (kiểu tieuhiem.com) #}
+<style>
+#gBackTop{ position:fixed; right:14px; bottom:80px; z-index:1490; width:44px; height:44px;
+  border:1px solid #fde68a; border-radius:50%; background:#fff; color:#F59E0B; font-size:20px;
+  box-shadow:0 4px 14px rgba(0,0,0,.2); display:none; align-items:center; justify-content:center; }
+#gBackTop.show{ display:flex; }
+@media (min-width: 769px){ #gBackTop{ display:none !important; } }  /* chỉ mobile */
+</style>
+<script>
+(function(){
+  if (document.getElementById('gBackTop')) return;
+  var b=document.createElement('button');
+  b.type='button'; b.id='gBackTop'; b.setAttribute('aria-label','Lên đầu trang');
+  b.innerHTML='<i class="bi bi-arrow-up"></i>';
+  document.body.appendChild(b);
+  var t=null;
+  window.addEventListener('scroll', function(){
+    if(t) return;
+    t=setTimeout(function(){ t=null;
+      b.classList.toggle('show', (window.scrollY||document.documentElement.scrollTop||0) > 350);
+    }, 120);
+  }, {passive:true});
+  b.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+})();
+</script>
+<script>
+// ═══ Mobile drawer cho menu cha: chặn collapse Bootstrap, trượt từ trái + backdrop ═══
+(function(){
+  var btn = document.querySelector('button.navbar-toggler[data-bs-target="#thnMainNav"]');
+  var menu = document.getElementById('thnMainNav');
+  if (!btn || !menu || menu._drawerInit) return;
+  menu._drawerInit = true;
+  btn.removeAttribute('data-bs-toggle');   // bỏ hành vi collapse mặc định (đã thay bằng drawer)
+
+  var bd = document.createElement('div');
+  bd.id = 'navDrawerBackdrop';
+  document.body.appendChild(bd);
+
+  var hd = document.createElement('div');
+  hd.className = 'nav-drawer-hd d-lg-none';
+  hd.innerHTML = '<span class="brand"><i class="bi bi-graph-up-arrow me-1"></i>Tiểu Hiềm Software</span>'
+               + '<button type="button" class="nav-drawer-x" aria-label="Đóng menu">&times;</button>';
+  menu.insertBefore(hd, menu.firstChild);
+
+  // nav cha có stacking context riêng (sticky-top z-index thấp) → khi mở drawer phải
+  // NÂNG z-index của nav lên trên backdrop, không thì backdrop đè mờ + chặn bấm menu.
+  var navEl = menu.closest('nav');
+  function open(){
+    if (navEl) navEl.style.zIndex = '2200';
+    menu.classList.add('drawer-open'); bd.classList.add('show'); document.body.style.overflow='hidden';
+  }
+  function close(){
+    menu.classList.remove('drawer-open'); bd.classList.remove('show'); document.body.style.overflow='';
+    if (navEl) setTimeout(function(){ navEl.style.zIndex = ''; }, 300);
+  }
+  btn.addEventListener('click', function(e){
+    e.preventDefault(); e.stopPropagation();
+    menu.classList.contains('drawer-open') ? close() : open();
+  });
+  hd.querySelector('.nav-drawer-x').addEventListener('click', close);
+  bd.addEventListener('click', close);
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') close(); });
+  // Chọn 1 link (không phải mục xổ xuống) → tự đóng drawer rồi chuyển trang
+  menu.addEventListener('click', function(e){
+    var a = e.target.closest('a');
+    if (a && !a.classList.contains('dropdown-toggle')) close();
+  });
+})();
+</script>
+
+{# ══════════════════════════════════════════════════════════════════════════
+   THANH MENU DƯỚI CÙNG cho ĐIỆN THOẠI (kiểu app LadiChat) — dùng chung mọi trang.
+   PC không hiện. Mục cuối "Menu" mở drawer bên trái (tái dùng nút ☰ có sẵn).
+   ══════════════════════════════════════════════════════════════════════════ #}
+<style>
+#thnBottomNav{ display:none; }
+@media(max-width:991.98px){
+  #thnBottomNav{
+    display:flex; position:fixed; left:0; right:0; bottom:0; z-index:1450;
+    background:#fff; border-top:1px solid #e5e7eb; padding:5px 2px 4px;
+    box-shadow:0 -3px 14px rgba(0,0,0,.08);
+    padding-bottom:calc(4px + env(safe-area-inset-bottom));
+  }
+  #thnBottomNav a, #thnBottomNav button{
+    flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center;
+    gap:2px; padding:5px 2px; border:none; background:none; text-decoration:none;
+    color:#8a94a6; font-size:10.5px; font-weight:600; line-height:1.2;
+  }
+  #thnBottomNav .bi{ font-size:19px; }
+  #thnBottomNav a.on{ color:#F59E0B; }
+  #thnBottomNav span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+  /* Chừa chỗ cho thanh dưới — không thì nội dung cuối trang bị che */
+  body{ padding-bottom:62px !important; }
+  /* Đẩy các nút nổi (Tìm & Lọc, Lên đầu trang) lên trên thanh menu */
+  #llFilterFab, #ldFab, #dbFab, #psFab, #ptFab, #cpqcFab{ bottom:76px !important; }
+  #gBackTop{ bottom:130px !important; }
+}
+</style>
+<nav id="thnBottomNav">
+  {% set _p = request.path %}
+  {% if has_module('dashboard') %}
+  <a href="/" class="{{ 'on' if _p == '/' }}">
+    <i class="bi bi-bar-chart-line"></i><span>Doanh thu</span></a>
+  {% endif %}
+  {% if has_module('chi_phi_qc') %}
+  <a href="/chi-phi-qc/" class="{{ 'on' if _p.startswith('/chi-phi-qc/') and 'lai-lo' not in _p }}">
+    <i class="bi bi-megaphone"></i><span>Chi phí QC</span></a>
+  <a href="/chi-phi-qc/lai-lo" class="{{ 'on' if 'lai-lo' in _p }}">
+    <i class="bi bi-graph-up-arrow"></i><span>Lãi/Lỗ</span></a>
+  {% endif %}
+  {% if has_module('ladipage') %}
+  <a href="/ladipage/" class="{{ 'on' if _p.startswith('/ladipage') }}">
+    <i class="bi bi-bag-check"></i><span>Đơn Ladi</span></a>
+  {% endif %}
+  <button type="button" id="thnBnMenu"><i class="bi bi-list"></i><span>Menu</span></button>
+</nav>
+<script>
+document.getElementById('thnBnMenu')?.addEventListener('click', function(){
+  document.querySelector('button.navbar-toggler')?.click();   // mở drawer trái
+});
+</script>
+
+{# ══════════════════════════════════════════════════════════════════════════
+   NÚT "TÌM & LỌC" DÙNG CHUNG (điện thoại) — cho MỌI trang, giao diện thống nhất.
+   Cách dùng: thêm data-mfilter vào khối lọc của trang:  <div data-mfilter> … </div>
+   Trang nào đã có FAB riêng thì bộ này TỰ TẮT để khỏi 2 nút chồng nhau.
+   ══════════════════════════════════════════════════════════════════════════ #}
+<style>
+/* Khối hướng dẫn/cảnh báo dài → ẩn trên điện thoại cho gọn (PC vẫn hiện) */
+@media(max-width:768px){ .mobile-hide{ display:none !important; } }
+#gFilterFab{ display:none; } #gFilterSheet{ display:none; }
+@media(max-width:768px){
+  [data-mfilter]:not(.in-gsheet){ display:none !important; }
+  [data-mfilter].in-gsheet{ display:block !important; width:100%; margin:0 0 16px !important;
+      padding:0 !important; border:none !important; box-shadow:none !important; background:none !important; }
+  [data-mfilter].in-gsheet .row, [data-mfilter].in-gsheet .d-flex{
+      flex-direction:column !important; align-items:stretch !important; gap:12px !important; }
+  [data-mfilter].in-gsheet .form-control, [data-mfilter].in-gsheet .form-select,
+  [data-mfilter].in-gsheet .cc-ms, [data-mfilter].in-gsheet .dr-picker,
+  [data-mfilter].in-gsheet .dr-trigger, [data-mfilter].in-gsheet select,
+  [data-mfilter].in-gsheet input{ width:100% !important; max-width:none !important; min-width:0 !important; }
+  [data-mfilter].in-gsheet .btn{ width:100%; padding:12px; font-size:15px; font-weight:700; }
+  [data-mfilter].in-gsheet .col, [data-mfilter].in-gsheet [class*="col-"]{ width:100%; flex:1 1 100%; max-width:100%; }
+  #gFilterFab{ display:flex; position:fixed; right:14px; bottom:76px; z-index:1500;
+    align-items:center; gap:6px; background:#F59E0B; color:#fff; border:none;
+    border-radius:999px; padding:12px 18px; font-weight:700; font-size:14px;
+    box-shadow:0 6px 20px rgba(245,158,11,.45); }
+  #gFilterSheet.open{ display:block; position:fixed; inset:0; z-index:2600; }
+  #gFilterSheet .gs-bd{ position:absolute; inset:0; background:rgba(15,23,42,.5); }
+  #gFilterSheet .gs-card{ position:absolute; left:0; right:0; bottom:0; background:#fff;
+    border-radius:16px 16px 0 0; padding:14px 16px 24px; max-height:84vh; overflow-y:auto;
+    box-shadow:0 -8px 30px rgba(0,0,0,.25); }
+  #gFilterSheet .gs-hd{ display:flex; align-items:center; justify-content:space-between;
+    font-weight:800; font-size:15px; margin-bottom:14px; }
+  #gFilterSheet .gs-x{ border:none; background:#f1f5f9; border-radius:999px;
+    width:32px; height:32px; font-size:18px; line-height:1; }
+}
+</style>
+<button type="button" id="gFilterFab"><i class="bi bi-funnel-fill"></i> Tìm &amp; Lọc</button>
+<div id="gFilterSheet">
+  <div class="gs-bd"></div>
+  <div class="gs-card">
+    <div class="gs-hd"><span><i class="bi bi-funnel me-1"></i>Tìm &amp; Lọc</span>
+      <button type="button" class="gs-x">&times;</button></div>
+    <div id="gFilterSlot"></div>
+  </div>
+</div>
+<script>
+(function(){
+  var fab=document.getElementById('gFilterFab'), sheet=document.getElementById('gFilterSheet'),
+      slot=document.getElementById('gFilterSlot');
+  if(!fab||!sheet||!slot) return;
+  // _main_nav nằm ĐẦU <body> nên lúc này khối lọc của trang CHƯA được vẽ ra
+  // → phải kiểm tra sau khi tải xong DOM, không thì luôn tưởng trang không có bộ lọc.
+  function kiemTra(){
+    if(document.querySelector('#llFilterFab,#ldFab,#dbFab,#psFab,#ptFab,#paFab,#cpqcFab')
+       || !document.querySelector('[data-mfilter]')){
+      fab.style.setProperty('display','none','important');
+    }
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', kiemTra);
+  } else { kiemTra(); }
+  var moved=[], home=[];
+  function open(){
+    document.querySelectorAll('[data-mfilter]').forEach(function(el){
+      home.push([el, el.parentNode, el.nextSibling]);
+      slot.appendChild(el); el.classList.add('in-gsheet'); moved.push(el);
+    });
+    sheet.classList.add('open'); document.body.style.overflow='hidden';
+  }
+  function close(){
+    moved.forEach(function(el){ el.classList.remove('in-gsheet'); });
+    home.forEach(function(h){ h[1].insertBefore(h[0], h[2]); });
+    moved=[]; home=[]; sheet.classList.remove('open'); document.body.style.overflow='';
+  }
+  fab.addEventListener('click', open);
+  sheet.querySelector('.gs-x').addEventListener('click', close);
+  sheet.querySelector('.gs-bd').addEventListener('click', close);
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape' && sheet.classList.contains('open')) close(); });
+})();
+</script>

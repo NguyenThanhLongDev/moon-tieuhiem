@@ -1,0 +1,293 @@
+{% extends "kho_vat_ly/base.html" %}
+{% block title %}Phiếu Kiểm Kho {{ st.stocktake_code }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div>
+    <h1><i class="bi bi-clipboard-data me-2"></i>{{ st.stocktake_code }}</h1>
+    <p class="text-muted mb-0">
+      Ngày tạo: {{ fmt_hcm(st.created_at, '%d/%m/%Y %H:%M') if st.created_at else '—' }}
+      &nbsp;·&nbsp; Người tạo: {{ st.created_by or '—' }}
+      {% if st.warehouse_id %}
+        &nbsp;·&nbsp;
+        <span class="badge" style="background:#e8f4fd;color:#1565c0;font-size:.8rem;">
+          <i class="bi bi-building me-1"></i>{{ wh_map.get(st.warehouse_id, 'Kho #' ~ st.warehouse_id) }}
+        </span>
+      {% endif %}
+      {% if st.note %}&nbsp;·&nbsp; {{ st.note }}{% endif %}
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('kho_vat_ly.kiem_kho_list') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Quay lại
+    </a>
+    {% if st.status == 'draft' %}
+    <a href="{{ url_for('kho_vat_ly.kiem_kho_moi', st_id=st.id) }}"
+       class="btn btn-success" title="Quay lại danh sách SP để tick thêm">
+      <i class="bi bi-plus-circle"></i> Thêm SP vào phiếu
+    </a>
+    <form method="POST" action="{{ url_for('kho_vat_ly.kiem_kho_huy', st_id=st.id) }}"
+          onsubmit="return confirm('Huỷ phiếu này? (chỉ chuyển sang trạng thái cancelled, vẫn còn audit)')">
+      <button type="submit" class="btn btn-outline-warning">
+        <i class="bi bi-x-circle"></i> Huỷ phiếu
+      </button>
+    </form>
+    {% endif %}
+    {% if st.status == 'confirmed' %}
+    <form method="POST" action="{{ url_for('kho_vat_ly.kiem_kho_mo_lai', st_id=st.id) }}"
+          onsubmit="return confirm('Mở lại phiếu để sửa? Tồn kho sẽ khôi phục về trước khi áp dụng, phiếu chuyển về Nháp để sửa items. Sau khi sửa xong phải bấm Xác nhận điều chỉnh lại.')"
+          class="d-inline">
+      <button type="submit" class="btn btn-warning fw-semibold" title="Khôi phục tồn + chuyển phiếu về Nháp để sửa">
+        <i class="bi bi-pencil-square"></i> Mở lại để sửa
+      </button>
+    </form>
+    <form method="POST" action="{{ url_for('kho_vat_ly.kiem_kho_rollback', st_id=st.id) }}"
+          onsubmit="return confirm('HUỶ phiếu đã áp dụng? Tồn kho sẽ khôi phục về trước khi áp dụng. Phiếu chuyển sang trạng thái đã huỷ.')"
+          class="d-flex gap-1 align-items-center">
+      <input type="hidden" name="rolled_by" value="admin">
+      <input type="text" name="reason" class="form-control form-control-sm"
+             style="width:200px" placeholder="Lý do huỷ..." required>
+      <button type="submit" class="btn btn-danger" title="Huỷ phiếu đã áp dụng + khôi phục tồn kho">
+        <i class="bi bi-arrow-counterclockwise"></i> Huỷ phiếu (khôi phục tồn)
+      </button>
+    </form>
+    {% endif %}
+    {% if st.status in ['draft','cancelled'] %}
+    <form method="POST" action="{{ url_for('kho_vat_ly.kiem_kho_xoa', st_id=st.id) }}"
+          onsubmit="return confirm('XOÁ HẲN phiếu khỏi DB? Hành động không thể hoàn tác. Nên giữ phiếu cancelled cho audit.')">
+      <button type="submit" class="btn btn-outline-danger">
+        <i class="bi bi-trash"></i> Xoá phiếu
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Stat cards -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card stat-card">
+      <div class="num">{{ total_items }}</div>
+      <div class="label">Sản phẩm đã kiểm</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card">
+      <div class="num {% if items_diff %}text-danger{% else %}text-success{% endif %}">{{ items_diff|length }}</div>
+      <div class="label">Sản phẩm lệch</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card">
+      <div class="num text-success">+{{ fmt_qty(total_diff_up) }}</div>
+      <div class="label">Thừa (tăng tồn)</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card">
+      <div class="num text-danger">-{{ fmt_qty(total_diff_down) }}</div>
+      <div class="label">Thiếu (giảm tồn)</div>
+    </div>
+  </div>
+</div>
+
+<!-- Trạng thái -->
+<div class="mb-4">
+  {% if st.status == 'confirmed' %}
+  <div class="alert alert-success d-flex align-items-center">
+    <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+    <div>
+      <strong>Đã xác nhận</strong> — Tồn kho đã được điều chỉnh theo phiếu này.
+      Người xác nhận: <strong>{{ st.confirmed_by or '—' }}</strong> lúc {{ fmt_hcm(st.confirmed_at, '%d/%m/%Y %H:%M') if st.confirmed_at else '—' }}
+    </div>
+  </div>
+  {% elif st.status == 'cancelled' %}
+  <div class="alert alert-secondary">
+    <i class="bi bi-x-circle me-2"></i> Phiếu này đã bị huỷ.
+  </div>
+  {% else %}
+  <!-- Form xác nhận -->
+  <div class="card border-warning mb-3">
+    <div class="card-header bg-warning text-dark fw-bold">
+      <i class="bi bi-exclamation-triangle me-2"></i>Xác nhận điều chỉnh tồn kho
+    </div>
+    <div class="card-body">
+      <p class="mb-3">
+        Khi xác nhận, hệ thống sẽ <strong>cập nhật tồn kho vật lý</strong> theo số lượng thực tế đã kiểm.
+        Mỗi thay đổi được ghi vào lịch sử chuyển động kho.
+      </p>
+      <form method="POST" action="{{ url_for('kho_vat_ly.kiem_kho_ap_dung', st_id=st.id) }}"
+            onsubmit="return confirm('Xác nhận áp dụng điều chỉnh tồn kho? Hành động này không thể hoàn tác.')">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Người xác nhận</label>
+            <input type="text" name="confirmed_by" class="form-control"
+                   value="{{ current_username or '' }}"
+                   placeholder="Tên người xác nhận" required>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check mt-3">
+              <input class="form-check-input" type="checkbox" name="only_diff" value="1" id="chk-only-diff" checked>
+              <label class="form-check-label" for="chk-only-diff">
+                Chỉ điều chỉnh sản phẩm <strong>lệch</strong> ({{ items_diff|length }} SP)
+              </label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <button type="submit" class="btn btn-warning btn-lg w-100">
+              <i class="bi bi-check2-circle me-2"></i>Xác nhận điều chỉnh
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+
+{# Bảng items đã có trong phiếu (tạo bởi POST /moi từ checkbox đã tick) #}
+<!-- Bộ lọc -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <div class="row align-items-center g-2">
+      <div class="col-md-4">
+        <input type="text" id="search-q" class="form-control form-control-sm" placeholder="🔍 Tìm theo tên / SKU...">
+      </div>
+      <div class="col-auto">
+        <div class="btn-group btn-group-sm" role="group">
+          <button class="btn btn-outline-secondary active" data-filter="all" onclick="setFilter('all', this)">Tất cả ({{ total_items }})</button>
+          <button class="btn btn-outline-danger" data-filter="diff" onclick="setFilter('diff', this)">Có lệch ({{ items_diff|length }})</button>
+          <button class="btn btn-outline-success" data-filter="match" onclick="setFilter('match', this)">Khớp ({{ total_items - items_diff|length }})</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bảng kết quả -->
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
+      <table class="table table-sm table-hover align-middle mb-0" id="result-table">
+        <thead style="position: sticky; top: 0; z-index: 1; background: #f8f9fa;">
+          <tr>
+            <th class="d-none d-sm-table-cell">SKU</th>
+            <th>Tên sản phẩm</th>
+            <th class="d-none d-md-table-cell">Mẫu mã</th>
+            <th class="d-none d-lg-table-cell">Danh mục</th>
+            <th class="text-center d-none d-md-table-cell">ĐVT</th>
+            <th class="text-center">Hệ thống<br><small class="fw-normal text-muted">tại {{ wh_map.get(st.warehouse_id, 'kho') }}</small></th>
+            <th class="text-center d-none d-lg-table-cell">Tồn các kho<br><small class="fw-normal text-muted">Breakdown</small></th>
+            <th class="text-center d-none d-md-table-cell">POS<br><small class="fw-normal text-muted">Tất cả shop</small></th>
+            <th class="text-center">Thực tế<br><small class="fw-normal text-muted">Kiểm được</small></th>
+            <th class="text-center">Chênh lệch<br><small class="fw-normal text-muted">Thực - Hệ thống</small></th>
+            {% if st.status == 'draft' %}<th class="text-center" style="width:50px">Xoá</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr class="item-row {% if item.diff != 0 %}row-diff{% else %}row-match{% endif %}"
+              data-sku="{{ item.sku }}" data-name="{{ item.product_name }}">
+            <td class="font-monospace small d-none d-sm-table-cell">{{ item.sku }}</td>
+            <td>
+              {{ item.product_name }}
+              <div class="d-sm-none text-muted mt-1" style="font-size:.72rem;"><span class="font-monospace">{{ item.sku }}</span></div>
+            </td>
+            <td class="small d-none d-md-table-cell">
+              {% if item.variant_key %}
+                <span class="badge bg-light text-dark border">{{ item.variant_key }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="small text-muted d-none d-lg-table-cell">{{ item.category or '—' }}</td>
+            <td class="text-center small d-none d-md-table-cell">{{ item.unit or '—' }}</td>
+            <td class="text-center fw-semibold">{{ fmt_qty(item.qty_system) }}</td>
+            <td class="text-center small d-none d-lg-table-cell">
+              {% if item.kho_qty_map %}
+                {% for wh in warehouses %}
+                  {% set q = item.kho_qty_map.get(wh.id, 0) %}
+                  {% if q != 0 %}
+                  <div>
+                    <span class="text-muted" style="font-size:11px">{{ wh.name }}:</span>
+                    <strong class="{% if q > 0 %}text-dark{% else %}text-danger{% endif %}">{{ fmt_qty(q) }}</strong>
+                  </div>
+                  {% endif %}
+                {% endfor %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-center text-muted d-none d-md-table-cell">{{ fmt_qty(item.qty_pos) }}</td>
+            <td class="text-center fw-bold">
+              {% if st.status == 'draft' %}
+              <form method="POST" action="{{ url_for('kho_vat_ly.kiem_kho_sua_item', st_id=st.id) }}"
+                    class="d-flex align-items-center justify-content-center gap-1"
+                    onsubmit="this.querySelector('button').disabled=true">
+                <input type="hidden" name="item_id" value="{{ item.id }}">
+                <input type="number" name="qty_counted" value="{{ item.qty_counted }}"
+                       min="0" step="1" required
+                       class="form-control form-control-sm text-center"
+                       style="width:80px">
+                <button type="submit" class="btn btn-sm btn-outline-primary" title="Lưu">
+                  <i class="bi bi-check2"></i>
+                </button>
+              </form>
+              {% else %}
+                {{ fmt_qty(item.qty_counted) }}
+              {% endif %}
+            </td>
+            <td class="text-center">
+              {% if item.diff == 0 %}
+                <span class="badge bg-success">Khớp</span>
+              {% elif item.diff > 0 %}
+                <span class="badge bg-warning text-dark fs-6">+{{ fmt_qty(item.diff) }}</span>
+              {% else %}
+                <span class="badge bg-danger fs-6">{{ fmt_qty(item.diff) }}</span>
+              {% endif %}
+            </td>
+            {% if st.status == 'draft' %}
+            <td class="text-center" style="width:50px">
+              <button type="button" class="btn btn-sm btn-outline-danger kk-xoa-item-btn"
+                      data-item-id="{{ item.id }}" title="Xoá khỏi phiếu">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentFilter = 'all';
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilter();
+}
+function applyFilter() {
+  const q = document.getElementById('search-q').value.toLowerCase();
+  document.querySelectorAll('.item-row').forEach(row => {
+    const name = row.dataset.name.toLowerCase();
+    const sku = row.dataset.sku.toLowerCase();
+    const matchQ = !q || name.includes(q) || sku.includes(q);
+    const isDiff = row.classList.contains('row-diff');
+    const isMatch = row.classList.contains('row-match');
+    let matchF = true;
+    if (currentFilter === 'diff') matchF = isDiff;
+    if (currentFilter === 'match') matchF = isMatch;
+    row.style.display = (matchQ && matchF) ? '' : 'none';
+  });
+}
+document.getElementById('search-q').addEventListener('input', applyFilter);
+
+</script>
+{% endblock %}

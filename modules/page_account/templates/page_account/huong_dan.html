@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hướng dẫn — Page & Tài khoản QC</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; line-height:1.65; }
+.topbar { background:#1a1a1a; padding:10px 20px; color:#F59E0B; font-weight:700; }
+.topbar a { color:rgba(255,255,255,.85); text-decoration:none; margin-left:14px; font-weight:400; font-size:13px; }
+.topbar a:hover { color:#fff; }
+.container-narrow { max-width: 1100px; margin: 20px auto; padding: 0 16px 40px; }
+.section { background:#fff; padding:20px 24px; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.05); margin-bottom:16px; }
+h2 { color:#1a1a1a; font-weight:700; margin-top:0; font-size:22px; border-bottom:2px solid #f59e0b; padding-bottom:8px; }
+h3 { color:#0d6efd; font-weight:600; margin-top:18px; font-size:17px; }
+h4 { color:#374151; font-weight:600; margin-top:14px; font-size:15px; }
+ol li, ul li { margin-bottom:4px; }
+code { background:#f3f4f6; padding:1px 6px; border-radius:4px; font-size:12.5px; color:#dc2626; }
+.kbd { background:#1f2937; color:#fff; padding:2px 8px; border-radius:4px; font-size:11.5px; }
+.flow-box { background:#f0f9ff; border-left:4px solid #0d6efd; padding:12px 16px; margin:12px 0; border-radius:6px; }
+.warn-box { background:#fef3c7; border-left:4px solid #f59e0b; padding:12px 16px; margin:12px 0; border-radius:6px; }
+.bad-box { background:#fee2e2; border-left:4px solid #dc2626; padding:12px 16px; margin:12px 0; border-radius:6px; }
+.good-box { background:#d1fae5; border-left:4px solid #10b981; padding:12px 16px; margin:12px 0; border-radius:6px; }
+.tag-step { background:#0d6efd; color:#fff; padding:2px 10px; border-radius:12px; font-size:12px; font-weight:600; margin-right:6px; }
+.cmp-table { width:100%; font-size:13px; }
+.cmp-table th { background:#f3f4f6; padding:8px; }
+.cmp-table td { padding:8px; border-top:1px solid #e5e7eb; vertical-align:top; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <i class="bi bi-book"></i> Hướng dẫn sử dụng — Page & Tài khoản QC
+  <a href="{{ url_for('page_account.index') }}">Trang chủ</a>
+  <a href="{{ url_for('page_account.all_ad_accounts') }}">TK QC</a>
+  <a href="{{ url_for('page_account.page_binding') }}">Page → Shop</a>
+  <a href="{{ url_for('page_account.chi_phi_hom_nay') }}">Chi phí hôm nay</a>
+</div>
+
+<div class="container-narrow">
+
+  <!-- Mục lục -->
+  <div class="section">
+    <h2>📚 Mục lục</h2>
+    <ol>
+      <li><a href="#triet-ly">Triết lý: mỗi đồng VND đều truy được nguồn</a></li>
+      <li><a href="#tong-quan">Tổng quan 2 phần: TK ↔ NV và Page ↔ Shop</a></li>
+      <li><a href="#gan-tk">Gán TK QC ↔ Nhân viên phụ trách</a></li>
+      <li><a href="#gan-page">Gán Page → Shop POS</a></li>
+      <li><a href="#chi-phi">Cách đọc trang Chi phí hôm nay</a></li>
+      <li><a href="#tinh-huong">Tình huống thực tế thường gặp</a></li>
+      <li><a href="#faq">FAQ — câu hỏi hay gặp</a></li>
+    </ol>
+  </div>
+
+  <!-- 1. Triết lý -->
+  <div class="section" id="triet-ly">
+    <h2>1. 🎯 Triết lý</h2>
+    <p><strong>Mỗi đồng VND chi phí quảng cáo phải truy được nguồn</strong> — không cộng dồn, không thất thoát, không đoán phân bổ.</p>
+    <div class="flow-box">
+      Phần mềm này được thiết kế để "bóc tách từng tế bào VND". Mỗi đồng spend phải biết:
+      <ul class="mb-0">
+        <li><strong>Ai chịu trách nhiệm</strong> — NV nào phụ trách TK quảng cáo này</li>
+        <li><strong>Về shop nào</strong> — page chạy ads thuộc shop POS nào</li>
+      </ul>
+    </div>
+    <p><strong>Nếu không truy được</strong> (page chưa gán shop, TK chưa có NV) → hệ thống <strong>không xoá, không đoán</strong>, mà hiện vào bucket riêng <code>⚠ Chưa gán shop</code> để admin xử lý.</p>
+  </div>
+
+  <!-- 2. Tổng quan -->
+  <div class="section" id="tong-quan">
+    <h2>2. 🗺 Tổng quan 2 phần</h2>
+    <p>Hệ thống cần <strong>2 thông tin độc lập</strong> cho mỗi TK QC:</p>
+    <table class="cmp-table">
+      <thead>
+        <tr>
+          <th style="width:50%">① TK QC ↔ Nhân viên</th>
+          <th style="width:50%">② Page → Shop POS</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Trả lời:</strong> Ai chịu trách nhiệm cho TK này?</td>
+          <td><strong>Trả lời:</strong> Page này chạy cho shop POS nào?</td>
+        </tr>
+        <tr>
+          <td><strong>Dùng cho:</strong> Báo cáo NV, KPI, lương</td>
+          <td><strong>Dùng cho:</strong> Báo cáo lợi nhuận theo shop</td>
+        </tr>
+        <tr>
+          <td><strong>Quan hệ:</strong> 1 TK ↔ 1 NV (1-1, có lịch sử)</td>
+          <td><strong>Quan hệ:</strong> 1 Page → 1 Shop (hoặc NULL = page test)</td>
+        </tr>
+        <tr>
+          <td><strong>Gán ở:</strong> <a href="{{ url_for('page_account.all_ad_accounts') }}">Tab "Tài khoản QC"</a></td>
+          <td><strong>Gán ở:</strong> <a href="{{ url_for('page_account.page_binding') }}">Tab "Page → Shop"</a></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="flow-box mt-3">
+      <strong>Sơ đồ dòng tiền:</strong>
+      <pre class="mb-0" style="background:transparent;color:#374151;font-size:12.5px">
+FB API trả spend (page-level)
+        ↓
+[Page → Shop binding] ← admin gán ở tab "Page → Shop"
+        ↓
+Shop POS (chi phí về đúng shop)
+
+[TK QC → NV phụ trách] ← admin gán ở tab "Tài khoản QC"
+        ↓
+NV chịu trách nhiệm tổng chi phí TK (cho báo cáo KPI/lương)</pre>
+    </div>
+  </div>
+
+  <!-- 3. Gán TK -->
+  <div class="section" id="gan-tk">
+    <h2>3. 👤 Gán TK QC ↔ Nhân viên</h2>
+
+    <h3>Khi nào cần gán?</h3>
+    <ul>
+      <li>TK QC mới sync về từ Facebook → cột "Nhân viên" hiện badge đỏ <span class="badge bg-danger">⚠ Chưa gán NV</span></li>
+      <li>NV phụ trách nghỉ việc → công ty chuyển TK cho NV khác</li>
+      <li>Đổi cơ cấu team → reassign TK sang NV mới</li>
+    </ul>
+
+    <h3>Các bước gán mới</h3>
+    <ol>
+      <li><span class="tag-step">Bước 1</span> Vào trang <a href="{{ url_for('page_account.all_ad_accounts') }}"><strong>Tài khoản QC</strong></a>.</li>
+      <li><span class="tag-step">Bước 2</span> Tìm TK cần gán trong bảng. Cột Nhân viên có nút vàng to <span class="badge bg-warning text-dark">👤 Gán NV phụ trách</span> → bấm.</li>
+      <li><span class="tag-step">Bước 3</span> Modal mở. <strong>Chọn NV</strong> trong dropdown (lọc trong NV đang active).</li>
+      <li><span class="tag-step">Bước 4</span> Khi chọn NV xong, danh sách shop của NV sẽ tự load. <strong>Tick chỉ shops mà TK này thực sự chạy</strong>.
+        <div class="warn-box">
+          <strong>⚠ Quan trọng:</strong> 1 NV có thể quản N shop nhưng <strong>mỗi TK QC chỉ chạy 1 subset shop</strong>.<br>
+          <em>Ví dụ:</em> NV "Nam Cool" có 3 shop (A, B, C). TK "nam5.3" thực ra chỉ chạy shop A → chỉ tick A.<br>
+          Nếu chưa biết → bỏ trống, gán sau bằng nút "Sửa shop".
+        </div>
+      </li>
+      <li><span class="tag-step">Bước 5</span> Nhập <strong>Lý do</strong> (tuỳ chọn) → bấm "Xác nhận gán".</li>
+    </ol>
+
+    <h3>Đổi NV phụ trách</h3>
+    <p>Khi NV cũ nghỉ và công ty chuyển TK cho NV khác:</p>
+    <ol>
+      <li>Bấm nút <span class="badge bg-light text-dark border"><i class="bi bi-arrow-repeat"></i> Đổi NV</span> trên dòng TK đó.</li>
+      <li>Modal hiện cảnh báo: <em>"TK đang do XYZ phụ trách. Submit sẽ đóng khoảng cũ + mở khoảng mới hôm nay."</em></li>
+      <li>Chọn NV mới + tick shop của NV mới + nhập lý do.</li>
+      <li>Submit → hệ thống:
+        <ul>
+          <li>Đóng phụ trách cũ vào ngày <strong>hôm trước</strong> (lịch sử cũ vẫn lưu)</li>
+          <li>Mở phụ trách mới từ <strong>hôm nay</strong></li>
+          <li>Đóng shop mappings cũ + mở mappings mới</li>
+        </ul>
+      </li>
+    </ol>
+    <div class="good-box">
+      <strong>✓ Tốt:</strong> Báo cáo NV cũ kỳ trước vẫn ra số đúng — vì hệ thống dùng date-window join. Báo cáo từ ngày đổi trở đi quy vào NV mới.
+    </div>
+
+    <h3>Các nút khác trên dòng TK</h3>
+    <table class="cmp-table">
+      <thead><tr><th>Nút</th><th>Tác dụng</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge bg-warning text-dark">👤 Gán NV phụ trách</span> (vàng to)</td><td>TK chưa có NV — gán lần đầu</td></tr>
+        <tr><td><i class="bi bi-arrow-repeat"></i> Đổi NV</td><td>Chuyển sang NV khác (đóng cũ + mở mới)</td></tr>
+        <tr><td><i class="bi bi-shop"></i> Sửa shop</td><td>Đổi danh sách shop TK chạy (không đổi NV)</td></tr>
+        <tr><td><i class="bi bi-x-circle text-danger"></i> X đỏ</td><td>Đóng phụ trách (NV nghỉ, chưa có người tiếp quản — TK về trạng thái "Chưa gán NV")</td></tr>
+        <tr><td><i class="bi bi-clock-history"></i> Lịch sử</td><td>Xem lịch sử ai phụ trách TK này từng kỳ (audit log)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 4. Gán Page -->
+  <div class="section" id="gan-page">
+    <h2>4. 🔗 Gán Page → Shop POS</h2>
+
+    <h3>Vì sao cần?</h3>
+    <p>Facebook trả chi phí ads ở cấp <strong>page</strong>, không phải cấp shop. 1 TK QC có thể chạy nhiều page, mỗi page thuộc 1 shop khác nhau. Để chi phí phân bổ đúng về shop POS → mỗi page cần được gán shop POS.</p>
+    <div class="bad-box">
+      <strong>Nếu không gán:</strong> chi phí của page đó sẽ rơi vào bucket <code>⚠ Chưa gán shop</code> ở trang Chi phí hôm nay — không bị mất nhưng không quy được về shop, ảnh hưởng báo cáo lợi nhuận shop.
+    </div>
+
+    <h3>Các bước gán</h3>
+    <ol>
+      <li><span class="tag-step">Bước 1</span> Vào trang <a href="{{ url_for('page_account.page_binding') }}"><strong>Page → Shop</strong></a>.</li>
+      <li><span class="tag-step">Bước 2</span> Mặc định hiện pages có spend 7 ngày gần nhất. Đổi range bằng nút <span class="kbd">1n</span> <span class="kbd">3n</span> <span class="kbd">7n</span> <span class="kbd">14n</span> <span class="kbd">30n</span>.</li>
+      <li><span class="tag-step">Bước 3</span> Lọc <span class="kbd">⚠ Chưa gán</span> để chỉ thấy page cần xử lý.</li>
+      <li><span class="tag-step">Bước 4</span> Cột "Gán shop" có dropdown:
+        <ul>
+          <li>Chọn 1 <strong>Shop POS</strong> → page này thuộc shop đó</li>
+          <li>Chọn <em>"⚙ Page test/marketing chung"</em> → đánh dấu page không thuộc shop nào (đã review)</li>
+        </ul>
+      </li>
+      <li><span class="tag-step">Bước 5</span> Nhập "Ghi chú" (tuỳ chọn — vd "page test team Minh") → bấm <i class="bi bi-check2 text-success"></i></li>
+    </ol>
+
+    <h3>Các loại page</h3>
+    <table class="cmp-table">
+      <thead><tr><th>Badge</th><th>Ý nghĩa</th><th>Cách xử lý</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge bg-success">Đã gán</span></td><td>Page đã có shop POS</td><td>Để vậy</td></tr>
+        <tr><td><span class="badge bg-warning text-dark">Page test</span></td><td>Đã review, mark là page test/marketing chung (NULL shop)</td><td>Để vậy</td></tr>
+        <tr><td><span class="badge bg-danger">⚠ Chưa gán</span></td><td>Page có chi phí nhưng chưa được xử lý</td><td><strong>Cần gán ngay</strong></td></tr>
+        <tr><td><span class="badge" style="background:#fee2e2;color:#991b1b">Zombie</span></td><td>Page không có tên rõ ràng / không có trong pa_pages (nghi vấn)</td><td>Điều tra: page bị xoá? bị hack? Gán hoặc mark test</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Đổi binding</h3>
+    <p>Nếu page chuyển sang shop khác (đổi sở hữu): vào trang Page → Shop, chọn dropdown shop mới → submit. Hệ thống:</p>
+    <ul>
+      <li>Đóng binding cũ vào ngày hôm trước (lịch sử cũ giữ nguyên cho báo cáo các kỳ trước)</li>
+      <li>Mở binding mới từ hôm nay</li>
+    </ul>
+    <p>Xem lịch sử: bấm nút <i class="bi bi-clock-history"></i> bên cạnh.</p>
+  </div>
+
+  <!-- 5. Chi phí hôm nay -->
+  <div class="section" id="chi-phi">
+    <h2>5. 💰 Cách đọc trang Chi phí hôm nay</h2>
+    <p>Trang <a href="{{ url_for('page_account.chi_phi_hom_nay') }}">Chi phí hôm nay</a> hiển thị spend mỗi (TK, shop) trong khoảng ngày chọn.</p>
+
+    <h3>Quy tắc hiển thị</h3>
+    <ul>
+      <li><strong>1 TK chạy 1 page bound shop A</strong> → 1 dòng cho shop A.</li>
+      <li><strong>1 TK chạy 3 page thuộc 3 shop khác nhau</strong> → 3 dòng (mỗi shop 1 dòng) cho cùng TK đó.</li>
+      <li><strong>Page chưa gán shop</strong> → spend đi vào bucket <span class="badge bg-danger">⚠ Chưa gán shop</span> — banner đỏ ở đầu trang sẽ cảnh báo + link "Gán ngay →".</li>
+    </ul>
+
+    <h3>Cross-check số liệu</h3>
+    <p>Tổng spend mọi bucket (gồm "Chưa gán shop") của 1 TK = đúng số FB API trả. Nếu lệch → bug sync, không phải đoán phân bổ.</p>
+  </div>
+
+  <!-- 6. Tình huống -->
+  <div class="section" id="tinh-huong">
+    <h2>6. 🎬 Tình huống thực tế</h2>
+
+    <h3>Tình huống 1: TK mới sync về</h3>
+    <ol>
+      <li>Vào Tài khoản QC, thấy TK với badge <span class="badge bg-danger">⚠ Chưa gán NV</span>.</li>
+      <li>Bấm "Gán NV phụ trách" → chọn NV → tick shop (hoặc bỏ trống).</li>
+      <li>Vào Page → Shop, lọc "Chưa gán" → gán shop cho từng page của TK này.</li>
+      <li>Vào Chi phí hôm nay → kiểm tra spend đã về shop đúng.</li>
+    </ol>
+
+    <h3>Tình huống 2: NV phụ trách nghỉ việc</h3>
+    <ol>
+      <li>Tab Tài khoản QC → tìm các TK của NV cũ.</li>
+      <li>Mỗi TK → bấm "Đổi NV" → chọn NV mới → tick shop mới → ghi lý do "NV cũ nghỉ, chuyển sang NV mới".</li>
+      <li>Báo cáo lương kỳ trước (khi NV cũ còn phụ trách) vẫn ra đúng tên NV cũ — vì versioned.</li>
+    </ol>
+
+    <h3>Tình huống 3: 1 TK chạy ads cho 2 shop khác nhau</h3>
+    <ol>
+      <li>Tab Tài khoản QC → gán TK cho 1 NV phụ trách (1-1).</li>
+      <li>Trong modal Gán NV, tick cả 2 shop (cả 2 đều nằm trong assigned_shops của NV).</li>
+      <li>Tab Page → Shop → gán page nào về shop nào:
+        <ul>
+          <li>Page X → Shop 1</li>
+          <li>Page Y → Shop 2</li>
+        </ul>
+      </li>
+      <li>Chi phí hôm nay sẽ hiện 2 dòng cho TK này — 1 dòng/shop, số đúng theo từng page.</li>
+    </ol>
+
+    <h3>Tình huống 4: Phát hiện page zombie</h3>
+    <ol>
+      <li>Vào Page → Shop → lọc "Zombie".</li>
+      <li>Check ID page trên FB (link sẵn trong bảng) → xem page có thật không, có bị hack không.</li>
+      <li>Nếu page thật và thuộc shop → gán shop.</li>
+      <li>Nếu page test / không xác định → chọn "⚙ Page test/marketing chung".</li>
+      <li>Nếu page lạ chạy ads nhiều → liên hệ team kiểm soát rủi ro.</li>
+    </ol>
+  </div>
+
+  <!-- 7. FAQ -->
+  <div class="section" id="faq">
+    <h2>7. ❓ FAQ</h2>
+
+    <h4>Q: Tại sao 1 TK lại có thể hiện ra nhiều dòng ở Chi phí hôm nay?</h4>
+    <p>A: Vì TK đó chạy nhiều page thuộc nhiều shop khác nhau. Mỗi dòng = 1 shop. Đây là đúng — chi phí phân bổ chính xác về shop chạy ads, không cộng dồn.</p>
+
+    <h4>Q: Nếu tôi gán sai shop cho page thì sao?</h4>
+    <p>A: Vào Page → Shop, đổi lại shop. Hệ thống đóng binding cũ vào hôm qua + mở binding mới từ hôm nay. Lịch sử trước đó vẫn được giữ và áp dụng cho báo cáo kỳ cũ.</p>
+
+    <h4>Q: Một NV có thể phụ trách nhiều TK QC không?</h4>
+    <p>A: Có. 1 NV ↔ N TK QC (1 NV phụ trách nhiều TK). Nhưng 1 TK chỉ có 1 NV phụ trách tại 1 thời điểm (1-1 từ chiều TK).</p>
+
+    <h4>Q: Tại sao có page chạy ads mà không nằm trong danh sách Pages công ty (pa_pages)?</h4>
+    <p>A: Có thể: (1) page mới chưa được sync, (2) page bị xoá nhưng ads vẫn chạy trong vài ngày sync data về, (3) page không thuộc BM công ty đang quản. Cần điều tra trước khi gán shop.</p>
+
+    <h4>Q: Bucket "⚠ Chưa gán shop" trên Chi phí hôm nay có gây sai số không?</h4>
+    <p>A: <strong>Không.</strong> Bucket chỉ là cách hiển thị tạm — số liệu vẫn được tính vào tổng spend (đúng số FB trả). Mục đích là để admin biết phần spend nào chưa quy được shop, để xử lý gán.</p>
+
+    <h4>Q: Lịch sử gán có bị mất khi tôi xoá NV trên trang Users không?</h4>
+    <p>A: <strong>Không.</strong> Tất cả bảng versioned (user_ad_account_assignments, fb_page_shop_binding) lưu lịch sử riêng. Xoá NV chỉ làm NV không gán mới được — lịch sử cũ vẫn nguyên cho báo cáo các kỳ.</p>
+
+    <h4>Q: Tôi muốn audit "ai gán TK này, lúc nào, cho NV nào"?</h4>
+    <p>A: Bấm nút <i class="bi bi-clock-history"></i> trên dòng TK → trang lịch sử hiển thị đầy đủ: ai gán, ngày, lý do, NV cũ → NV mới.</p>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,213 @@
+/* ==========================================================================
+   Cham-Cong Theme — shared design tokens + components
+   Nguồn: modules/cham_cong/templates/cham_cong/base.html
+   ========================================================================== */
+
+:root {
+  --brand: #F59E0B;
+  --brand-dark: #D97706;
+  --brand-darker: #B45309;
+  --green: #10b981;
+  --green-dark: #059669;
+  --red: #ef4444;
+  --red-dark: #dc2626;
+  --blue: #2563eb;
+  --purple: #8b5cf6;
+
+  --bg: #f1f5f9;
+  --card-bg: #ffffff;
+  --border: #e2e8f0;
+  --border-soft: #f1f5f9;
+  --text: #1e293b;
+  --text-mute: #64748b;
+  --text-faint: #94a3b8;
+}
+
+/* ── Card ── */
+.cc-card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.cc-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Stat card ── */
+.cc-stat {
+  background: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.cc-stat-icon {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.cc-stat-val { font-size: 24px; font-weight: 700; line-height: 1; color: var(--text); }
+.cc-stat-lbl { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+
+/* ── Badges (priority / status / role) ── */
+.prio-badge, .status-badge, .cc-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  display: inline-block;
+}
+.prio-urgent { background: #fee2e2; color: #dc2626; }
+.prio-high   { background: #fef3c7; color: #d97706; }
+.prio-normal { background: #dbeafe; color: #2563eb; }
+.prio-low    { background: #f1f5f9; color: #64748b; }
+
+.status-todo        { background: #f1f5f9; color: #64748b; }
+.status-in-progress { background: #dbeafe; color: #2563eb; }
+.status-done        { background: #d1fae5; color: #059669; }
+.status-cancelled   { background: #f1f5f9; color: #9ca3af; text-decoration: line-through; }
+
+/* Role pills — dùng cho user/nhân viên */
+.cc-role-sale      { background: #d1fae5; color: #059669; }
+.cc-role-leader    { background: #dbeafe; color: #2563eb; }
+.cc-role-manager   { background: #ede9fe; color: #7c3aed; }
+.cc-role-admin     { background: #fee2e2; color: #dc2626; }
+.cc-role-staff     { background: #f1f5f9; color: #64748b; }
+.cc-role-kho       { background: #fef3c7; color: #d97706; }
+.cc-role-accountant{ background: #fce7f3; color: #be185d; }
+.cc-role-it        { background: #e0e7ff; color: #4338ca; }
+
+/* ── Group row trong bảng (IT, TEAM-KEN...) ── */
+.cc-table-group td {
+  background: #eef2ff !important;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 8px 12px !important;
+}
+
+/* ── Button semantic ── */
+.cc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color .15s ease, transform .1s ease;
+  color: #fff;
+}
+.cc-btn:hover { transform: translateY(-1px); }
+.cc-btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+.cc-btn-primary { background: var(--brand); }
+.cc-btn-primary:hover { background: var(--brand-dark); color: #fff; }
+
+.cc-btn-success { background: var(--green); }
+.cc-btn-success:hover { background: var(--green-dark); color: #fff; }
+
+.cc-btn-danger { background: var(--red); }
+.cc-btn-danger:hover { background: var(--red-dark); color: #fff; }
+
+.cc-btn-ghost {
+  background: #fff;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.cc-btn-ghost:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: var(--text);
+}
+
+/* ── Input / select chuẩn ── */
+.cc-input,
+.cc-select {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  color: var(--text);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.cc-input:focus,
+.cc-select:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(245,158,11,.15);
+}
+
+/* ── Table cham-cong style ── */
+.cc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.cc-table th {
+  background: #f8fafc;
+  color: var(--text-mute);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+}
+.cc-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: middle;
+}
+.cc-table tbody tr:hover td { background: #fafbfc; }
+
+/* ── Sub-tabs (pill dưới topbar) ── */
+.cc-subtabs {
+  display: flex;
+  gap: 4px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  padding: 0 12px;
+  overflow-x: auto;
+}
+.cc-subtabs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-mute);
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  transition: color .15s ease, border-color .15s ease;
+}
+.cc-subtabs a:hover { color: var(--brand); }
+.cc-subtabs a.active {
+  color: var(--brand);
+  border-bottom-color: var(--brand);
+  font-weight: 600;
+}

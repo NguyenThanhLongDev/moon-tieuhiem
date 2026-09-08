@@ -1,0 +1,262 @@
+{% extends "cham_cong/base.html" %}
+{% block title %}KPI — Tiểu Hiềm{% endblock %}
+{% set active_page = 'kpi' %}
+
+{% block content %}
+<div class="row g-3">
+
+  <!-- Form nhập KPI -->
+  <div class="col-12 col-md-5">
+    <div class="cc-card">
+      <div class="cc-card-title"><i class="bi bi-pencil-square"></i> Nhập KPI hôm nay — {{ today.strftime('%d/%m/%Y') }}</div>
+
+      {% if is_manager and all_employees %}
+      <div class="mb-3">
+        <label class="form-label fw-semibold" style="font-size:13px;">Xem/nhập cho nhân viên</label>
+        <select class="form-select form-select-sm" data-cc-search onchange="changeUid(this.value)">
+          <option value="{{ user.id }}">— Của tôi —</option>
+          {% for e in all_employees %}
+          <option value="{{ e.user_id }}" {% if e.user_id == view_uid %}selected{% endif %}>
+            {{ e.full_name }} ({{ cc_role_label_fn(e.cc_role) }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+
+      <!-- KPI form: hiển thị theo role -->
+      {% set kpi = today_kpi or {} %}
+      {% set role = emp.cc_role if emp else 'sale' %}
+
+      {% if role == 'adser' %}
+      <!-- Adser KPI -->
+      <div style="background:#fef3c7;border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:#d97706;">
+        <i class="bi bi-megaphone-fill"></i> <strong>Chạy Ads (Facebook / TikTok)</strong>
+      </div>
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">Ngân sách đã dùng (₫)</label>
+          <input type="number" id="k-ads_budget" class="form-control form-control-sm" value="{{ kpi.ads_budget or 0 }}">
+        </div>
+        <div class="col-6">
+          <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">Đơn từ ads</label>
+          <input type="number" id="k-ads_orders" class="form-control form-control-sm" value="{{ kpi.ads_orders or 0 }}">
+        </div>
+        <div class="col-6">
+          <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">Doanh thu từ ads (₫)</label>
+          <input type="number" id="k-ads_revenue" class="form-control form-control-sm" value="{{ kpi.ads_revenue or 0 }}">
+        </div>
+        <div class="col-6">
+          <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">ROAS</label>
+          <input type="number" step="0.01" id="k-ads_roas" class="form-control form-control-sm" value="{{ kpi.ads_roas or 0 }}">
+        </div>
+        <div class="col-6">
+          <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">Đơn mới (leads)</label>
+          <input type="number" id="k-ads_new_orders" class="form-control form-control-sm" value="{{ kpi.ads_new_orders or 0 }}">
+        </div>
+      </div>
+
+      {% elif role == 'sale' %}
+      <!-- Sale KPI -->
+      <div style="background:#d1fae5;border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:#065f46;">
+        <i class="bi bi-chat-dots-fill"></i> <strong>Sale / Chốt đơn</strong>
+      </div>
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">Số khách liên hệ</label>
+          <input type="number" id="k-sale_contacts" class="form-control form-control-sm" value="{{ kpi.sale_contacts or 0 }}">
+        </div>
+        <div class="col-6">
+          <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">Đơn đã chốt</label>
+          <input type="number" id="k-sale_closed" class="form-control form-control-sm" value="{{ kpi.sale_closed or 0 }}">
+        </div>
+        <div class="col-6">
+          <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">Doanh thu chốt (₫)</label>
+          <input type="number" id="k-sale_revenue" class="form-control form-control-sm" value="{{ kpi.sale_revenue or 0 }}">
+        </div>
+        <div class="col-6">
+          <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">Đơn hoàn / huỷ</label>
+          <input type="number" id="k-sale_returned" class="form-control form-control-sm" value="{{ kpi.sale_returned or 0 }}">
+        </div>
+      </div>
+
+      {% elif role == 'packing' %}
+      <!-- Packing KPI -->
+      <div style="background:#dbeafe;border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:#1e40af;">
+        <i class="bi bi-box-seam-fill"></i> <strong>Đóng hàng</strong>
+      </div>
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">Đơn đã đóng</label>
+          <input type="number" id="k-pack_orders" class="form-control form-control-sm" value="{{ kpi.pack_orders or 0 }}">
+        </div>
+        <div class="col-6">
+          <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">Đơn hoàn về</label>
+          <input type="number" id="k-pack_returned" class="form-control form-control-sm" value="{{ kpi.pack_returned or 0 }}">
+        </div>
+        <div class="col-6">
+          <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">Lỗi / sai</label>
+          <input type="number" id="k-pack_errors" class="form-control form-control-sm" value="{{ kpi.pack_errors or 0 }}">
+        </div>
+      </div>
+
+      {% elif role == 'purchasing' %}
+      <!-- Purchasing KPI -->
+      <div style="background:#fce7f3;border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:#9d174d;">
+        <i class="bi bi-bag-check-fill"></i> <strong>Mua hàng</strong>
+      </div>
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">Yêu cầu mua nhận</label>
+          <input type="number" id="k-purch_requests" class="form-control form-control-sm" value="{{ kpi.purch_requests or 0 }}">
+        </div>
+        <div class="col-6">
+          <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">Đã hoàn thành</label>
+          <input type="number" id="k-purch_completed" class="form-control form-control-sm" value="{{ kpi.purch_completed or 0 }}">
+        </div>
+      </div>
+
+      {% else %}
+      <!-- General / accounting -->
+      <div style="background:#ede9fe;border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:#5b21b6;">
+        <i class="bi bi-calculator-fill"></i> <strong>{{ cc_role_label }}</strong>
+      </div>
+      <p style="font-size:13px;color:#64748b;">Chưa có KPI riêng cho vai trò này. Dùng phần ghi chú bên dưới.</p>
+      {% endif %}
+
+      <!-- Ghi chú chung -->
+      <div class="mt-3">
+        <label class="form-label" style="font-size:12px;font-weight:600;color:#64748b;">Ghi chú / vấn đề hôm nay</label>
+        <textarea id="k-note" class="form-control form-control-sm" rows="2" placeholder="Ghi lại vấn đề, highlight...">{{ kpi.note or '' }}</textarea>
+      </div>
+
+      <button class="btn btn-sm mt-3 fw-bold w-100" style="background:var(--brand);color:#fff;border-radius:8px;"
+              onclick="saveKpi()">
+        <i class="bi bi-save"></i> Lưu KPI hôm nay
+      </button>
+    </div>
+  </div>
+
+  <!-- Lịch sử KPI -->
+  <div class="col-12 col-md-7">
+    <div class="cc-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+        <div class="cc-card-title" style="margin:0;"><i class="bi bi-clock-history"></i> Lịch sử KPI</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <a href="?year={% if month == 1 %}{{ year-1 }}{% else %}{{ year }}{% endif %}&month={% if month == 1 %}12{% else %}{{ month-1 }}{% endif %}&uid={{ view_uid }}"
+             style="text-decoration:none;color:var(--brand);font-size:18px;">‹</a>
+          <span style="font-size:13px;font-weight:600;">T{{ month }}/{{ year }}</span>
+          <a href="?year={% if month == 12 %}{{ year+1 }}{% else %}{{ year }}{% endif %}&month={% if month == 12 %}1{% else %}{{ month+1 }}{% endif %}&uid={{ view_uid }}"
+             style="text-decoration:none;color:var(--brand);font-size:18px;">›</a>
+        </div>
+      </div>
+
+      {% if kpi_history %}
+      <div class="table-responsive">
+        <table class="table table-sm" style="font-size:12px;">
+          <thead style="background:#f8fafc;">
+            <tr>
+              <th>Ngày</th>
+              {% set role = emp.cc_role if emp else 'sale' %}
+              {% if role == 'adser' %}
+              <th>Budget</th><th>Đơn</th><th>Doanh thu</th><th>ROAS</th>
+              {% elif role == 'sale' %}
+              <th>Liên hệ</th><th>Chốt</th><th>Doanh thu</th><th>Hoàn</th>
+              {% elif role == 'packing' %}
+              <th>Đóng</th><th>Hoàn</th><th>Lỗi</th>
+              {% elif role == 'purchasing' %}
+              <th>Yêu cầu</th><th>Xong</th>
+              {% endif %}
+              <th>Ghi chú</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for k in kpi_history %}
+            <tr>
+              <td><strong>{{ k.date.strftime('%d/%m') if k.date else '' }}</strong></td>
+              {% if role == 'adser' %}
+              <td>{{ '{:,.0f}'.format(k.ads_budget or 0) }}₫</td>
+              <td>{{ k.ads_orders or 0 }}</td>
+              <td style="color:#059669;">{{ '{:,.0f}'.format(k.ads_revenue or 0) }}₫</td>
+              <td><strong>{{ k.ads_roas or 0 }}</strong></td>
+              {% elif role == 'sale' %}
+              <td>{{ k.sale_contacts or 0 }}</td>
+              <td><strong style="color:#059669;">{{ k.sale_closed or 0 }}</strong></td>
+              <td style="color:#059669;">{{ '{:,.0f}'.format(k.sale_revenue or 0) }}₫</td>
+              <td style="color:#dc2626;">{{ k.sale_returned or 0 }}</td>
+              {% elif role == 'packing' %}
+              <td><strong>{{ k.pack_orders or 0 }}</strong></td>
+              <td style="color:#dc2626;">{{ k.pack_returned or 0 }}</td>
+              <td style="color:#d97706;">{{ k.pack_errors or 0 }}</td>
+              {% elif role == 'purchasing' %}
+              <td>{{ k.purch_requests or 0 }}</td>
+              <td><strong style="color:#059669;">{{ k.purch_completed or 0 }}</strong></td>
+              {% endif %}
+              <td style="color:#94a3b8;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                {{ k.note or '' }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:30px;color:#94a3b8;">
+        <i class="bi bi-graph-up" style="font-size:28px;"></i>
+        <p style="margin-top:8px;font-size:14px;">Chưa có dữ liệu KPI tháng này.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const VIEW_UID = '{{ view_uid }}';
+const TODAY    = '{{ today.isoformat() }}';
+
+function changeUid(uid) {
+  const url = new URL(location.href);
+  url.searchParams.set('uid', uid);
+  location.href = url.toString();
+}
+
+function getVal(id, def=0) {
+  const el = document.getElementById(id);
+  if (!el) return def;
+  return el.value !== '' ? (isNaN(parseFloat(el.value)) ? 0 : parseFloat(el.value)) : def;
+}
+
+async function saveKpi() {
+  const note = document.getElementById('k-note')?.value || '';
+  const data = {
+    user_id: VIEW_UID,
+    date: TODAY,
+    note,
+    ads_budget:      getVal('k-ads_budget'),
+    ads_orders:      getVal('k-ads_orders'),
+    ads_revenue:     getVal('k-ads_revenue'),
+    ads_roas:        getVal('k-ads_roas'),
+    ads_new_orders:  getVal('k-ads_new_orders'),
+    sale_contacts:   getVal('k-sale_contacts'),
+    sale_closed:     getVal('k-sale_closed'),
+    sale_revenue:    getVal('k-sale_revenue'),
+    sale_returned:   getVal('k-sale_returned'),
+    pack_orders:     getVal('k-pack_orders'),
+    pack_returned:   getVal('k-pack_returned'),
+    pack_errors:     getVal('k-pack_errors'),
+    purch_requests:  getVal('k-purch_requests'),
+    purch_completed: getVal('k-purch_completed'),
+  };
+  const r = await ccPost('/cham-cong/api/kpi', data);
+  if (r.ok) {
+    ccToast('✅ ' + r.msg);
+    setTimeout(() => location.reload(), 800);
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+  }
+}
+</script>
+{% endblock %}

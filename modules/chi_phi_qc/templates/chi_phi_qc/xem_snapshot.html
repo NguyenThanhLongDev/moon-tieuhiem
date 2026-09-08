@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snapshot Kế Toán #{{ snap.id }}</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#F59E0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tiểu Hiềm">
+<link rel="apple-touch-icon" href="/static/pwa/icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+  body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; }
+  .topbar { background:#1a1a1a; border-bottom:none; padding:0 20px; min-height:48px; display:flex; align-items:center; gap:12px; box-shadow:0 2px 8px rgba(0,0,0,.25); }
+  .topbar .brand { font-weight:700; font-size:15px; color:#F59E0B; }
+  .topbar a { color:rgba(255,255,255,.75); text-decoration:none; font-size:13px; padding:4px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.2); white-space:nowrap; transition:background .15s; }
+  .topbar a:hover { background:rgba(255,255,255,.08); color:#fff; }
+  .topbar .btn-outline-secondary { color:rgba(255,255,255,.75) !important; border-color:rgba(255,255,255,.2) !important; }
+  .topbar .btn-outline-secondary:hover { background:rgba(255,255,255,.08) !important; color:#fff !important; }
+  .page-wrap { max-width:1200px; margin:0 auto; padding:20px 16px; }
+  .badge-win  { background:#d1fae5; color:#065f46; }
+  .badge-test { background:#fef3c7; color:#92400e; }
+  @media print { .no-print { display:none!important; } }
+</style>
+</head>
+<body>
+
+<div class="topbar no-print">
+  <span class="brand"><i class="bi bi-archive-fill me-2"></i>Snapshot Kế Toán</span>
+  <a href="/chi-phi-qc/bao-cao?tab=chot"><i class="bi bi-arrow-left me-1"></i>Quay lại</a>
+  <button class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>In</button>
+</div>
+
+<div class="page-wrap">
+  <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+    <div>
+      <h4 class="mb-1"><i class="bi bi-lock-fill text-warning me-2"></i>{{ snap.period_label }}</h4>
+      <div class="text-muted small">
+        Từ <strong>{{ snap.date_from }}</strong> đến <strong>{{ snap.date_to }}</strong>
+        &nbsp;·&nbsp; Chốt bởi <strong>{{ snap.locked_by_name or '—' }}</strong>
+        &nbsp;·&nbsp; {{ snap.locked_at.strftime('%d/%m/%Y %H:%M') if snap.locked_at else '' }}
+        {% if snap.note %}&nbsp;·&nbsp; <em>{{ snap.note }}</em>{% endif %}
+      </div>
+    </div>
+    <div class="d-flex gap-2 no-print">
+      <span class="badge bg-primary fs-6">{{ snap.total_rows }} khai báo</span>
+      <span class="badge bg-success fs-6">{{ '{:,.0f}'.format(snap.total_amount|float) }}₫</span>
+    </div>
+  </div>
+
+  {% set data = snap.data_json %}
+
+  {# ── Employee summary ── #}
+  {% if data.employee_summary %}
+  <div class="card mb-3">
+    <div class="card-header py-2 fw-semibold"><i class="bi bi-people me-2"></i>Tổng hợp theo nhân viên</div>
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm align-middle mb-0" style="font-size:13px">
+        <thead class="table-light">
+          <tr>
+            <th>#</th><th>Nhân viên</th>
+            <th class="text-end">Win (chưa VAT)</th>
+            <th class="text-end">Win (đã VAT)</th>
+            <th class="text-end">Test (chưa VAT)</th>
+            <th class="text-end">Test (đã VAT)</th>
+            <th class="text-end fw-bold">Tổng (đã VAT)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in data.employee_summary %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td><div class="fw-semibold">{{ r.full_name or r.username }}</div><div class="text-muted small">{{ r.username }}</div></td>
+            <td class="text-end">{{ '{:,.0f}'.format(r.win_chua_vat|float) }}₫</td>
+            <td class="text-end text-success fw-semibold">{{ '{:,.0f}'.format(r.win_co_vat|float) }}₫</td>
+            <td class="text-end">{{ '{:,.0f}'.format(r.test_chua_vat|float) }}₫</td>
+            <td class="text-end fw-semibold" style="color:#b45309">{{ '{:,.0f}'.format(r.test_co_vat|float) }}₫</td>
+            <td class="text-end fw-bold">{{ '{:,.0f}'.format(r.tong|float) }}₫</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="table-light fw-bold">
+          <tr>
+            <td colspan="2">Tổng</td>
+            <td class="text-end">{{ '{:,.0f}'.format(data.employee_summary | sum(attribute='win_chua_vat') | float) }}₫</td>
+            <td class="text-end text-success">{{ '{:,.0f}'.format(data.employee_summary | sum(attribute='win_co_vat') | float) }}₫</td>
+            <td class="text-end">{{ '{:,.0f}'.format(data.employee_summary | sum(attribute='test_chua_vat') | float) }}₫</td>
+            <td class="text-end" style="color:#b45309">{{ '{:,.0f}'.format(data.employee_summary | sum(attribute='test_co_vat') | float) }}₫</td>
+            <td class="text-end">{{ '{:,.0f}'.format(data.employee_summary | sum(attribute='tong') | float) }}₫</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Page breakdown ── #}
+  {% if data.page_breakdown %}
+  <div class="card mb-3">
+    <div class="card-header py-2 fw-semibold"><i class="bi bi-diagram-3 me-2"></i>Theo Page — FB Ads vs Khai báo</div>
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm align-middle mb-0" style="font-size:12.5px">
+        <thead class="table-light">
+          <tr>
+            <th>#</th><th>Page</th>
+            <th class="text-end text-primary">FB Spend</th>
+            <th class="text-end">Khai (chưa VAT)</th>
+            <th class="text-end fw-bold">Khai (đã VAT)</th>
+            <th class="text-end">Chênh lệch</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in data.page_breakdown %}
+          {% set diff = (r.khai_co|float) - (r.fb_spend|float) %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td>
+              <div class="fw-semibold">{{ r.page_name or r.page_id }}</div>
+              <div class="text-muted" style="font-size:11px">{{ r.page_id }}</div>
+            </td>
+            <td class="text-end fw-semibold text-primary">{{ '{:,.0f}'.format(r.fb_spend|float) }}₫</td>
+            <td class="text-end">{{ '{:,.0f}'.format(r.khai_chua|float) }}₫</td>
+            <td class="text-end fw-bold">{{ '{:,.0f}'.format(r.khai_co|float) }}₫</td>
+            <td class="text-end fw-semibold {% if diff > 100000 %}text-danger{% elif diff < -100000 %}text-warning{% else %}text-muted{% endif %}">{{ '{:+,.0f}'.format(diff) }}₫</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── All declarations ── #}
+  {% if data.declarations %}
+  <div class="card">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center fw-semibold">
+      <span><i class="bi bi-list-ul me-2"></i>Chi tiết khai báo ({{ data.declarations|length }} dòng)</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm align-middle mb-0" style="font-size:12px">
+        <thead class="table-light">
+          <tr>
+            <th>Ngày</th><th>Page</th><th>Nhân viên</th><th>TK Ads</th>
+            <th>Loại</th>
+            <th class="text-end">Chưa VAT</th>
+            <th class="text-end">Đã VAT</th>
+            <th>Ghi chú</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in data.declarations %}
+          <tr>
+            <td style="white-space:nowrap">{{ r.spend_date }}</td>
+            <td>
+              <div class="fw-semibold">{{ r.page_name or r.page_id }}</div>
+              <div class="text-muted" style="font-size:10px">{{ r.page_id }}</div>
+            </td>
+            <td>{{ r.full_name or r.username }}</td>
+            <td class="text-muted" style="font-size:11px">{{ r.ad_account_name or '—' }}</td>
+            <td>
+              {% if r.phan_loai == 'ma_win' %}<span class="badge badge-win">Win</span>
+              {% else %}<span class="badge badge-test">Test</span>{% endif %}
+            </td>
+            <td class="text-end">{{ '{:,.0f}'.format(r.tien_chua_thue|float) }}₫</td>
+            <td class="text-end fw-semibold">{{ '{:,.0f}'.format(r.thanh_tien|float) }}₫</td>
+            <td class="text-muted">{{ r.note or '' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="table-light fw-bold">
+          <tr>
+            <td colspan="5">Tổng ({{ data.declarations|length }} dòng)</td>
+            <td class="text-end">{{ '{:,.0f}'.format(data.declarations | sum(attribute='tien_chua_thue') | float) }}₫</td>
+            <td class="text-end">{{ '{:,.0f}'.format(data.declarations | sum(attribute='thanh_tien') | float) }}₫</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));</script>
+</body>
+</html>

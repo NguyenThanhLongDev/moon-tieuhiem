@@ -1,0 +1,120 @@
+{% extends "hr/_base.html" %}
+{% block title %}{{ 'Sửa' if company and company.id else 'Thêm' }} công ty — HR{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center gap-2 mb-3">
+  <a href="{{ url_for('hr.companies_list') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Danh sách công ty
+  </a>
+  <h5 class="mb-0">
+    <i class="bi bi-building text-warning"></i>
+    {{ 'Sửa' if company and company.id else 'Thêm' }} công ty (Bên A)
+  </h5>
+</div>
+
+<form method="POST" class="hr-card">
+  <div class="row g-3">
+    <div class="col-md-8">
+      <label class="form-label required">Tên công ty</label>
+      <input type="text" class="form-control" name="company_name"
+             value="{{ company.company_name if company else '' }}" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Mã số thuế</label>
+      <input type="text" class="form-control" name="tax_code"
+             value="{{ company.tax_code if company else '' }}">
+    </div>
+
+    <div class="col-12">
+      <label class="form-label">Địa chỉ trụ sở</label>
+      <input type="text" class="form-control" name="address"
+             value="{{ company.address if company else '' }}"
+             placeholder="VD: Số 123, đường ABC, phường X, quận Y, TP HCM">
+    </div>
+
+    <div class="col-md-6">
+      <label class="form-label">SĐT công ty</label>
+      <input type="text" class="form-control" name="phone"
+             value="{{ company.phone if company else '' }}">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Email</label>
+      <input type="email" class="form-control" name="email"
+             value="{{ company.email if company else '' }}">
+    </div>
+
+    <div class="hr-section-hdr mt-3">Người đại diện pháp luật</div>
+    <div class="col-md-5">
+      <label class="form-label">Họ và tên</label>
+      <input type="text" class="form-control" name="legal_rep_name"
+             value="{{ company.legal_rep_name if company else '' }}">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Chức vụ</label>
+      <input type="text" class="form-control" name="legal_rep_title"
+             value="{{ company.legal_rep_title if company else 'Giám đốc' }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">CCCD/CMND</label>
+      <input type="text" class="form-control" name="legal_rep_id_card"
+             value="{{ company.legal_rep_id_card if company else '' }}">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Ngày sinh người đại diện</label>
+      <input type="date" class="form-control" name="legal_rep_dob"
+             value="{{ company.legal_rep_dob.isoformat() if company and company.legal_rep_dob else '' }}">
+    </div>
+    <div class="col-md-8">
+      <label class="form-label">Địa chỉ cư trú người đại diện</label>
+      <input type="text" class="form-control" name="legal_rep_address"
+             value="{{ company.legal_rep_address if company else '' }}"
+             placeholder="VD: Thôn Đào Xá, Xã Nghĩa Dân, tỉnh Hưng Yên">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Thành phố ký HĐ (mặc định)</label>
+      <input type="text" class="form-control" name="signing_city"
+             value="{{ company.signing_city if company else 'Hưng Yên' }}"
+             placeholder="VD: Hưng Yên">
+      <div class="form-text">Hiện trên header HĐ: "Hưng Yên, ngày dd tháng mm năm yyyy"</div>
+    </div>
+
+    <div class="hr-section-hdr mt-3">Thông tin ngân hàng (tùy chọn)</div>
+    <div class="col-md-6">
+      <label class="form-label">Số tài khoản</label>
+      <input type="text" class="form-control" name="bank_account"
+             value="{{ company.bank_account if company else '' }}">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Tên ngân hàng</label>
+      <input type="text" class="form-control" name="bank_name"
+             value="{{ company.bank_name if company else '' }}">
+    </div>
+
+    <div class="col-12">
+      <label class="form-label">Ghi chú</label>
+      <textarea class="form-control" name="notes" rows="2">{{ company.notes if company else '' }}</textarea>
+    </div>
+
+    <div class="col-md-6">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="is_default" name="is_default" value="1"
+               {% if company and company.is_default %}checked{% endif %}>
+        <label class="form-check-label" for="is_default">Đặt làm công ty mặc định</label>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="is_active" name="is_active" value="1"
+               {% if not company or company.is_active %}checked{% endif %}>
+        <label class="form-check-label" for="is_active">Đang hoạt động (hiện trong dropdown chọn HĐ)</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4 d-flex gap-2">
+    <button type="submit" class="btn-brand btn"><i class="bi bi-save"></i> Lưu</button>
+    <a href="{{ url_for('hr.companies_list') }}" class="btn btn-outline-secondary">Hủy</a>
+  </div>
+</form>
+
+{% endblock %}

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Báo Cáo Lãi/Lỗ</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#F59E0B">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+  body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; }
+  .ll-wrap { max-width:1200px; margin:0 auto; padding:16px; }
+  .ll-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:14px 0; }
+  .ll-card { background:#fff; border:1px solid #eef2f7; border-radius:12px; padding:12px 14px; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+  .ll-card .lb { font-size:12px; color:#64748b; }
+  .ll-card .v  { font-size:20px; font-weight:800; margin-top:3px; }
+  .ll-tabs { display:flex; gap:6px; flex-wrap:wrap; margin:12px 0; }
+  .ll-tab { font-size:13px; font-weight:600; padding:8px 16px; border-radius:999px; border:1px solid #d1d5db; background:#fff; color:#475569; text-decoration:none; }
+  .ll-tab.active { background:#F59E0B; border-color:#F59E0B; color:#fff; }
+  table.ll { width:100%; background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); border-collapse:separate; border-spacing:0; }
+  table.ll th, table.ll td { padding:10px 12px; border-bottom:1px solid #f1f5f9; }
+  table.ll th { background:#f8fafc; font-size:12px; color:#475569; text-align:right; }
+  table.ll th:first-child, table.ll td:first-child { text-align:left; }
+  table.ll td { text-align:right; font-size:13px; }
+  table.ll tfoot td { font-weight:800; background:#f8fafc; border-top:2px solid #e2e8f0;
+    position:sticky; bottom:0; z-index:3; box-shadow:0 -2px 6px rgba(0,0,0,.08); }
+  .pos { color:#16a34a; font-weight:700; }
+  .neg { color:#dc2626; font-weight:700; }
+  .muted { color:#94a3b8; font-size:11px; }
+  /* ── Mobile: bảng → card kiểu Shopee + dòng TỔNG dính đáy ── */
+  @media(max-width:768px){
+    .ll-wrap { padding:10px; }
+    .ll-card .v { font-size:17px; }
+    table.ll thead { display:none; }
+    table.ll, table.ll tbody, table.ll tr, table.ll tbody td { display:block; width:auto; }
+    table.ll tbody tr { border:1px solid #e5e7eb; border-radius:14px; margin:0 0 12px; padding:10px 12px;
+      box-shadow:0 1px 4px rgba(0,0,0,.06); background:#fff; }
+    table.ll tbody td { border:none !important; padding:6px 0 !important; text-align:right !important;
+      display:flex; justify-content:space-between; align-items:center; gap:12px; font-size:13px; }
+    table.ll tbody td::before { content:attr(data-label); font-weight:600; color:#64748b; font-size:12px; flex:0 0 auto; }
+    table.ll tbody td:first-child { border-bottom:1px solid #f1f5f9; margin-bottom:6px; padding-bottom:10px !important;
+      font-weight:700; font-size:15px; text-align:left !important; display:block; }
+    table.ll tbody td:first-child::before { display:none; }
+    table.ll tfoot { display:block; position:sticky; bottom:0; z-index:5; }
+    table.ll tfoot tr { display:block; background:#0f766e; border-radius:12px; padding:8px 12px;
+      box-shadow:0 -6px 16px rgba(0,0,0,.25); }
+    table.ll tfoot td { display:flex; justify-content:space-between; border:none !important; padding:3px 0 !important;
+      text-align:right !important; color:#fff !important; background:transparent !important; box-shadow:none !important;
+      position:static; font-size:13px; }
+    table.ll tfoot td::before { content:attr(data-label); font-weight:600; opacity:.85; }
+    table.ll tfoot td:first-child::before { display:none; }
+    table.ll tfoot .pos, table.ll tfoot .neg { color:#fff !important; }
+  }
+  /* ── FAB "Chọn ngày" + bottom-sheet (kiểu tieuhiem) + tabs cuộn ngang dính đỉnh ── */
+  #llFilterFab{ display:none; }
+  #llFilterSheet{ display:none; }
+  @media(max-width:768px){
+    #llDateForm:not(.in-sheet){ display:none; }
+    #llDateForm.in-sheet{ display:flex !important; width:100%; }
+    #llFilterFab{ display:flex; position:fixed; right:14px; bottom:22px; z-index:1500;
+      align-items:center; gap:6px; background:#F59E0B; color:#fff; border:none;
+      border-radius:999px; padding:12px 18px; font-weight:700; font-size:14px;
+      box-shadow:0 6px 20px rgba(245,158,11,.45); }
+    #llFilterSheet.open{ display:block; position:fixed; inset:0; z-index:2600; }
+    #llFilterSheet .lfs-bd{ position:absolute; inset:0; background:rgba(15,23,42,.5); }
+    #llFilterSheet .lfs-card{ position:absolute; left:0; right:0; bottom:0; background:#fff;
+      border-radius:16px 16px 0 0; padding:14px 16px 24px; max-height:82vh; overflow-y:auto;
+      box-shadow:0 -8px 30px rgba(0,0,0,.25); }
+    #llFilterSheet .lfs-hd{ display:flex; align-items:center; justify-content:space-between;
+      font-weight:800; font-size:15px; margin-bottom:12px; }
+    #llFilterSheet .lfs-x{ border:none; background:#f1f5f9; border-radius:999px; width:32px; height:32px; font-size:18px; line-height:1; }
+    .ll-sticky{ display:none; }        /* hàng tab + lọc Team/NV đã gom vào sheet */
+    .ll-mform .cc-ms{ width:100%; min-width:0; margin-bottom:2px; }
+    .ll-mform .cc-ms-toggle{ padding:11px 12px; font-size:14px; }
+    .ll-viewtabs{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px; }
+    .ll-viewtabs a{ text-align:center; border:1px solid #e5e7eb; border-radius:10px;
+        padding:11px 6px; font-size:13.5px; color:#475569; text-decoration:none; }
+    .ll-viewtabs a.on{ background:#fff7e6; border-color:#F59E0B; color:#b45309; font-weight:700; }
+    .ll-tabs{ overflow-x:auto; flex-wrap:nowrap; position:sticky; top:0; z-index:10;
+      background:#f5f6fa; margin:8px -10px; padding:8px 10px; }
+    .ll-tabs::-webkit-scrollbar{ height:0; }
+    .ll-tab{ flex:0 0 auto; }
+  }
+  /* Form lịch trong sheet (mobile) */
+  .ll-mform{ display:flex; flex-direction:column; gap:5px; }
+  .ll-preset{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .ll-preset button{ font-size:12.5px; padding:8px 13px; border:1px solid #d1d5db; background:#fff; color:#334155; border-radius:999px; }
+  .ll-preset button:active{ background:#fff7ed; border-color:#F59E0B; color:#b45309; }
+  .ll-lbl{ font-size:11.5px; font-weight:700; color:#64748b; text-transform:uppercase; margin-top:6px; }
+  .ll-dinput{ width:100%; padding:12px; border:1px solid #cbd5e1; border-radius:10px; font-size:16px; }
+  .ll-apply{ margin-top:14px; width:100%; padding:13px; border:none; border-radius:10px; background:#F59E0B; color:#fff; font-weight:700; font-size:15px; }
+  /* Cột DỰ TÍNH (×57%) tô nền vàng nhạt cho khỏi lẫn với số POS gốc */
+  table.ll th.uoc-col{ background:#fef3c7; }
+  table.ll td.uoc-col{ background:#fffbeb; }
+  table.ll tfoot td.uoc-col{ background:#fef3c7; }
+  th.srt{ cursor:pointer; user-select:none; white-space:nowrap; }
+  th.srt:hover{ background:#f1f5f9; }
+  th.srt .ar{ font-size:10px; }
+  th.srt .ar::after{ content:"⇅"; color:#b6bec9; }          /* mũi tên hiện sẵn mọi cột */
+  th.srt.asc .ar::after{ content:"▲"; color:#1a73e8; }
+  th.srt.desc .ar::after{ content:"▼"; color:#1a73e8; }
+  .ll-sticky{ position:sticky; top:48px; z-index:1020; background:#f5f6fa;
+    padding:8px 0; margin:8px 0 10px; }
+  .ll-fsel{ border:1px solid #d8dee6; border-radius:8px; padding:6px 10px; font-size:13px; background:#fff; max-width:190px; }
+  .ll-fclear{ font-size:12.5px; color:#dc2626; text-decoration:none; white-space:nowrap; }
+</style>
+<link rel="stylesheet" href="/static/cc-multiselect.css">
+<script src="/static/cc-multiselect.js" defer></script>
+</head>
+<body>
+{% include "_main_nav.html" %}
+{% set cpqc_active = 'lai_lo' %}{% include "_cpqc_subnav.html" %}
+
+<div class="ll-wrap">
+  <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
+    <h4 class="fw-bold mb-0"><i class="bi bi-cash-stack text-warning me-1"></i>Báo cáo Lãi / Lỗ
+      {% if uoc %}<span class="badge" style="background:#fff7e6;color:#b45309;border:1px solid #F59E0B;font-size:12px">DỰ PHÒNG — dự hoàn 57%</span>
+      {% else %}<span class="badge" style="background:#ecfdf5;color:#047857;border:1px solid #10b981;font-size:12px">THEO POS — số nguyên bản</span>{% endif %}
+    </h4>
+    <div class="ms-auto d-flex gap-2">
+      <a href="/chi-phi-qc/lai-lo?{{ request.query_string.decode() }}" class="ll-tab {{ 'active' if uoc }}">📉 Dự phòng (dự hoàn 57%)</a>
+      <a href="/chi-phi-qc/lai-lo-pos?{{ request.query_string.decode() }}" class="ll-tab {{ 'active' if not uoc }}">🧾 Theo POS</a>
+    </div>
+  </div>
+  <div class="text-muted" style="font-size:13px">Lãi/Lỗ = Lợi nhuận POS − CP QC (Win) − Chi phí test − CP khác (75.000đ × đơn TRƯỚC hoàn — quy ra đơn sau hoàn ≈ 75k/0,57 ≈ 131.600đ) · <b>Lợi nhuận POS = Doanh thu − GIÁ VỐN hàng hoá − phí VC (giá vốn ĐÃ trừ)</b> · {{ date_from }} → {{ date_to }}</div>
+
+  {# Bộ lọc khoảng ngày dùng chung #}
+  <form method="get" id="llDateForm" style="margin:12px 0;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    {% include "_date_range_picker.html" %}
+  </form>
+  {% set _fq = '&team=' ~ (team_f|urlencode) ~ '&nv=' ~ (nv_f|urlencode) %}
+  {# FAB + bottom-sheet cho mobile (kiểu tieuhiem) #}
+  <button type="button" id="llFilterFab"><i class="bi bi-funnel-fill"></i> Tìm &amp; Lọc</button>
+  <div id="llFilterSheet">
+    <div class="lfs-bd"></div>
+    <div class="lfs-card">
+      <div class="lfs-hd"><span><i class="bi bi-funnel me-1"></i>Tìm &amp; Lọc</span>
+        <button type="button" class="lfs-x">&times;</button></div>
+      <div class="ll-lbl" style="margin-top:0">Xem theo</div>
+      <div class="ll-viewtabs">
+        {% for k, ic, nh in [('page','📄','Theo Page'), ('tk','🧾','Theo TK QC'),
+                             ('nv','👤','Theo Nhân viên'), ('team','👥','Theo Team')] %}
+        <a class="{{ 'on' if tab==k }}"
+           href="?tab={{ k }}&date_from={{ date_from }}&date_to={{ date_to }}{{ _fq }}">{{ ic }} {{ nh }}</a>
+        {% endfor %}
+      </div>
+      <form method="get" class="ll-mform">
+        <input type="hidden" name="tab" value="{{ tab }}">
+        <label class="ll-lbl">Team</label>
+        <select name="team" class="ll-dinput" data-cc-search placeholder="— Tất cả Team —">
+          <option value="">— Tất cả Team —</option>
+          {% for t in team_list %}<option value="{{ t }}" {{ 'selected' if t==team_f }}>{{ t }}</option>{% endfor %}
+        </select>
+        <label class="ll-lbl">Nhân viên</label>
+        <select name="nv" class="ll-dinput" data-cc-search placeholder="— Tất cả NV —">
+          <option value="">— Tất cả NV —</option>
+          {% for u in nv_list %}<option value="{{ u.id }}" {{ 'selected' if u.id==nv_f }}>{{ u.name }}{% if u.team %} ({{ u.team }}){% endif %}</option>{% endfor %}
+        </select>
+        <div class="ll-preset">
+          <button type="button" data-p="today">Hôm nay</button>
+          <button type="button" data-p="yesterday">Hôm qua</button>
+          <button type="button" data-p="7d">7 ngày</button>
+          <button type="button" data-p="30d">30 ngày</button>
+          <button type="button" data-p="month">Tháng này</button>
+          <button type="button" data-p="lastmonth">Tháng trước</button>
+        </div>
+        <label class="ll-lbl">Từ ngày</label>
+        <input type="date" name="date_from" id="llMFrom" value="{{ date_from }}" class="ll-dinput">
+        <label class="ll-lbl">Đến ngày</label>
+        <input type="date" name="date_to" id="llMTo" value="{{ date_to }}" class="ll-dinput">
+        <button type="submit" class="ll-apply"><i class="bi bi-check-lg me-1"></i>Áp dụng</button>
+      </form>
+    </div>
+  </div>
+
+  {% set act = totals['by_'+tab] %}
+  <div class="ll-cards">
+    <div class="ll-card"><div class="lb">💰 Doanh thu {% if uoc %}<span class="muted" style="font-weight:400">(dự tính ×57%)</span>{% endif %}</div><div class="v" style="color:#0f766e">{{ '{:,.0f}'.format(act.rev) }}₫</div></div>
+    <div class="ll-card"><div class="lb">📦 Giá vốn hàng hoá <span class="muted" style="font-weight:400">(đã trừ trong LN)</span></div><div class="v" style="color:#9a3412">{{ '{:,.0f}'.format(act.gia_von) }}₫</div></div>
+    <div class="ll-card"><div class="lb">📈 Lợi nhuận POS</div><div class="v" style="color:#0f766e">{{ '{:,.0f}'.format(act.profit) }}₫</div></div>
+    <div class="ll-card"><div class="lb">📣 CP QC (page Win)</div><div class="v" style="color:#7c3aed">{{ '{:,.0f}'.format(act.cpqc) }}₫</div></div>
+    <div class="ll-card"><div class="lb">⚙️ Chi phí test</div><div class="v" style="color:#b45309">{{ '{:,.0f}'.format(act.cp_test) }}₫</div></div>
+    <div class="ll-card"><div class="lb">🏆 Lãi / Lỗ thực</div><div class="v {{ 'pos' if act.lai_lo>=0 else 'neg' }}">{{ '{:,.0f}'.format(act.lai_lo) }}₫</div></div>
+  </div>
+
+  <div class="ll-sticky">
+  <div class="ll-tabs" style="margin:0">
+    <a class="ll-tab {{ 'active' if tab=='page' }}" href="?tab=page&date_from={{ date_from }}&date_to={{ date_to }}{{ _fq }}">📄 Theo Page</a>
+    <a class="ll-tab {{ 'active' if tab=='tk' }}"   href="?tab=tk&date_from={{ date_from }}&date_to={{ date_to }}{{ _fq }}">🧾 Theo TK QC</a>
+    <a class="ll-tab {{ 'active' if tab=='nv' }}"   href="?tab=nv&date_from={{ date_from }}&date_to={{ date_to }}{{ _fq }}">👤 Theo Nhân viên</a>
+    <a class="ll-tab {{ 'active' if tab=='team' }}" href="?tab=team&date_from={{ date_from }}&date_to={{ date_to }}{{ _fq }}">👥 Theo Team</a>
+    <form method="get" id="llTeamNvForm" style="display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap">
+      <input type="hidden" name="tab" value="{{ tab }}">
+      <input type="hidden" name="date_from" value="{{ date_from }}">
+      <input type="hidden" name="date_to" value="{{ date_to }}">
+      <select name="team" class="ll-fsel" data-cc-search onchange="this.form.submit()">
+        <option value="">— Tất cả Team —</option>
+        {% for t in team_list %}<option value="{{ t }}" {{ 'selected' if t==team_f }}>{{ t }}</option>{% endfor %}
+      </select>
+      <select name="nv" class="ll-fsel" data-cc-search onchange="this.form.submit()">
+        <option value="">— Tất cả NV —</option>
+        {% for u in nv_list %}{% if not team_f or u.team==team_f %}<option value="{{ u.id }}" {{ 'selected' if u.id==nv_f }}>{{ u.name }}{% if u.team %} ({{ u.team }}){% endif %}</option>{% endif %}{% endfor %}
+      </select>
+      {% if team_f or nv_f %}<a href="?tab={{ tab }}&date_from={{ date_from }}&date_to={{ date_to }}" class="ll-fclear">✕ Bỏ lọc</a>{% endif %}
+    </form>
+  </div>
+  </div>
+  {% if team_f or nv_f %}<div class="muted mb-1">Đang lọc: <b>{{ team_f or '' }}{% if team_f and nv_f %} · {% endif %}{% for u in nv_list %}{% if u.id==nv_f %}{{ u.name }}{% endif %}{% endfor %}</b> — thẻ tổng + cả 4 tab đều theo bộ lọc này. (Doanh thu organic không thuộc team nào nên bị loại khi lọc.)</div>{% endif %}
+
+  {% set rows = data['by_'+tab] %}
+  {% if tab in ('tk','nv') %}<div class="muted mb-1">* Doanh thu/Lợi nhuận phân bổ cho TK theo tỷ lệ chi tiêu (1 page nhiều TK).</div>{% endif %}
+  <table class="ll">
+    <thead>
+      <tr>
+        <th>{% if tab=='page' %}Page{% elif tab=='tk' %}Tài khoản QC{% elif tab=='nv' %}Nhân viên{% else %}Team{% endif %}</th>
+        {% if uoc %}
+        <th class="srt" title="Doanh thu POS nguyên bản (trước hoàn)">DT trước hoàn <span class="ar"></span><br><span class="muted" style="font-weight:400">số POS</span></th>
+        <th class="srt uoc-col" title="= DT trước hoàn × 57% — giá trị dự tính sau hoàn">DT dự tính <span class="ar"></span><br><span class="muted" style="font-weight:400">× 57%</span></th>
+        {% else %}
+        <th class="srt">Doanh thu <span class="ar"></span></th>
+        {% endif %}
+        <th class="srt" title="Đơn chốt gửi đi (gồm cả đơn sau này bị hoàn)">Đơn trước hoàn <span class="ar"></span>{% if uoc %}<br><span class="muted" style="font-weight:400">số POS</span>{% endif %}</th>
+        <th class="srt {{ 'uoc-col' if uoc }}" title="{% if uoc %}= Đơn trước hoàn × 57% — tỷ lệ phát thành công dự tính (hoàn về POS trễ){% else %}Đơn thành công POS đã trừ hoàn (chuẩn khi hoàn về đủ){% endif %}">Đơn sau hoàn <span class="ar"></span><br><span class="muted" style="font-weight:400">{% if uoc %}× 57%{% else %}theo POS{% endif %}</span></th>
+        <th class="srt {{ 'uoc-col' if uoc }}" title="Giá vốn hàng hoá — POS ĐÃ trừ trong Lợi nhuận (không trừ lần 2){% if uoc %}; × 57%{% endif %}">Giá vốn <span class="ar"></span><br><span class="muted" style="font-weight:400">{% if uoc %}× 57%{% else %}đã trừ trong LN{% endif %}</span></th>
+        <th class="srt {{ 'uoc-col' if uoc }}" {% if uoc %}title="= Lợi nhuận POS × 57% — dự tính sau hoàn"{% endif %}>Lợi nhuận POS <span class="ar"></span>{% if uoc %}<br><span class="muted" style="font-weight:400">× 57%</span>{% endif %}</th>
+        <th class="srt" title="Tiền ads page WIN (có doanh thu)">CP QC <span class="ar"></span><br><span class="muted" style="font-weight:400">page Win</span></th>
+        <th class="srt" title="Tiền ads đổ vào page TEST (chưa có doanh thu POS)">Chi phí test <span class="ar"></span><br><span class="muted" style="font-weight:400">page chưa có DT</span></th>
+        <th class="srt desc {{ 'uoc-col' if uoc }}">Lãi / Lỗ <span class="ar"></span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>
+          {{ r.name }}
+          {% if tab=='tk' %}<div class="muted">{{ r.nv }}{% if r.team %} · {{ r.team }}{% endif %}</div>
+          {% elif tab=='nv' %}<div class="muted">{{ r.team }}</div>
+          {% elif tab=='page' %}
+            <div class="muted">{% if r.nv %}👤 {{ r.nv }}{% if r.team %} · {{ r.team }}{% endif %}
+              {% else %}<span style="color:#c4a000">chưa gán NV</span>{% endif %}</div>
+          {% endif %}
+        </td>
+        {% if uoc %}
+        <td data-label="DT trước hoàn" data-v="{{ r.get('rev_truoc', r.rev) }}">{{ '{:,.0f}'.format(r.get('rev_truoc', r.rev)) }}₫</td>
+        <td data-label="DT dự tính ×57%" data-v="{{ r.rev }}" class="uoc-col" style="font-weight:600">{{ '{:,.0f}'.format(r.rev) }}₫</td>
+        {% else %}
+        <td data-label="Doanh thu" data-v="{{ r.rev }}">{{ '{:,.0f}'.format(r.rev) }}₫</td>
+        {% endif %}
+        <td data-label="Đơn trước hoàn" data-v="{{ r.get('don_truoc', r.don) }}" style="color:#166534;font-weight:600">{{ '{:,.0f}'.format(r.get('don_truoc', r.don)) }}</td>
+        <td data-label="Đơn sau hoàn" data-v="{{ r.get('don_sau', r.don) }}" class="{{ 'uoc-col' if uoc }}" style="color:#0f766e;font-weight:600">{{ '{:,.0f}'.format(r.get('don_sau', r.don)) }}</td>
+        <td data-label="Giá vốn" data-v="{{ r.get('gia_von', 0) }}" class="{{ 'uoc-col' if uoc }}" style="color:#9a3412">{{ '{:,.0f}'.format(r.get('gia_von', 0)) }}₫</td>
+        <td data-label="Lợi nhuận POS" data-v="{{ r.profit }}" class="{{ 'uoc-col' if uoc }}">{{ '{:,.0f}'.format(r.profit) }}₫</td>
+        <td data-label="CP QC (Win)" data-v="{{ r.cpqc }}" style="color:#7c3aed">{{ '{:,.0f}'.format(r.cpqc) }}₫</td>
+        <td data-label="Chi phí test" data-v="{{ r.cp_test }}" style="color:#b45309">{{ '{:,.0f}'.format(r.cp_test) }}₫</td>
+        <td data-label="Lãi / Lỗ" data-v="{{ r.lai_lo }}" class="{{ 'pos' if r.lai_lo>=0 else 'neg' }} {{ 'uoc-col' if uoc }}">{{ '{:,.0f}'.format(r.lai_lo) }}₫</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="{{ 10 if uoc else 9 }}" class="text-center text-muted py-3">Không có dữ liệu trong khoảng ngày này</td></tr>
+      {% endfor %}
+    </tbody>
+    {% if rows %}
+    <tfoot>
+      <tr>
+        <td>📊 TỔNG ({{ rows|length }})</td>
+        {% if uoc %}
+        <td data-label="DT trước hoàn">{{ '{:,.0f}'.format(act.get('rev_truoc', act.rev)) }}₫</td>
+        <td data-label="DT dự tính ×57%" class="uoc-col">{{ '{:,.0f}'.format(act.rev) }}₫</td>
+        {% else %}
+        <td data-label="Doanh thu">{{ '{:,.0f}'.format(act.rev) }}₫</td>
+        {% endif %}
+        <td data-label="Đơn trước hoàn" style="color:#166534">{{ '{:,.0f}'.format(act.get('don_truoc', act.don)) }}</td>
+        <td data-label="Đơn sau hoàn" class="{{ 'uoc-col' if uoc }}" style="color:#0f766e">{{ '{:,.0f}'.format(act.get('don_sau', act.don)) }}</td>
+        <td data-label="Giá vốn" class="{{ 'uoc-col' if uoc }}" style="color:#9a3412">{{ '{:,.0f}'.format(act.gia_von) }}₫</td>
+        <td data-label="Lợi nhuận POS" class="{{ 'uoc-col' if uoc }}">{{ '{:,.0f}'.format(act.profit) }}₫</td>
+        <td data-label="CP QC (Win)" style="color:#7c3aed">{{ '{:,.0f}'.format(act.cpqc) }}₫</td>
+        <td data-label="Chi phí test" style="color:#b45309">{{ '{:,.0f}'.format(act.cp_test) }}₫</td>
+        <td data-label="Lãi / Lỗ" class="{{ 'pos' if act.lai_lo>=0 else 'neg' }} {{ 'uoc-col' if uoc }}">{{ '{:,.0f}'.format(act.lai_lo) }}₫</td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+  <div class="muted mt-2 mb-4">Tổng 4 tab = doanh thu/lợi nhuận POS (khớp Pancake). Page bán không chạy ads gom vào dòng "(không chạy ads)" ở tab TK/NV/Team. Mặc định sắp Lãi/Lỗ cao → thấp — <b>bấm vào tiêu đề cột bất kỳ để đổi cột/chiều sắp xếp</b>. Cột CP khác (75k/đơn) đã ẩn theo yêu cầu nhưng VẪN trừ trong Lãi/Lỗ. Đơn trước hoàn = chốt gửi đi · {% if uoc %}<b>Bảng DỰ PHÒNG: Đơn / Doanh thu / Giá vốn / Lợi nhuận đều × 57%</b> (tỷ lệ phát thành công dự tính — đơn hoàn về POS trễ nên số POS là TRƯỚC hoàn; nhân 57% mới ra giá trị dự tính lãi lỗ). Tiền ads giữ nguyên vì đã chi thật. Xem số POS nguyên bản ở bảng <a href="/chi-phi-qc/lai-lo-pos">Theo POS</a>.{% else %}<b>Bảng THEO POS: số nguyên bản từ Pancake</b> — đơn hoàn về trễ nên kỳ gần đây lãi/lỗ CAO HƠN thật; sau ~1 tháng hoàn về đủ thì bảng này chuẩn 100%. Xem giá trị dự tính ở bảng <a href="/chi-phi-qc/lai-lo">Dự phòng (dự hoàn 57%)</a>.{% endif %} Lợi nhuận POS đã trừ giá vốn + phí ship + phí sàn (từ Pancake). <b>CP khác = 75.000đ × đơn TRƯỚC hoàn</b> (sếp chốt 28/08 — đơn hoàn vẫn tốn ship + chi phí; quy về đơn sau hoàn thì đơn giá = 75k ÷ 0,57 ≈ 131.600đ, tổng y hệt) — vận chuyển + chi phí văn phòng. <b>CP QC</b> = ads page WIN (có doanh thu) · <b>Chi phí test</b> = ads page TEST (chưa có doanh thu POS).</div>
+</div>
+<script>
+// Bấm tiêu đề cột để sắp xếp lớn↔bé (bộ lọc sắp xếp — sếp 07/08)
+(function(){
+  document.querySelectorAll('table.ll th.srt').forEach(function(th){
+    th.addEventListener('click', function(){
+      var tbl=th.closest('table'), tb=tbl.querySelector('tbody');
+      var ci=th.cellIndex;
+      var desc=!th.classList.contains('desc');   // lần đầu: lớn → bé
+      tbl.querySelectorAll('th.srt').forEach(function(h){h.classList.remove('asc','desc');});
+      th.classList.add(desc?'desc':'asc');
+      var rows=Array.from(tb.querySelectorAll('tr')).filter(function(tr){return tr.cells.length>1;});
+      rows.sort(function(a,b){
+        var va=parseFloat((a.cells[ci]||{}).dataset ? a.cells[ci].dataset.v||0 : 0)||0;
+        var vb=parseFloat((b.cells[ci]||{}).dataset ? b.cells[ci].dataset.v||0 : 0)||0;
+        return desc ? vb-va : va-vb;
+      });
+      rows.forEach(function(r){tb.appendChild(r);});
+    });
+  });
+})();
+</script>
+<script>
+(function(){
+  var fab=document.getElementById('llFilterFab'), sheet=document.getElementById('llFilterSheet');
+  if(!fab||!sheet) return;
+  function open(){ sheet.classList.add('open'); document.body.style.overflow='hidden'; }
+  function close(){ sheet.classList.remove('open'); document.body.style.overflow=''; }
+  fab.addEventListener('click', open);
+  sheet.querySelector('.lfs-x').addEventListener('click', close);
+  sheet.querySelector('.lfs-bd').addEventListener('click', close);
+  function iso(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+  sheet.querySelectorAll('.ll-preset button').forEach(function(b){
+    b.addEventListener('click', function(){
+      var p=this.dataset.p, now=new Date(), f=new Date(), t=new Date();
+      if(p==='yesterday'){ f.setDate(f.getDate()-1); t.setDate(t.getDate()-1); }
+      else if(p==='7d'){ f.setDate(f.getDate()-6); }
+      else if(p==='30d'){ f.setDate(f.getDate()-29); }
+      else if(p==='month'){ f=new Date(now.getFullYear(),now.getMonth(),1); }
+      else if(p==='lastmonth'){ f=new Date(now.getFullYear(),now.getMonth()-1,1); t=new Date(now.getFullYear(),now.getMonth(),0); }
+      var mf=document.getElementById('llMFrom'), mt=document.getElementById('llMTo');
+      mf.value=iso(f); mt.value=iso(t); mf.form.submit();
+    });
+  });
+})();
+</script>
+</body>
+</html>

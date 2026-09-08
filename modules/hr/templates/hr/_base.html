@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}HR — Tiểu Hiềm{% endblock %}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="/static/cc-theme.css">
+<link rel="stylesheet" href="/static/cc-multiselect.css">
+<script src="/static/cc-multiselect.js" defer></script>
+<style>
+:root { --brand:#F59E0B; --brand-dark:#b45309; --border:#e2e8f0; }
+body { background:#f5f6fa; font-family:'Segoe UI','Helvetica Neue',sans-serif; font-size:14px; color:#1e293b; }
+/* Thanh tab phụ — kiểu giống Chấm công / Chi phí QC (nền trắng, active gạch chân cam) */
+.hr-topbar { background:#fff; border-bottom:2px solid var(--border); padding:0 16px; display:flex; gap:4px; overflow-x:auto; }
+.hr-topbar::-webkit-scrollbar { height:0; }
+.hr-topbar a { display:flex; align-items:center; gap:5px; padding:10px 14px; font-size:13px; font-weight:500;
+               color:#64748b; text-decoration:none; border-bottom:3px solid transparent; margin-bottom:-2px;
+               white-space:nowrap; transition:.15s; }
+.hr-topbar a .bi { font-size:15px; }
+.hr-topbar a:hover { color:var(--brand); }
+.hr-topbar a.active { color:var(--brand); border-bottom-color:var(--brand); font-weight:600; }
+
+.hr-wrap { max-width:1280px; margin:24px auto; padding:0 16px; }
+.hr-card { background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); padding:20px 24px; margin-bottom:16px; }
+.hr-card-title { font-size:16px; font-weight:700; color:#1e293b; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+.hr-card-title .bi { color:var(--brand); }
+.hr-section-hdr { font-size:13px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.6px;
+                  border-bottom:2px solid #f1f5f9; padding-bottom:6px; margin:20px 0 14px; }
+.hr-section-hdr:first-child { margin-top:0; }
+
+.form-label { font-size:13px; font-weight:600; color:#475569; margin-bottom:6px; }
+.form-label.required::after { content:" *"; color:#dc2626; }
+.form-control, .form-select { font-size:14px; border-color:#cbd5e1; }
+.form-control:focus, .form-select:focus { border-color:var(--brand); box-shadow:0 0 0 2px rgba(245,158,11,.15); }
+.form-text { font-size:11px; color:#94a3b8; }
+
+.btn-brand { background:var(--brand); color:#fff; border:none; font-weight:600; padding:8px 22px; border-radius:8px; }
+.btn-brand:hover { background:var(--brand-dark); color:#fff; }
+
+.status-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:14px;
+                font-size:12px; font-weight:600; white-space:nowrap; }
+.status-draft     { background:#f1f5f9; color:#475569; }
+.status-submitted { background:#dbeafe; color:#1e40af; }
+.status-approved  { background:#dcfce7; color:#166534; }
+.status-rejected  { background:#fee2e2; color:#991b1b; }
+.status-none      { background:#f3f4f6; color:#9ca3af; }
+
+.upload-box { border:2px dashed #cbd5e1; border-radius:10px; padding:14px; background:#f8fafc;
+              text-align:center; cursor:pointer; transition:.15s; }
+.upload-box:hover { border-color:var(--brand); background:#fff7ed; }
+.upload-box img { max-width:100%; max-height:200px; border-radius:8px; }
+.upload-box .placeholder-text { color:#94a3b8; font-size:13px; }
+.upload-box .placeholder-text .bi { font-size:32px; display:block; margin-bottom:6px; color:#cbd5e1; }
+
+.alert-note { background:#fef3c7; border-left:4px solid #f59e0b; padding:12px 16px; border-radius:8px; margin-bottom:16px; }
+.alert-note .label { font-weight:700; color:#92400e; }
+
+/* ── Bottom nav (mobile) — giống Chấm công ── */
+.hr-bottom-nav {
+  display:none; position:fixed; bottom:0; left:0; right:0; z-index:200;
+  background:#fff; border-top:1px solid #e2e8f0; box-shadow:0 -2px 12px rgba(0,0,0,.08);
+  overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+}
+.hr-bottom-nav::-webkit-scrollbar { display:none; }
+.hr-bottom-nav a {
+  flex:1 0 auto; min-width:72px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:8px 6px 10px; font-size:10px; font-weight:500; color:#94a3b8; text-decoration:none; gap:2px; min-height:56px; position:relative;
+}
+.hr-bottom-nav a .bi { font-size:20px; }
+.hr-bottom-nav a.active, .hr-bottom-nav a:hover { color:var(--brand); }
+.hr-bottom-nav a .badge { position:absolute; top:4px; right:14px; }
+
+@media (max-width:768px) {
+  /* Mobile: ẩn thanh tab, dùng bottom-nav như Chấm công */
+  .hr-topbar { display:none !important; }
+  .hr-card { padding:16px; }
+  .hr-wrap { padding-bottom:78px; } /* chừa chỗ cho bottom nav */
+  .hr-bottom-nav { display:flex; }
+}
+</style>
+</head>
+<body>
+{% include "_main_nav.html" %}
+{% set _path = request.path %}
+<div class="hr-topbar">
+  <a href="{{ url_for('hr.my_profile') }}" class="{% if _path.startswith('/hr/my-profile') %}active{% endif %}">
+    <i class="bi bi-person-circle"></i> Hồ sơ của tôi
+  </a>
+  {% if session.get('user_id') %}
+  <a href="{{ url_for('hr.employee_contracts', uid=session.get('user_id')) }}"
+     class="{% if _path == '/hr/employee/' + session.get('user_id')|string + '/contracts' %}active{% endif %}">
+    <i class="bi bi-file-earmark-text"></i> Hợp đồng của tôi
+    {% if my_pending_sign_count and my_pending_sign_count > 0 %}
+    <span class="badge bg-danger" style="font-size:10px">{{ my_pending_sign_count }}</span>
+    {% endif %}
+  </a>
+  {% endif %}
+  {% if is_admin %}
+  <a href="{{ url_for('hr.employees_list') }}" class="{% if _path == '/hr/employees' or (_path.startswith('/hr/employee/') and '/contract' not in _path) %}active{% endif %}">
+    <i class="bi bi-people-fill"></i> Quản lý hồ sơ NV
+  </a>
+  <a href="{{ url_for('hr.companies_list') }}" class="{% if _path.startswith('/hr/companies') %}active{% endif %}">
+    <i class="bi bi-building"></i> Công ty
+  </a>
+  {% endif %}
+</div>
+
+{# ── Bottom nav (chỉ hiện trên mobile) ── #}
+<nav class="hr-bottom-nav">
+  <a href="{{ url_for('hr.my_profile') }}" class="{% if _path.startswith('/hr/my-profile') %}active{% endif %}">
+    <i class="bi bi-person-circle"></i> Hồ sơ
+  </a>
+  {% if session.get('user_id') %}
+  <a href="{{ url_for('hr.employee_contracts', uid=session.get('user_id')) }}"
+     class="{% if _path == '/hr/employee/' + session.get('user_id')|string + '/contracts' %}active{% endif %}">
+    <i class="bi bi-file-earmark-text"></i> Hợp đồng
+    {% if my_pending_sign_count and my_pending_sign_count > 0 %}<span class="badge bg-danger" style="font-size:9px">{{ my_pending_sign_count }}</span>{% endif %}
+  </a>
+  {% endif %}
+  {% if is_admin %}
+  <a href="{{ url_for('hr.employees_list') }}" class="{% if _path == '/hr/employees' or (_path.startswith('/hr/employee/') and '/contract' not in _path) %}active{% endif %}">
+    <i class="bi bi-people-fill"></i> Hồ sơ NV
+  </a>
+  <a href="{{ url_for('hr.companies_list') }}" class="{% if _path.startswith('/hr/companies') %}active{% endif %}">
+    <i class="bi bi-building"></i> Công ty
+  </a>
+  {% endif %}
+  <a href="/"><i class="bi bi-house"></i> Trang chủ</a>
+</nav>
+
+<div class="hr-wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for cat, msg in messages %}
+      <div class="alert alert-{{ 'success' if cat in ['success'] else ('danger' if cat=='danger' else ('warning' if cat=='warning' else 'info')) }} py-2 px-3 mb-3" style="border-radius:8px">{{ msg }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

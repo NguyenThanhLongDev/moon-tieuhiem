@@ -1,0 +1,38 @@
+{# ── Nút chuyển chế độ cho trang gộp "Page & Ads" ──
+   Cách dùng: {% set page_ads_view = 'pages'|'tkcamp'|'landing' %}{% include "page_account/_page_ads_pills.html" %}
+   3 chế độ cùng 1 mục menu: Danh sách Page · Page → TK & Camp · Landing Pages. #}
+<style>
+  .pav-pills { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 14px; }
+  .pav-pill { padding:7px 16px; border-radius:20px; font-size:13px; font-weight:600; text-decoration:none;
+              color:#475569; background:#fff; border:1px solid #e2e8f0; display:inline-flex; align-items:center; gap:6px;
+              box-shadow:0 1px 3px rgba(0,0,0,.04); transition:.15s; }
+  .pav-pill:hover { border-color:#F59E0B; color:#b45309; }
+  .pav-pill.active { background:#F59E0B; color:#fff; border-color:#F59E0B; }
+  /* Điện thoại: 4 nút xuống 2 hàng chiếm chỗ → cho VUỐT NGANG 1 hàng */
+  @media (max-width:768px){
+    .pav-pills{ flex-wrap:nowrap; overflow-x:auto; padding-bottom:4px;
+                scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+    .pav-pills::-webkit-scrollbar{ display:none; }
+    .pav-pill{ flex:0 0 auto; padding:8px 14px; }
+  }
+</style>
+{% set _pav_df = request.args.get('date_from','') %}
+{% set _pav_dt = request.args.get('date_to','') %}
+<div class="pav-pills">
+  <a class="pav-pill {% if page_ads_view == 'pages' %}active{% endif %}"
+     href="{{ url_for('page_account.page_ads', view='pages') }}">
+    <i class="bi bi-file-earmark-text"></i>Danh sách Page
+  </a>
+  <a class="pav-pill {% if page_ads_view == 'tkcamp' %}active{% endif %}"
+     href="{{ url_for('page_account.page_ads', view='tkcamp', date_from=_pav_df, date_to=_pav_dt) }}">
+    <i class="bi bi-diagram-2"></i>Page → TK & Camp
+  </a>
+  <a class="pav-pill {% if page_ads_view == 'landing' %}active{% endif %}"
+     href="{{ url_for('page_account.page_ads', view='landing', date_from=_pav_df, date_to=_pav_dt) }}">
+    <i class="bi bi-link-45deg"></i>Landing Pages
+  </a>
+  <a class="pav-pill {% if page_ads_view == 'pageshop' %}active{% endif %}"
+     href="{{ url_for('page_account.page_ads', view='pageshop') }}">
+    <i class="bi bi-diagram-3"></i>Page → Shop
+  </a>
+</div>

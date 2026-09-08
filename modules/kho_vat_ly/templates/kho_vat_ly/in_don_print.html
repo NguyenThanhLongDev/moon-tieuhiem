@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>In đơn hàng — Tổng hợp xuất kho</title>
+  <style>
+    :root {
+      --brand: #F59E0B;
+      --dark:  #1a1a1a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 13px;
+      color: #1a1a1a;
+      background: #f5f5f5;
+    }
+    /* ── Toolbar (ẩn khi in) ── */
+    .print-toolbar {
+      background: var(--dark);
+      color: #fff;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .print-toolbar h2 { font-size: 15px; font-weight: 700; color: var(--brand); margin: 0; }
+    .print-toolbar .meta { font-size: 12px; opacity: .7; }
+    .print-toolbar .btn-group { margin-left: auto; display: flex; gap: 8px; }
+    .tbtn {
+      padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: none; text-decoration: none; display: inline-block;
+    }
+    .tbtn-primary   { background: var(--brand); color: #1a1a1a; }
+    .tbtn-secondary { background: rgba(255,255,255,.15); color: #fff; }
+    .tbtn:hover     { opacity: .85; }
+
+    /* ── Print area ── */
+    .print-area { padding: 16px 20px; }
+
+    /* ── Summary section ── */
+    #summarySection {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    #summarySection h3 {
+      font-size: 14px; font-weight: 700; color: var(--dark);
+      border-left: 4px solid var(--brand);
+      padding-left: 10px; margin-bottom: 12px;
+    }
+    .summary-meta {
+      display: flex; gap: 20px; flex-wrap: wrap;
+      margin-bottom: 12px; font-size: 12px; color: #6b7280;
+    }
+    .summary-meta strong { color: var(--dark); }
+    .summary-table { width: 100%; border-collapse: collapse; }
+    .summary-table th {
+      background: #f8f9fa; text-align: left;
+      padding: 8px 10px; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .4px; color: #374151;
+      border-bottom: 2px solid #e5e7eb;
+    }
+    .summary-table td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; }
+    .summary-table tr:hover td { background: #fef9ec; }
+    .summary-table .qty-cell {
+      font-weight: 700; font-size: 15px; color: #d97706; text-align: center;
+    }
+    .summary-table .no { color: #9ca3af; font-size: 11px; }
+
+    /* ── Order cards ── */
+    .orders-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 14px;
+    }
+    .order-card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      overflow: hidden;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .order-card-header {
+      background: var(--dark);
+      color: #fff;
+      padding: 10px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .order-card-header .order-code {
+      font-size: 15px; font-weight: 700; color: var(--brand);
+      line-height: 1.2;
+    }
+    .order-card-header .shop-name {
+      font-size: 11px; opacity: .7; margin-top: 2px;
+    }
+    .order-card-header .tracking-wrap {
+      margin-left: auto; text-align: right;
+    }
+    .order-card-header .carrier-label {
+      font-size: 10px; opacity: .6; text-transform: uppercase; letter-spacing: .5px;
+    }
+    .order-card-header .tracking-code {
+      font-size: 12px; font-weight: 600; font-family: monospace;
+      background: rgba(255,255,255,.15); border-radius: 4px;
+      padding: 2px 6px; margin-top: 2px; display: inline-block;
+    }
+    .order-card-body { padding: 12px 14px; }
+    .item-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 0; border-bottom: 1px solid #f3f4f6;
+    }
+    .item-row:last-child { border-bottom: none; }
+    .item-row .item-name { flex: 1; font-size: 13px; }
+    .item-row .item-sku  { font-size: 11px; color: #9ca3af; }
+    .item-row .item-qty  {
+      font-size: 16px; font-weight: 800; color: #d97706;
+      min-width: 32px; text-align: right;
+    }
+    .order-card-footer {
+      background: #f9fafb; padding: 8px 14px;
+      font-size: 11px; color: #6b7280;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .status-chip {
+      display: inline-block; padding: 2px 8px; border-radius: 20px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
+    }
+    .status-waiting     { background: #f1f5f9; color: #64748b; }
+    .status-pre_confirmed { background: #fef3c7; color: #b45309; }
+    .status-pending     { background: #dbeafe; color: #1d4ed8; }
+    .status-confirmed   { background: #dcfce7; color: #15803d; }
+
+    /* ── Print media ── */
+    @media print {
+      body { background: #fff; }
+      .print-toolbar { display: none !important; }
+      .print-area { padding: 0; }
+      .orders-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .order-card { box-shadow: none; border: 1px solid #d1d5db; }
+      #summarySection { box-shadow: none; border: 1px solid #d1d5db; margin-bottom: 14px; }
+      @page { margin: 12mm; size: A4 portrait; }
+    }
+    @media (max-width: 600px) {
+      .orders-grid { grid-template-columns: 1fr; }
+      .print-toolbar { padding: 10px 12px; }
+    }
+  </style>
+</head>
+<body>
+
+{# ── Toolbar ── #}
+<div class="print-toolbar">
+  <div>
+    <h2><i>🖨</i> Phiếu tổng hợp xuất kho</h2>
+    <div class="meta">In lúc {{ printed_at }} · {{ total_orders }} đơn · {{ total_items }} sản phẩm</div>
+  </div>
+  <div class="btn-group">
+    <button class="tbtn tbtn-secondary" onclick="window.close()">✕ Đóng</button>
+    <button class="tbtn tbtn-primary" onclick="window.print()">🖨 In ngay (Ctrl+P)</button>
+  </div>
+</div>
+
+<div class="print-area">
+
+{# ── Tổng hợp hàng hóa ── #}
+<div id="summarySection">
+  <h3>📦 Tổng hợp hàng hóa cần chuẩn bị</h3>
+  <div class="summary-meta">
+    <span>Tổng đơn: <strong>{{ total_orders }}</strong></span>
+    <span>Tổng SL: <strong>{{ total_items }}</strong></span>
+    <span>Số mặt hàng: <strong>{{ summary|length }}</strong></span>
+  </div>
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th style="width:36px">#</th>
+        <th>Tên sản phẩm</th>
+        <th style="width:80px">SKU</th>
+        <th style="width:70px;text-align:center">Số lượng</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in summary %}
+      <tr>
+        <td class="no">{{ loop.index }}</td>
+        <td>{{ item.name }}</td>
+        <td style="font-family:monospace;font-size:11px;color:#6b7280">{{ item.sku or '—' }}</td>
+        <td class="qty-cell">{{ item.qty }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── Chi tiết từng đơn ── #}
+{% if print_mode == 'full' %}
+<div class="orders-grid">
+  {% for o in orders %}
+  {% set status_class = {
+    'waiting': 'status-waiting',
+    'pre_confirmed': 'status-pre_confirmed',
+    'pending': 'status-pending',
+    'confirmed': 'status-confirmed'
+  }.get(o.status, 'status-waiting') %}
+  {% set status_label = {
+    'waiting': 'Chờ ĐVVC',
+    'pre_confirmed': 'Chuẩn bị',
+    'pending': 'Chờ xuất',
+    'confirmed': 'Đã xuất'
+  }.get(o.status, o.status) %}
+  <div class="order-card">
+    <div class="order-card-header">
+      <div>
+        <div class="order-code">{{ o.order_code }}</div>
+        <div class="shop-name">{{ o.shop_name }}</div>
+      </div>
+      <div class="tracking-wrap">
+        <div class="carrier-label">{{ o.carrier_name }}</div>
+        <div class="tracking-code">{{ o.tracking_code }}</div>
+      </div>
+    </div>
+    <div class="order-card-body">
+      {% for item in o.items %}
+      <div class="item-row">
+        <div>
+          <div class="item-name">{{ item.name }}</div>
+          {% if item.sku %}<div class="item-sku">{{ item.sku }}</div>{% endif %}
+        </div>
+        <div class="item-qty">×{{ item.qty }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="order-card-footer">
+      <span>
+        {% if o.order_date %}
+          {{ o.order_date[:10] if o.order_date is string else o.order_date.strftime('%d/%m/%Y') }}
+        {% endif %}
+      </span>
+      <span class="status-chip {{ status_class }}">{{ status_label }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+</div>{# /print-area #}
+
+<script>
+// Tự động mở hộp thoại in sau khi load
+{% if print_mode == 'full' %}
+window.addEventListener('load', function() {
+  setTimeout(function() { window.print(); }, 600);
+});
+{% endif %}
+</script>
+</body>
+</html>

@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page Test — Bảng tổng hợp sản phẩm test</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#F59E0B">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="/static/cc-multiselect.css">
+<style>
+* { box-sizing: border-box; }
+body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; }
+.topbar { background:#1a1a1a; padding:0 20px; display:flex; align-items:center; gap:18px; height:52px; }
+.topbar .brand { color:#F59E0B; font-weight:700; font-size:16px; text-decoration:none; }
+.topbar a.nav-lnk { color:#d1d5db; text-decoration:none; font-size:13px; }
+.topbar a.nav-lnk:hover { color:#fff; }
+.wrap { max-width:1500px; margin:18px auto; padding:0 16px; }
+.card-x { background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); padding:16px 18px; margin-bottom:14px; }
+.pt-table { width:100%; font-size:13px; }
+.pt-table th { background:#fff8e1; color:#92400e; font-weight:700; font-size:12px; white-space:nowrap;
+               padding:9px 8px; border-bottom:2px solid #F59E0B; position:sticky; top:0; z-index:6; }
+.pt-table td { padding:8px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.pt-table tr:hover td { background:#fffdf5; }
+.money { font-variant-numeric:tabular-nums; white-space:nowrap; }
+.badge-test { background:#fef3c7; color:#b45309; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; }
+.badge-win  { background:#d1fae5; color:#065f46; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; }
+.btn-brand { background:#F59E0B; border:none; color:#fff; font-weight:600; border-radius:8px; }
+.btn-brand:hover { background:#d97706; color:#fff; }
+.tab-pill { padding:6px 14px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none;
+            color:#475569; background:#f1f5f9; border:1px solid #e2e8f0; }
+.tab-pill.active { background:#F59E0B; color:#fff; border-color:#F59E0B; }
+.tot-row td { background:#fff8e1; font-weight:700; border-bottom:2px solid #F59E0B;
+              position:sticky; top:var(--pt-tot-top, 37px); z-index:5; }
+.custom-flag { font-size:10px; color:#b45309; }
+
+/* ── Responsive: mobile (≤640px) ── */
+@media (max-width: 640px) {
+  body { font-size: 13px; }
+  /* Topbar tự xuống dòng, không vỡ chữ */
+  .topbar { flex-wrap: wrap; gap: 10px 14px; height: auto; padding: 8px 12px; }
+  .topbar .brand { font-size: 14px; }
+  .topbar a.nav-lnk { font-size: 12px; }
+  .topbar > div[style*="flex:1"] { display: none; } /* bỏ spacer để link không nhảy dòng trống */
+  .wrap { margin: 12px auto; padding: 0 8px; }
+  .card-x { padding: 12px; }
+  /* Form lọc: mỗi ô full-width cho dễ bấm; 2 ô ngày chung 1 hàng */
+  form.d-flex > * { flex: 1 1 100%; }
+  form.d-flex > div:nth-child(1), form.d-flex > div:nth-child(2) { flex: 1 1 45%; }
+  form .form-control, form .form-select { font-size: 13px; max-width: 100%; width: 100%; }
+  /* Tabs trạng thái: gọn, xuống dòng 2 hàng */
+  .tab-pill { padding: 5px 10px; font-size: 12px; }
+  /* Bảng: thu nhỏ ô để xem nhiều cột hơn (đã có scroll trong .card-x) */
+  .pt-table { font-size: 12px; }
+  .pt-table th { padding: 7px 6px; font-size: 11px; }
+  .pt-table td { padding: 6px; }
+  /* Modal thêm/sửa full màn */
+  .modal-dialog.modal-xl { max-width: 96vw !important; margin: 8px auto; }
+}
+</style>
+</head>
+<body>
+{% include "_main_nav.html" %}
+{% set cpqc_active = 'page_test' %}{% include "_cpqc_subnav.html" %}
+
+<div class="wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="alert alert-{{ 'danger' if cat=='danger' else ('warning' if cat=='warning' else 'success') }} py-2 mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+    <h5 class="m-0" style="font-weight:700">🧪 Bảng tổng hợp sản phẩm TEST</h5>
+    <button class="btn btn-brand btn-sm px-3" data-bs-toggle="modal" data-bs-target="#addModal"
+            onclick="fillForm(null)"><i class="bi bi-plus-lg me-1"></i>Thêm dòng test</button>
+  </div>
+
+  {# FAB "Tìm & Lọc" + bottom-sheet (mobile) — gom lịch, team, NV, tìm kiếm, tab #}
+  <style>
+  #ptFab{display:none} #ptSheet{display:none}
+  @media (max-width:768px){
+    #ptFilterBox:not(.in-sheet){display:none !important}
+    #ptFilterBox.in-sheet{padding:0;border:none;box-shadow:none;background:none;margin:0}
+    #ptFilterBox.in-sheet form{flex-direction:column;align-items:stretch !important;gap:12px !important}
+    #ptFilterBox.in-sheet form > div{width:100%}
+    #ptFilterBox.in-sheet .form-select,
+    #ptFilterBox.in-sheet .form-control,
+    #ptFilterBox.in-sheet .cc-ms,
+    #ptFilterBox.in-sheet .dr-picker,
+    #ptFilterBox.in-sheet .dr-trigger{width:100% !important;min-width:0 !important}
+    #ptFilterBox.in-sheet .cc-ms{width:100% !important;min-width:0 !important}
+    #ptFilterBox.in-sheet .cc-ms-toggle{padding:11px 12px;font-size:14px}
+    #ptFilterBox.in-sheet .btn{width:100%;padding:12px;font-size:15px;font-weight:700}
+    #ptFilterBox.in-sheet .tab-pill{flex:1 1 45%;text-align:center;padding:11px 6px}
+    #ptFab{display:flex;position:fixed;right:14px;bottom:22px;z-index:1500;
+      align-items:center;gap:6px;background:#F59E0B;color:#fff;border:none;
+      border-radius:999px;padding:12px 18px;font-weight:700;font-size:14px;
+      box-shadow:0 6px 20px rgba(245,158,11,.45)}
+    #ptSheet.open{display:block;position:fixed;inset:0;z-index:2600}
+    #ptSheet .cs-bd{position:absolute;inset:0;background:rgba(15,23,42,.5)}
+    #ptSheet .cs-card{position:absolute;left:0;right:0;bottom:0;background:#fff;
+      border-radius:16px 16px 0 0;padding:14px 16px 24px;max-height:86vh;overflow-y:auto;
+      box-shadow:0 -8px 30px rgba(0,0,0,.25)}
+    #ptSheet .cs-hd{display:flex;align-items:center;justify-content:space-between;
+      font-weight:800;font-size:15px;margin-bottom:14px}
+    #ptSheet .cs-x{border:none;background:#f1f5f9;border-radius:999px;
+      width:32px;height:32px;font-size:18px;line-height:1}
+  }
+  </style>
+  <button type="button" id="ptFab"><i class="bi bi-funnel-fill"></i> Tìm &amp; Lọc</button>
+  <div id="ptSheet">
+    <div class="cs-bd"></div>
+    <div class="cs-card">
+      <div class="cs-hd"><span><i class="bi bi-funnel me-1"></i>Tìm &amp; Lọc</span>
+        <button type="button" class="cs-x">&times;</button></div>
+      <div id="ptSheetSlot"></div>
+    </div>
+  </div>
+
+  {# ── Bộ lọc ── #}
+  <div class="card-x" id="ptFilterBox">
+    <form method="get" class="d-flex align-items-end flex-wrap gap-2">
+      <div>{% include "_date_range_picker.html" %}</div>
+      <div><label class="form-label mb-1" style="font-size:11px;color:#64748b;font-weight:600">TEAM</label>
+        <select name="team" id="teamFilter" data-cc-search placeholder="— Tất cả team —"
+                class="form-select form-select-sm" style="min-width:150px">
+          <option value="">— Tất cả team —</option>
+          {% for t in teams_list %}
+          <option value="{{ t.code }}" {% if t.code == f_team %}selected{% endif %}>{{ t.name }}</option>
+          {% endfor %}
+        </select></div>
+      <div><label class="form-label mb-1" style="font-size:11px;color:#64748b;font-weight:600">NHÂN VIÊN</label>
+        <select name="staff" id="staffFilter" data-cc-search placeholder="-- Nhân viên --"
+                class="form-select form-select-sm" style="min-width:180px">
+          <option value="">— Tất cả NV —</option>
+          {% for un, fn, tc in staff_options %}
+          <option value="{{ un }}" data-team="{{ tc }}" {% if un == f_staff %}selected{% endif %}>{{ fn }}</option>
+          {% endfor %}
+        </select></div>
+      <div style="flex:1;min-width:200px"><label class="form-label mb-1" style="font-size:11px;color:#64748b;font-weight:600">TÌM KIẾM</label>
+        <input type="text" name="q" value="{{ f_q }}" class="form-control form-control-sm"
+               placeholder="🔍 page / sản phẩm / TK / nhân viên..."></div>
+      <input type="hidden" name="tab" value="{{ f_tab }}">
+      <button type="submit" class="btn btn-brand btn-sm px-3">Lọc</button>
+      <a href="{{ url_for('chi_phi_qc.page_test') }}" class="btn btn-outline-secondary btn-sm">Xóa</a>
+    </form>
+    <div class="d-flex gap-2 mt-3 flex-wrap">
+      {% set _base = {'date_from': date_from, 'date_to': date_to, 'team': f_team, 'staff': f_staff, 'q': f_q} %}
+      <a class="tab-pill {% if not f_tab %}active{% endif %}" href="{{ url_for('chi_phi_qc.page_test', tab='', **_base) }}">Tất cả ({{ tab_counts.all }})</a>
+      <a class="tab-pill {% if f_tab == 'sp' %}active{% endif %}" href="{{ url_for('chi_phi_qc.page_test', tab='sp', **_base) }}">🏆 SP Win ({{ tab_counts.sp }})</a>
+      <a class="tab-pill {% if f_tab == 'test' %}active{% endif %}" href="{{ url_for('chi_phi_qc.page_test', tab='test', **_base) }}">⏳ Đang test ({{ tab_counts.test }})</a>
+      <a class="tab-pill {% if f_tab == 'khongdat' %}active{% endif %}" href="{{ url_for('chi_phi_qc.page_test', tab='khongdat', **_base) }}">❌ Không đạt ({{ tab_counts.khongdat }})</a>
+    </div>
+  </div>
+
+  {# ── Bảng ── #}
+  <div class="card-x" style="padding:0;overflow:auto;max-height:75vh">
+    {% if not f_tab %}
+    {# ══ TẤT CẢ: chi tiết TỪNG NGÀY (không gộp) ══ #}
+    <table class="pt-table">
+      <thead><tr>
+        <th>NGÀY</th><th>TÊN PAGE</th><th>TK CHẠY</th><th>TEAM</th><th>NHÂN VIÊN</th>
+        <th>SẢN PHẨM TEST</th><th class="text-end">GIÁ BÁN</th>
+        <th class="text-end">ĐƠN</th><th class="text-end">SL SP</th>
+        <th class="text-end">DOANH THU</th>
+        <th class="text-end">CP ADS META</th><th class="text-end">CP SAU THUẾ</th>
+        <th class="text-center">KẾT QUẢ</th><th class="text-center">ĐÁNH GIÁ</th><th></th>
+      </tr></thead>
+      <tbody>
+      {% if rows %}
+        <tr class="tot-row">
+          <td colspan="7">TỔNG ({{ rows|length }} dòng)</td>
+          <td class="text-end">{{ totals.don_hang }}</td>
+          <td class="text-end">{{ totals.so_luong }}</td>
+          <td class="text-end money" style="color:#065f46">{{ '{:,.0f}'.format(totals.doanh_thu).replace(',', '.') }}đ</td>
+          <td class="text-end money">{{ '{:,.0f}'.format(totals.spend_meta).replace(',', '.') }}đ</td>
+          <td class="text-end money" style="color:#9f1239">{{ '{:,.0f}'.format(totals.spend_vat).replace(',', '.') }}đ</td>
+          <td colspan="3"></td>
+        </tr>
+      {% endif %}
+      {% for r in rows %}
+        <tr>
+          <td data-label="Ngày" style="white-space:nowrap">{{ r.entry_date.strftime('%d/%m/%Y') }}</td>
+          <td data-label="Page" class="pt-c-main" style="font-weight:600;max-width:180px">{{ r.page_name or r.page_id }}</td>
+          <td data-label="TK chạy" style="max-width:160px;font-size:12px;color:#475569">{{ r.tk_names }}</td>
+          <td data-label="Team" style="font-size:12px">{{ r.team_name }}</td>
+          <td data-label="Nhân viên" style="font-size:12px">{{ r.owner_name }}</td>
+          {% if r.auto %}
+          {% set fid = 'fauto' ~ loop.index %}
+          <td data-label="Sản phẩm test" style="min-width:190px">
+            <div style="font-size:10px;color:#b45309;font-weight:600;margin-bottom:2px">⚡ tự phát hiện TEST</div>
+            <form id="{{ fid }}" method="post" action="{{ url_for('chi_phi_qc.page_test_add') }}">
+              <input type="hidden" name="entry_date" value="{{ r.date_str }}">
+              <input type="hidden" name="page" value="{{ r.page_id }}||{{ r.page_name or '' }}">
+              <input type="hidden" name="date_from" value="{{ date_from }}">
+              <input type="hidden" name="date_to" value="{{ date_to }}">
+              <input type="hidden" name="team" value="{{ f_team }}">
+              <input type="hidden" name="staff" value="{{ f_staff }}">
+              <input type="hidden" name="q" value="{{ f_q }}">
+              <input type="hidden" name="tab" value="{{ f_tab }}">
+            </form>
+            {% if r.product_suggest %}
+            <div style="font-weight:600;color:#1d4ed8;font-size:13px">{{ r.product_suggest }}</div>
+            <input type="hidden" form="{{ fid }}" name="product_name" value="{{ r.product_suggest }}">
+            {% else %}
+            <input type="text" form="{{ fid }}" name="product_name" required
+                   class="form-control form-control-sm" style="font-size:12px"
+                   placeholder="Tên sản phẩm...">
+            {% endif %}
+          </td>
+          <td data-label="Giá bán" style="width:110px">
+            <input type="text" form="{{ fid }}" name="gia_ban" inputmode="numeric"
+                   class="form-control form-control-sm text-end" style="font-size:12px"
+                   placeholder="0đ" oninput="ptCalc('{{ fid }}')">
+          </td>
+          <td data-label="Đơn" style="width:70px">
+            <input type="text" form="{{ fid }}" name="don_hang" inputmode="numeric"
+                   class="form-control form-control-sm text-end" style="font-size:12px" placeholder="0">
+          </td>
+          <td data-label="SL SP" style="width:70px">
+            <input type="text" form="{{ fid }}" name="so_luong" inputmode="numeric"
+                   class="form-control form-control-sm text-end" style="font-size:12px"
+                   placeholder="0" oninput="ptCalc('{{ fid }}')">
+          </td>
+          <td data-label="Doanh thu" class="text-end money" style="font-weight:700;color:#065f46">
+            <span id="dt-{{ fid }}">—</span>
+          </td>
+          {% else %}
+          <td data-label="Sản phẩm test" style="font-weight:600;color:#1d4ed8">{{ r.product_name }}</td>
+          <td data-label="Giá bán" class="text-end money">{{ '{:,.0f}'.format(r.gia_ban or 0).replace(',', '.') }}đ</td>
+          <td data-label="Đơn" class="text-end">{{ r.don_hang }}</td>
+          <td data-label="SL SP" class="text-end">{{ r.so_luong }}</td>
+          <td data-label="Doanh thu" class="text-end money" style="font-weight:700;color:#065f46">
+            {{ '{:,.0f}'.format(r.doanh_thu).replace(',', '.') }}đ
+            {% if r.doanh_thu_custom_flag %}<div class="custom-flag">DT tuỳ chỉnh</div>{% endif %}
+          </td>
+          {% endif %}
+          <td data-label="CP ads Meta" class="text-end money">{{ '{:,.0f}'.format(r.spend_meta).replace(',', '.') }}đ</td>
+          <td data-label="CP sau thuế" class="text-end money" style="font-weight:600;color:#9f1239">
+            {{ '{:,.0f}'.format(r.spend_vat).replace(',', '.') }}đ
+            <div style="font-size:10px;color:#94a3b8">VAT {{ r.vat_pct }}%</div>
+          </td>
+          <td data-label="Kết quả" class="text-center">
+            <span style="display:inline-block;font-size:11px;font-weight:600;padding:3px 12px;border-radius:6px;background:#fef3c7;color:#b45309">Test</span>
+          </td>
+          {% set _can_eval = pt_eval_all or (pt_eval_team and r.team_code == pt_eval_team) %}
+          <td class="text-center">
+            <div class="btn-group" role="group" style="border-radius:6px;overflow:hidden;border:1px solid #d1d5db">
+              <button type="button" class="btn py-0 px-2"
+                style="font-size:11px;font-weight:600;border:none;{% if r.danh_gia == 'dat' %}background:#d1fae5;color:#065f46{% else %}background:#f9fafb;color:#9ca3af{% endif %}"
+                {% if not _can_eval %}disabled title="{% if pt_eval_team %}Leader chỉ đánh team mình{% else %}Bạn chỉ được xem{% endif %}"{% endif %}
+                onclick='saveEval("{{ r.page_id }}", "dat", "{{ r.date_str }}")'>Đạt</button>
+              <button type="button" class="btn py-0 px-2"
+                style="font-size:11px;font-weight:600;border:none;border-left:1px solid #d1d5db;{% if r.danh_gia == 'khong_dat' %}background:#fee2e2;color:#991b1b{% else %}background:#f9fafb;color:#9ca3af{% endif %}"
+                {% if not _can_eval %}disabled title="{% if pt_eval_team %}Leader chỉ đánh team mình{% else %}Bạn chỉ được xem{% endif %}"{% endif %}
+                onclick='saveEval("{{ r.page_id }}", "khong_dat", "{{ r.date_str }}")'>Không đạt</button>
+            </div>
+          </td>
+          <td style="white-space:nowrap">
+            {% if r.auto %}
+            <button type="submit" form="fauto{{ loop.index }}" class="btn btn-sm btn-brand py-0 px-2"
+                    title="Lưu dòng test" style="font-size:12px">💾 Lưu</button>
+            {% else %}
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Sửa"
+                    data-bs-toggle="modal" data-bs-target="#addModal"
+                    onclick='fillForm({{ {"id": r.id, "date": r.date_str, "page": r.page_id ~ "||" ~ (r.page_name or ""), "page_label": r.page_name or r.page_id, "product": r.product_name, "gia_ban": r.gia_ban|int, "don_hang": r.don_hang, "so_luong": r.so_luong, "dt_custom": (r.doanh_thu_custom|int) if r.doanh_thu_custom_flag else "", "note": r.note or ""} | tojson }})'>
+              <i class="bi bi-pencil"></i></button>
+            <form method="post" action="{{ url_for('chi_phi_qc.page_test_delete', entry_id=r.id) }}"
+                  style="display:inline" onsubmit="return confirm('Reset dòng này về ban đầu? (giá/đơn/SL = 0, bỏ đánh giá)')">
+              <input type="hidden" name="date_from" value="{{ date_from }}">
+              <input type="hidden" name="date_to" value="{{ date_to }}">
+              <input type="hidden" name="team" value="{{ f_team }}">
+              <input type="hidden" name="staff" value="{{ f_staff }}">
+              <input type="hidden" name="q" value="{{ f_q }}">
+              <input type="hidden" name="tab" value="{{ f_tab }}">
+              <button class="btn btn-sm btn-outline-warning py-0 px-2" title="Reset về ban đầu (giá/đơn/SL=0, bỏ đánh giá)"><i class="bi bi-arrow-counterclockwise"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="15" class="text-center py-4 text-muted">
+          Chưa có dòng test nào trong khoảng ngày này — bấm <strong>"➕ Thêm dòng test"</strong> để nhập.
+        </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    {# ══ GỘP THEO PAGE (Sản phẩm / Đang test / Đạt / Không đạt) ══ #}
+    <table class="pt-table">
+      <thead><tr>
+        <th>TÊN PAGE · SẢN PHẨM</th><th>TK CHẠY</th><th>TEAM</th><th>NHÂN VIÊN</th>
+        <th class="text-end">Σ ĐƠN</th><th class="text-end">Σ SL</th><th class="text-end">Σ DOANH THU</th>
+        <th class="text-end">Σ CP ADS META</th><th class="text-end">Σ CP SAU THUẾ</th>
+        <th class="text-center">KẾT QUẢ</th><th class="text-center">ĐÁNH GIÁ</th><th class="text-center">CHI TIẾT</th>
+      </tr></thead>
+      <tbody>
+      {% if pages %}
+        <tr class="tot-row">
+          <td colspan="4">TỔNG ({{ pages|length }} sản phẩm)</td>
+          <td class="text-end">{{ totals.don_hang }}</td>
+          <td class="text-end">{{ totals.so_luong }}</td>
+          <td class="text-end money" style="color:#065f46">{{ '{:,.0f}'.format(totals.doanh_thu).replace(',', '.') }}đ</td>
+          <td class="text-end money">{{ '{:,.0f}'.format(totals.spend_meta).replace(',', '.') }}đ</td>
+          <td class="text-end money" style="color:#9f1239">{{ '{:,.0f}'.format(totals.spend_vat).replace(',', '.') }}đ</td>
+          <td colspan="3"></td>
+        </tr>
+      {% endif %}
+      {% for g in pages %}
+        <tr>
+          <td class="pt-c-main" style="max-width:240px">
+            <div style="font-weight:600">{{ g.page_name }}</div>
+            {# Tab SP Win / Đạt: chỉ hiện sản phẩm của ngày bấm Đạt. Tab khác: gộp cả kỳ. #}
+            <div style="font-size:12px;color:#1d4ed8">{% if f_tab in ['sp', 'dat'] %}{{ g.win_product }}{% else %}{{ g.product_label }}{% endif %}</div>
+          </td>
+          <td data-label="TK chạy" style="max-width:150px;font-size:12px;color:#475569">{{ g.tk_names }}</td>
+          <td data-label="Team" style="font-size:12px">{{ g.team_name }}</td>
+          <td data-label="Nhân viên" style="font-size:12px">{{ g.owner_name }}</td>
+          <td data-label="Σ Đơn" class="text-end">{{ g.don_hang }}</td>
+          <td data-label="Σ SL" class="text-end">{{ g.so_luong }}</td>
+          <td data-label="Σ Doanh thu" class="text-end money" style="font-weight:700;color:#065f46">{{ '{:,.0f}'.format(g.doanh_thu).replace(',', '.') }}đ</td>
+          <td data-label="Σ CP ads Meta" class="text-end money">{{ '{:,.0f}'.format(g.spend_meta).replace(',', '.') }}đ</td>
+          <td data-label="Σ CP sau thuế" class="text-end money" style="font-weight:600;color:#9f1239">{{ '{:,.0f}'.format(g.spend_vat).replace(',', '.') }}đ</td>
+          <td data-label="Kết quả" class="text-center">
+            <span style="display:inline-block;font-size:11px;font-weight:600;padding:3px 12px;border-radius:6px;background:#fef3c7;color:#b45309">Test</span>
+          </td>
+          <td data-label="Đánh giá" class="text-center">
+            {# Đánh giá theo từng ngày — làm ở tab "Tất cả". Đây chỉ hiển thị kết quả gộp. #}
+            {% if g.danh_gia == 'dat' %}
+              <span style="display:inline-block;font-size:11px;font-weight:600;padding:3px 12px;border-radius:6px;background:#d1fae5;color:#065f46">Đạt</span>
+            {% elif g.danh_gia == 'khong_dat' %}
+              <span style="display:inline-block;font-size:11px;font-weight:600;padding:3px 12px;border-radius:6px;background:#fee2e2;color:#991b1b">Không đạt</span>
+            {% else %}
+              <span style="font-size:11px;color:#9ca3af" title="Đánh giá theo từng ngày ở tab Tất cả">— chưa đánh</span>
+            {% endif %}
+          </td>
+          <td class="text-center pt-c-act">
+            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:12px"
+                    onclick='showDetail({{ {"page_name": g.page_name, "product": g.product_label, "days": g.days, "totals": {"spend_meta": g.spend_meta, "spend_vat": g.spend_vat, "don_hang": g.don_hang, "so_luong": g.so_luong, "doanh_thu": g.doanh_thu}} | tojson }})'>🔍 Chi tiết</button>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="12" class="text-center py-4 text-muted">
+          Chưa có sản phẩm test nào trong khoảng ngày này — bấm <strong>"➕ Thêm dòng test"</strong> để nhập.
+        </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+  <div class="text-muted" style="font-size:12px">
+    💡 Tab <strong>Tất cả</strong> = chi tiết từng ngày (nhập SP/giá/đơn ngay tại dòng). Các tab
+    <strong>Sản phẩm / Đang test / Đạt / Không đạt</strong> = gộp theo page, cộng tổng cả kỳ — bấm
+    <strong>🔍 Chi tiết</strong> xem từng ngày. Chỉ hiện page có chi phí ads &gt; 0; chưa lên POS = Test.
+    Đánh giá <strong>Đạt/Không đạt</strong>: leader đánh team mình, admin/IT/kế toán đánh tất cả, nhân viên chỉ xem.
+  </div>
+</div>
+
+{# ── Modal Thêm / Sửa dòng test ── #}
+<div class="modal fade" id="addModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#fff8e1;border-bottom:2px solid #F59E0B">
+        <h6 class="modal-title" style="font-weight:700;color:#92400e" id="modalTitle">➕ Thêm dòng test</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="entryForm" action="{{ url_for('chi_phi_qc.page_test_add') }}">
+        <div class="modal-body">
+          <input type="hidden" name="date_from" value="{{ date_from }}">
+          <input type="hidden" name="date_to" value="{{ date_to }}">
+          <input type="hidden" name="team" value="{{ f_team }}">
+              <input type="hidden" name="staff" value="{{ f_staff }}">
+          <input type="hidden" name="q" value="{{ f_q }}">
+          <input type="hidden" name="tab" value="{{ f_tab }}">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label" style="font-size:12px;font-weight:600">Ngày test <span class="text-danger">*</span></label>
+              <input type="date" name="entry_date" id="f_date" class="form-control" value="{{ today }}" required>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label" style="font-size:12px;font-weight:600">Page <span class="text-danger">*</span></label>
+              <select name="page" id="f_page" class="form-select" data-cc-search required>
+                <option value="">— Chọn page —</option>
+                {% for p in page_options %}
+                <option value="{{ p.id }}||{{ p.name }}">{{ p.name }}</option>
+                {% endfor %}
+              </select>
+              <div id="f_page_fixed" class="form-text" style="display:none"></div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" style="font-size:12px;font-weight:600">Tên sản phẩm test <span class="text-danger">*</span></label>
+              <input type="text" name="product_name" id="f_product" class="form-control" placeholder="vd: KÌM ĐA NĂNG" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" style="font-size:12px;font-weight:600">Giá bán (đ)</label>
+              <input type="text" name="gia_ban" id="f_gia_ban" class="form-control" inputmode="numeric" placeholder="vd: 249000">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" style="font-size:12px;font-weight:600">Đơn hàng</label>
+              <input type="text" name="don_hang" id="f_don_hang" class="form-control" inputmode="numeric" placeholder="0">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" style="font-size:12px;font-weight:600">SL SP (combo)</label>
+              <input type="text" name="so_luong" id="f_so_luong" class="form-control" inputmode="numeric" placeholder="0">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" style="font-size:12px;font-weight:600">DT tuỳ chỉnh (đ)
+                <span class="text-muted" style="font-weight:normal">— để trống = tự tính SL × giá</span></label>
+              <input type="text" name="doanh_thu_custom" id="f_dt_custom" class="form-control" inputmode="numeric" placeholder="tự tính">
+            </div>
+            <div class="col-12">
+              <label class="form-label" style="font-size:12px;font-weight:600">Ghi chú</label>
+              <input type="text" name="note" id="f_note" class="form-control" placeholder="tuỳ chọn">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-brand px-4">💾 Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ── Modal Chi tiết theo ngày ── #}
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-xl" style="max-width:min(96vw,1100px)">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#eff6ff;border-bottom:2px solid #3b82f6">
+        <h6 class="modal-title" style="font-weight:700;color:#1e40af" id="dtlTitle">🔍 Chi tiết</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="dtlSub" style="color:#1d4ed8;font-weight:600;margin-bottom:10px;font-size:13px"></div>
+        <table class="pt-table" style="width:100%">
+          <thead><tr>
+            <th>NGÀY</th><th class="text-end">CP ADS META</th><th class="text-end">CP SAU THUẾ</th>
+            <th class="text-end">ĐƠN</th><th class="text-end">SL</th><th class="text-end">DOANH THU</th><th>SẢN PHẨM</th>
+          </tr></thead>
+          <tbody id="dtlBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/static/cc-multiselect.js" defer></script>
+<script>
+const ADD_URL = "{{ url_for('chi_phi_qc.page_test_add') }}";
+
+// Dòng TỔNG ghim ngay dưới header khi cuộn — đo chiều cao header thực tế
+document.addEventListener('DOMContentLoaded', function () {
+  const thead = document.querySelector('.pt-table thead');
+  if (thead) document.documentElement.style.setProperty('--pt-tot-top', thead.offsetHeight + 'px');
+  filterStaffByTeam();
+});
+
+// Chọn Team → dropdown Nhân viên (cc-multiselect) chỉ còn NV của team đó
+let _staffMaster = null;
+function filterStaffByTeam() {
+  const teamSel = document.querySelector('select[name="team"]');
+  const staffSel = document.getElementById('staffFilter');
+  if (!teamSel || !staffSel) return;
+  if (!_staffMaster) {
+    _staffMaster = [...staffSel.options].filter(o => o.value)
+      .map(o => ({v: o.value, t: o.textContent, team: o.dataset.team || ''}));
+  }
+  const t = teamSel.value, cur = staffSel.value;
+  const opts = _staffMaster.filter(o => !t || o.team === t);
+  staffSel.innerHTML = '<option value="">— Tất cả NV —</option>' + opts.map(o => {
+    const el = document.createElement('option');
+    el.value = o.v; el.textContent = o.t; el.dataset.team = o.team;
+    return el.outerHTML;
+  }).join('');
+  if (opts.some(o => o.v === cur)) staffSel.value = cur;
+  if (window.CCMultiSelect) CCMultiSelect.refresh(staffSel);
+}
+document.querySelector('select[name="team"]')?.addEventListener('change', filterStaffByTeam);
+
+// 3 chế độ: fillForm(null)=thêm mới · fillForm({id:null, page,...})=nhập SP cho dòng
+// tự phát hiện (page+ngày khoá sẵn) · fillForm({id: N, ...})=sửa dòng đã có
+function fillForm(data) {
+  const form = document.getElementById('entryForm');
+  const pageSel = document.getElementById('f_page');
+  const pageFixed = document.getElementById('f_page_fixed');
+  const dEl = document.getElementById('f_date');
+  const isEdit = !!(data && data.id);
+  form.reset();
+  form.action = isEdit ? '/chi-phi-qc/page-test/' + data.id + '/update' : ADD_URL;
+  document.getElementById('modalTitle').textContent =
+    isEdit ? ('✏️ Sửa: ' + data.product) : '➕ Thêm dòng test';
+  dEl.value = (data && data.date) || '{{ today }}';
+  dEl.readOnly = !!(data && data.date);
+  if (data && data.page) {
+    // đảm bảo option tồn tại (page test có thể ngoài list 60 ngày)
+    if (![...pageSel.options].some(o => o.value === data.page)) {
+      const o = document.createElement('option');
+      o.value = data.page; o.textContent = data.page_label;
+      pageSel.appendChild(o);
+    }
+    pageSel.value = data.page;
+    pageSel.disabled = isEdit;            // sửa: không đổi page; nhập SP: giữ value để submit
+    pageSel.required = !isEdit;
+    // Đồng bộ widget cc-search để toggle hiện đúng tên page (không kẹt ở "Chọn page")
+    if (window.CCMultiSelect && pageSel._ccms) CCMultiSelect.refresh(pageSel);
+    if (pageSel.parentNode && pageSel.parentNode.classList.contains('cc-ms')) {
+      pageSel.parentNode.style.pointerEvents = isEdit ? 'none' : '';
+      pageSel.parentNode.style.opacity = isEdit ? '0.6' : '';
+    }
+    pageFixed.textContent = '📌 Page: ' + data.page_label + ' — ngày ' + (data.date || '');
+    pageFixed.style.display = 'block';
+  } else {
+    pageSel.disabled = false; pageSel.required = true;
+    if (window.CCMultiSelect && pageSel._ccms) CCMultiSelect.refresh(pageSel);
+    if (pageSel.parentNode && pageSel.parentNode.classList.contains('cc-ms')) {
+      pageSel.parentNode.style.pointerEvents = ''; pageSel.parentNode.style.opacity = '';
+    }
+    pageFixed.style.display = 'none';
+  }
+  document.getElementById('f_product').value = (data && data.product) || '';
+  document.getElementById('f_gia_ban').value = (data && data.gia_ban) || '';
+  document.getElementById('f_don_hang').value = (data && data.don_hang) || '';
+  document.getElementById('f_so_luong').value = (data && data.so_luong) || '';
+  var _dtEl = document.getElementById('f_dt_custom');
+  _dtEl.value = (data && data.dt_custom) || '';
+  // Để trống = tự tính: hiện sẵn doanh thu SL × giá làm gợi ý để sếp thấy số
+  if (data && !data.dt_custom) {
+    var _rev = (parseInt(data.gia_ban) || 0) * (parseInt(data.so_luong) || 0);
+    _dtEl.placeholder = _rev > 0 ? ('tự tính: ' + _rev.toLocaleString('vi-VN') + 'đ') : 'tự tính';
+  } else {
+    _dtEl.placeholder = 'tự tính';
+  }
+  document.getElementById('f_note').value = (data && data.note) || '';
+}
+
+// Doanh thu live cho dòng nhập nhanh: SL × giá bán
+function ptCalc(fid) {
+  const num = n => parseFloat((document.querySelector(`[form="${fid}"][name="${n}"]`)?.value || '0')
+                              .replace(/[.,]/g, '')) || 0;
+  const dt = num('so_luong') * num('gia_ban');
+  document.getElementById('dt-' + fid).textContent =
+    dt > 0 ? dt.toLocaleString('vi-VN') + 'đ' : '—';
+}
+
+// Nút Win|Test — dùng chung endpoint với trang Chi phí QC
+function setAutoPhanLoai(btn, pageId, phanLoai, date) {
+  fetch('/chi-phi-qc/set-auto-phan-loai', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({page_id: pageId, phan_loai: phanLoai, date: date})
+  }).then(r => r.json()).then(j => {
+    if (j.ok) { location.reload(); }
+    else { alert('Lỗi: ' + (j.error || 'không lưu được')); }
+  }).catch(e => alert('Lỗi mạng: ' + e));
+}
+
+// Popup Chi tiết: hiện từng ngày của 1 page + dòng TỔNG
+function showDetail(d) {
+  var fmt = function (n) { return (Math.round(n || 0)).toLocaleString('vi-VN') + 'đ'; };
+  var dmy = function (s) { var p = (s || '').split('-'); return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : s; };
+  document.getElementById('dtlTitle').textContent = '🔍 ' + d.page_name;
+  document.getElementById('dtlSub').textContent =
+    (d.product && d.product !== '—') ? ('Sản phẩm: ' + d.product) : '';
+  var h = '';
+  (d.days || []).forEach(function (x) {
+    h += '<tr><td style="white-space:nowrap">' + dmy(x.date) + '</td>'
+       + '<td class="text-end money">' + fmt(x.spend_meta) + '</td>'
+       + '<td class="text-end money" style="color:#9f1239">' + fmt(x.spend_vat) + '</td>'
+       + '<td class="text-end">' + (x.don_hang || 0) + '</td>'
+       + '<td class="text-end">' + (x.so_luong || 0) + '</td>'
+       + '<td class="text-end money" style="color:#065f46">' + fmt(x.doanh_thu) + '</td>'
+       + '<td style="font-size:12px;color:#1d4ed8">' + (x.product || '') + '</td></tr>';
+  });
+  var t = d.totals || {};
+  h += '<tr class="tot-row"><td>TỔNG</td>'
+     + '<td class="text-end money">' + fmt(t.spend_meta) + '</td>'
+     + '<td class="text-end money" style="color:#9f1239">' + fmt(t.spend_vat) + '</td>'
+     + '<td class="text-end">' + (t.don_hang || 0) + '</td>'
+     + '<td class="text-end">' + (t.so_luong || 0) + '</td>'
+     + '<td class="text-end money" style="color:#065f46">' + fmt(t.doanh_thu) + '</td><td></td></tr>';
+  document.getElementById('dtlBody').innerHTML = h;
+  new bootstrap.Modal(document.getElementById('detailModal')).show();
+}
+
+// Nút Đạt | Không đạt — đánh giá theo TỪNG NGÀY (page + ngày). Bấm lại để bỏ.
+function saveEval(pageId, val, date) {
+  fetch('/chi-phi-qc/page-test/eval', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({page_id: pageId, danh_gia: val, date: date})
+  }).then(r => r.json()).then(j => {
+    if (j.ok) { location.reload(); }
+    else { alert('Lỗi: ' + (j.error || 'không lưu được')); }
+  }).catch(e => alert('Lỗi mạng: ' + e));
+}
+</script>
+<script>
+(function(){
+  var fab=document.getElementById('ptFab'), sheet=document.getElementById('ptSheet'),
+      slot=document.getElementById('ptSheetSlot');
+  if(!fab||!sheet||!slot) return;
+  var box=null, home=null;
+  function open(){
+    box=document.getElementById('ptFilterBox');
+    if(box){ home=[box.parentNode, box.nextSibling];
+             slot.appendChild(box); box.classList.add('in-sheet'); }
+    sheet.classList.add('open'); document.body.style.overflow='hidden';
+  }
+  function close(){
+    if(box&&home){ box.classList.remove('in-sheet'); home[0].insertBefore(box, home[1]); }
+    box=null; home=null;
+    sheet.classList.remove('open'); document.body.style.overflow='';
+  }
+  fab.addEventListener('click', open);
+  sheet.querySelector('.cs-x').addEventListener('click', close);
+  sheet.querySelector('.cs-bd').addEventListener('click', close);
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape'&&sheet.classList.contains('open')) close(); });
+})();
+</script>
+</body>
+</html>

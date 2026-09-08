@@ -1,0 +1,1194 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Đơn LadiPage → POS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.min.css">
+<style>
+  body{ background:#f0f2f5; font-size:13.5px; color:#212b36; }
+  .wrap{ max-width:none; margin:0; padding:12px 14px 60px; }
+  /* thanh công cụ + tab DÍNH cố định dưới menu chính khi lướt */
+  .sticky-hd{ position:sticky; top:48px; z-index:1020; background:#f0f2f5;
+    padding-top:2px; margin-top:-2px; }
+  /* ── thanh công cụ kiểu POS ── */
+  .pos-toolbar{ background:#fff; border:1px solid #e3e8ee; border-radius:8px;
+    padding:10px 12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .pos-toolbar .search{ flex:1; min-width:240px; position:relative; }
+  .pos-toolbar .search input{ width:100%; border:1px solid #dfe3e8; border-radius:6px;
+    padding:7px 12px 7px 34px; font-size:13.5px; }
+  .pos-toolbar .search .bi{ position:absolute; left:11px; top:9px; color:#919eab; }
+  .pos-toolbar .search .bi-x-circle-fill{ left:auto; right:8px; top:8px; cursor:pointer;
+    color:#b0b8c1; font-size:14px; display:none; }
+  .pos-toolbar .search .bi-x-circle-fill:hover{ color:#d93025; }
+  .pos-toolbar .search .bi-x-circle-fill.on{ display:block; }
+  .search-box-wrap.searching .bi-search{ color:#1a73e8; animation:pop .3s; }
+  @keyframes pop{ 0%{transform:scale(1)} 50%{transform:scale(1.35)} 100%{transform:scale(1)} }
+  .btn-pos{ background:#1a73e8; color:#fff; border:none; border-radius:6px;
+    padding:7px 16px; font-weight:600; font-size:13.5px; }
+  .btn-pos:hover{ background:#1765cc; color:#fff; }
+  .btn-pos-light{ background:#fff; border:1px solid #dfe3e8; color:#212b36;
+    border-radius:6px; padding:7px 14px; font-weight:500; font-size:13.5px; }
+  /* ── tab trạng thái kiểu POS ── */
+  .status-tabs{ display:flex; gap:6px; flex-wrap:wrap; background:#fff;
+    border:1px solid #e3e8ee; border-radius:8px; padding:8px 10px; margin-bottom:10px; }
+  .status-tabs a{ display:inline-flex; align-items:center; gap:6px; text-decoration:none;
+    color:#454f5b; font-weight:500; font-size:13px; padding:6px 12px;
+    border:1px solid transparent; border-radius:6px; white-space:nowrap; }
+  .status-tabs a .cnt{ background:#f1f3f5; color:#637381; border-radius:10px;
+    padding:0 7px; font-size:11.5px; font-weight:700; line-height:18px; }
+  .status-tabs a:hover{ background:#f6f8fa; }
+  .status-tabs a.active{ border-color:#1a73e8; color:#1a73e8; background:#f0f6ff; }
+  .status-tabs a.active .cnt{ background:#1a73e8; color:#fff; }
+  /* ── nút gộp "N ngày chưa lên POS" (thay 10 tab rời cho khỏi loạn — sếp 07/09) ──
+     Nằm CÙNG HÀNG trong .status-tabs; trên mobile chỉ ẩn các thẻ <a> khác (gom
+     vào FAB/sheet), riêng nút này vẫn hiện + lọc được ngay (sếp 07/09). */
+  .ndays-wrap{ position:relative; display:inline-block; }
+  #ndaysBtn{ display:inline-flex; align-items:center; gap:8px; background:#fff;
+    font-weight:600; font-size:14px; padding:9px 14px; border:1.5px solid #dc2626;
+    color:#dc2626; border-radius:9px; white-space:nowrap; cursor:pointer;
+    box-shadow:0 1px 3px rgba(0,0,0,.04); }
+  #ndaysBtn:hover{ background:#fef2f2; }
+  #ndaysBtn.active{ background:#fee2e2; }
+  #ndaysBtn .nd-ico{ font-size:15px; }
+  #ndaysBtn .nd-badge{ font-weight:800; font-size:15px; }   /* số ngày — NỔI BẬT rõ */
+  #ndaysBtn .cnt{ background:#dc2626; color:#fff; border-radius:10px; padding:1px 9px;
+    font-size:12.5px; font-weight:800; line-height:19px; }
+  .ndays-pop-bd{ display:none; }
+  .ndays-pop-bd.open{ display:block; }
+  .ndays-pop{ display:none; position:absolute; top:calc(100% + 8px); left:0; z-index:1200;
+    background:#fff; border:1px solid #e3e8ee; border-radius:12px; padding:12px;
+    box-shadow:0 10px 30px rgba(0,0,0,.15); width:320px; }
+  .ndays-pop.open{ display:block; }
+  .ndays-pop-hd{ display:none; }
+  .ndays-x{ display:none; }
+  .ndays-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:7px; }
+  .ndays-opt{ display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-decoration:none; color:#334155; border:1.5px solid #e3e8ee; border-radius:9px;
+    padding:9px 3px; line-height:1.25; }
+  .ndays-opt b{ font-size:17px; font-weight:800; }              /* ≥N — số ngày TO, RÕ */
+  .ndays-opt i{ font-style:normal; font-size:10px; color:#8a94a6; margin-top:-1px; }
+  .ndays-opt span{ font-size:11.5px; font-weight:700; color:#637381; margin-top:3px; }
+  .ndays-opt:hover{ background:#f6f8fa; }
+  .ndays-opt.on{ background:#fee2e2; border-color:#dc2626; color:#b91c1c; }
+  .ndays-opt.on i, .ndays-opt.on span{ color:#b91c1c; }
+  .ndays-custom{ display:flex; align-items:center; gap:8px; margin-top:12px;
+    padding-top:12px; border-top:1px solid #f1f3f5; font-size:13px; color:#637381; }
+  .ndays-custom input{ width:74px; border:1.5px solid #dfe3e8; border-radius:7px;
+    padding:8px 9px; font-size:14px; }
+  .ndays-custom button{ background:#1a73e8; color:#fff; border:none; border-radius:7px;
+    padding:8px 16px; font-weight:700; font-size:13.5px; }
+  /* Điện thoại: popover → hộp thoại giữa màn hình, chữ/nút to hơn cho dễ bấm ngón tay */
+  @media (max-width:560px){
+    #ndaysBtn{ width:100%; justify-content:space-between; font-size:14.5px; padding:11px 14px; }
+    .ndays-pop-bd{ position:fixed; inset:0; background:rgba(15,23,42,.5); z-index:2500; }
+    .ndays-pop{ position:fixed; left:12px; right:12px; top:auto; bottom:14px; width:auto;
+      max-height:80vh; overflow-y:auto; z-index:2600; padding:16px; border-radius:16px; }
+    .ndays-pop-hd{ display:flex; align-items:center; justify-content:space-between;
+      font-weight:800; font-size:15px; margin-bottom:12px; }
+    .ndays-x{ display:inline-flex; align-items:center; justify-content:center;
+      border:none; background:#f1f5f9; border-radius:999px; width:30px; height:30px; font-size:15px; }
+    .ndays-grid{ gap:9px; }
+    .ndays-opt{ padding:12px 3px; border-radius:11px; }
+    .ndays-opt b{ font-size:19px; }
+    .ndays-opt span{ font-size:12.5px; }
+    .ndays-custom{ margin-top:14px; padding-top:14px; }
+    .ndays-custom input{ flex:1; padding:11px 12px; font-size:16px; }
+    .ndays-custom button{ padding:11px 18px; font-size:14.5px; }
+  }
+  /* ── bảng kiểu POS ── */
+  .pos-card{ background:#fff; border:1px solid #e3e8ee; border-radius:8px; overflow:hidden; }
+  /* Bảng nằm trong khung cuộn riêng (kiểu POS): cuộn DỌC + NGANG ngay trong
+     khung này, nhờ vậy hàng tiêu đề dính ở đỉnh khung — luôn thấy khi lướt.
+     (Trước đây khung chỉ cuộn ngang nên thẻ dính bám sai chỗ, treo giữa bảng.) */
+  .tbl-scroll{ overflow:auto; max-height:calc(100vh - 232px); }
+  /* table-layout:fixed để kéo cột ăn ngay (auto sẽ tự tính lại, kéo không nhúc nhích) */
+  table.pos{ width:100%; border-collapse:collapse; min-width:980px; table-layout:fixed; }
+  table.pos thead th{ background:#f4f6f8; color:#637381; font-size:12px; font-weight:700;
+    text-transform:none; padding:9px 10px; border-bottom:1px solid #e3e8ee;
+    white-space:nowrap; text-align:left; position:sticky; top:0; z-index:15;
+    box-shadow:0 1px 0 #e3e8ee; }
+  /* ô co lại thì cắt chữ bằng … thay vì phá vỡ bảng */
+  table.pos td{ overflow:hidden; text-overflow:ellipsis; }
+  table.pos td > div, table.pos td .kh .nm{ max-width:100% !important; }
+  /* tay nắm kéo ở mép phải mỗi tiêu đề cột (kiểu Excel/POS) */
+  table.pos thead th{ position:sticky; }
+  .col-grip{ position:absolute; top:0; right:0; width:7px; height:100%;
+    cursor:col-resize; user-select:none; }
+  .col-grip:hover, .col-grip.dragging{ background:#1a73e8; opacity:.35; }
+  table.pos thead th.rz{ position:sticky; }
+  body.col-resizing{ cursor:col-resize; user-select:none; }
+  .dom-sel{ border:1px solid #dfe3e8; border-radius:6px; padding:7px 10px; font-size:13px;
+            max-width:270px; background:#fff; color:#212b36; cursor:pointer; }
+  .dom-sel:focus{ outline:none; border-color:#1a73e8; }
+  .pos-toolbar .cc-ms{ min-width:250px; max-width:300px; }
+  #ldSheet .cc-ms{ width:100% !important; min-width:0 !important; }
+  #ldSheet .cc-ms-toggle{ padding:11px 12px; font-size:14px; }
+  .clickable{ cursor:pointer; }
+  .clickable:hover{ color:#1a73e8; text-decoration:underline; }
+  td.src .dm{ font-size:12.5px; color:#1a73e8; max-width:180px; overflow:hidden;
+              text-overflow:ellipsis; white-space:nowrap; }
+  td.src .own{ font-size:11.5px; color:#454f5b; }
+  td.src .own.none{ color:#c4a000; font-style:italic; }
+  td.lpc .lp{ display:inline-block; font-size:12.5px; color:#7b1fa2; text-decoration:none;
+              font-weight:600; max-width:190px; overflow:hidden; text-overflow:ellipsis;
+              white-space:nowrap; vertical-align:middle; }
+  td.lpc .lp:hover{ text-decoration:underline; }
+  td.src .fbp{ font-size:11.5px; color:#454f5b; max-width:200px; overflow:hidden;
+               text-overflow:ellipsis; white-space:nowrap; margin-top:2px; }
+  .wt{ font-size:10px; font-weight:800; border-radius:4px; padding:1px 5px; }
+  .wt.win{ background:#e3f6ea; color:#1c7c3c; }
+  .wt.test{ background:#fff4e5; color:#b26a00; }
+  td.src .auto{ background:#e8f0fe; color:#1a73e8; font-size:10px; font-weight:700;
+                border-radius:4px; padding:1px 5px; margin-left:4px; }
+  /* modal chi tiết đơn */
+  #ldMask{ display:none; position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:1900; }
+  #ldMask.open{ display:block; }
+  #ldBox{ position:fixed; z-index:1901; top:50%; left:50%; transform:translate(-50%,-50%);
+          width:min(1020px,96vw); max-height:90vh; overflow:auto; background:#fff;
+          border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.28); display:none; }
+  #ldBox.open{ display:block; }
+  #ldBox .hd{ position:sticky; top:0; background:#fff; border-radius:14px 14px 0 0; z-index:2;
+              padding:14px 18px; border-bottom:1px solid #f1f3f5; display:flex;
+              align-items:center; justify-content:space-between; }
+  #ldBox .hd b{ font-size:16px; }
+  #ldBox .bd{ padding:14px 20px; display:grid; grid-template-columns:1fr 1fr; gap:0 26px; }
+  #ldBox .bd .full{ grid-column:1 / -1; }
+  @media (max-width:760px){ #ldBox .bd{ grid-template-columns:1fr; gap:0; } }
+  #ldBox .fld{ display:flex; gap:12px; padding:8px 0; border-bottom:1px dashed #f1f3f5; font-size:13.5px; }
+  #ldBox .fld .k{ width:150px; flex:0 0 150px; color:#8a94a6; font-size:12.5px; }
+  #ldBox .fld .v{ flex:1; word-break:break-word; }
+  #ldBox .ft{ padding:12px 18px; border-top:1px solid #f1f3f5; display:flex; gap:8px; flex-wrap:wrap; }
+  .act-row{ display:flex; gap:5px; align-items:center; }
+  .act-row form{ margin:0; }
+  .ibtn{ display:inline-flex; align-items:center; justify-content:center; width:29px; height:29px;
+         border-radius:7px; border:1px solid #f0b429; background:#fff8e6; color:#b45309;
+         cursor:pointer; font-size:14px; text-decoration:none; }
+  .ibtn:hover{ background:#f0b429; color:#fff; }
+  .ibtn.muted{ border-color:#dfe3e8; background:#fff; color:#8a94a6; }
+  .ibtn.muted:hover{ background:#f4f6f8; color:#454f5b; }
+  table.pos tbody td{ padding:8px 10px; border-bottom:1px solid #f1f3f5; vertical-align:middle; }
+  table.pos tbody tr:hover td{ background:#f9fbfd; }
+  .oid{ font-weight:700; color:#1a73e8; white-space:nowrap; }
+  /* khách hàng: avatar + tên (kiểu POS) */
+  .kh{ display:flex; align-items:center; gap:8px; min-width:170px; }
+  .kh .av{ width:26px; height:26px; border-radius:50%; flex:none; color:#fff;
+    font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .kh .nm{ font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px; }
+  .sdt{ color:#1a73e8; font-weight:600; white-space:nowrap; }
+  .addr{ color:#454f5b; max-width:230px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lc .b{ display:inline-block; background:#f4f6f8; border:1px solid #e3e8ee; color:#454f5b;
+    border-radius:4px; padding:1px 7px; font-size:11.5px; font-weight:600; margin:1px 3px 1px 0; white-space:nowrap; }
+  .lc .cb{ display:block; color:#637381; font-size:12px; margin-top:2px; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; max-width:230px; }
+  .cod{ font-weight:700; white-space:nowrap; }
+  /* trạng thái pill kiểu POS (dropdown "Mới" màu teal) */
+  .stt{ display:inline-flex; align-items:center; gap:5px; border-radius:5px;
+    padding:4px 10px; font-size:12px; font-weight:700; white-space:nowrap; }
+  .stt.pushed{ background:#e3f6ea; color:#1c7c3c; }
+  .stt.failed{ background:#fdecea; color:#c62828; }
+  .stt.pending{ background:#fff4e5; color:#b26a00; }
+  .stt.manual_done{ background:#e8f0fe; color:#1a56b0; }
+  .pos-link{ font-size:12px; white-space:nowrap; }
+  .err-txt{ color:#c62828; font-size:11.5px; max-width:190px; white-space:normal; }
+  .act .btn{ font-size:12px; padding:3px 10px; white-space:nowrap; }
+  .act form{ display:inline-block; margin:0 4px 0 0; }
+  /* ── phân trang kiểu POS ── */
+  .pager{ display:flex; align-items:center; gap:10px; padding:10px 14px; flex-wrap:wrap; }
+  .pager .info{ color:#637381; font-size:12.5px; }
+  .pager .pages{ margin-left:auto; display:flex; gap:4px; }
+  .pager .pg{ min-width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid #dfe3e8; border-radius:6px; background:#fff; color:#212b36;
+    text-decoration:none; font-size:13px; font-weight:600; padding:0 8px; }
+  .pager .pg.cur{ background:#1a73e8; border-color:#1a73e8; color:#fff; }
+  .pager .pg.dis{ opacity:.4; pointer-events:none; }
+  /* mobile: cho phép kéo ngang bảng, toolbar dồn dòng */
+
+  /* FAB + tấm trượt lọc: ẩn MẶC ĐỊNH, chỉ bật ở media query mobile và khi .open.
+     (Thiếu 2 dòng này thì tấm trượt hiện sẵn ngay lúc mở trang.) */
+  #ldFab{ display:none; }
+  #ldSheet{ display:none; }
+  .m-dates{ background:#fff; border:1px solid #e3e8ee; border-radius:10px;
+    padding:8px 12px; margin-bottom:8px; display:flex; align-items:center;
+    gap:10px; flex-wrap:wrap; }
+  .m-dates .dr-lb{ font-size:12.5px; color:#64748b; font-weight:600; white-space:nowrap; }
+  .m-dates .dr-days{ font-size:12px; color:#8a94a6; white-space:nowrap; }
+  @media (max-width:768px){
+    .m-dates{ flex-direction:column; align-items:flex-start; gap:6px; }
+  }
+  /* ── danh sách kiểu THẺ cho điện thoại (bảng ngang không đọc nổi) ── */
+  .m-list{ display:none; }
+  .m-card{ background:#fff; border:1px solid #e3e8ee; border-radius:12px; padding:12px 14px;
+           margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+  .m-card .r1{ display:flex; align-items:center; gap:9px; margin-bottom:7px; }
+  .m-card .r1 .av{ width:30px; height:30px; border-radius:50%; flex:none; color:#fff;
+                   font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .m-card .r1 .nm{ font-weight:700; font-size:14.5px; flex:1; min-width:0;
+                   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .m-card .r1 .id{ font-size:11.5px; color:#8a94a6; font-weight:700; }
+  .m-card .ln{ font-size:13px; color:#454f5b; margin:3px 0; display:flex; gap:7px; }
+  .m-card .ln .k{ color:#8a94a6; flex:0 0 62px; font-size:12px; }
+  .m-card .ln .v{ flex:1; min-width:0; word-break:break-word; }
+  .m-card .tags{ margin:6px 0 2px; }
+  .m-card .ft{ display:flex; align-items:center; justify-content:space-between;
+               gap:8px; margin-top:9px; padding-top:9px; border-top:1px dashed #eef1f4; flex-wrap:wrap; }
+  .m-card .cod2{ font-weight:800; font-size:15px; color:#212b36; }
+  @media (max-width:820px){
+    /* Long 07/09: trên 390px thẻ sát mép màn hình + chữ sát viền → nới thoáng */
+    .wrap{ padding:10px 12px 60px; }
+    .m-card{ padding:14px 16px; margin-bottom:12px; }
+    .m-card .ln{ margin:5px 0; gap:10px; }
+    .m-card .ln .k{ flex:0 0 66px; }
+    .m-card .r1{ margin-bottom:9px; }
+    .m-card .tags{ margin:8px 0 3px; }
+    .m-card .ft{ margin-top:11px; padding-top:11px; }
+    .status-tabs{ overflow-x:auto; flex-wrap:nowrap; }
+    .pos-card{ display:none; }          /* ẩn bảng ngang */
+    .m-list{ display:block; }           /* hiện thẻ */
+    .pos-toolbar{ flex-wrap:wrap; gap:8px; }
+    /* Mobile: MỌI thứ lọc nằm trong bottom-sheet (bấm FAB mới hiện).
+       Form .search có style="display:flex" viết thẳng trong thẻ nên PHẢI !important. */
+    .pos-toolbar .search{ display:none !important; }
+    /* Tab cũ gom vào sheet (bấm FAB) NHƯNG nút "N ngày chưa lên POS" vẫn hiện
+       ngay ngoài này — sếp Phong 07/09 muốn thấy/lọc nhanh không cần mở sheet. */
+    .status-tabs > a{ display:none !important; }
+    .status-tabs{ margin-bottom:8px; }
+    .m-chips{ display:flex; }
+    .pos-toolbar{ padding:8px 10px; }
+    .sticky-hd{ padding-bottom:4px; }
+    #ldFab{ display:flex; position:fixed; right:14px; bottom:22px; z-index:1500;
+      align-items:center; gap:6px; background:#F59E0B; color:#fff; border:none;
+      border-radius:999px; padding:12px 18px; font-weight:700; font-size:14px;
+      box-shadow:0 6px 20px rgba(245,158,11,.45); }
+    #ldSheet.open{ display:block; position:fixed; inset:0; z-index:2600; }
+    #ldSheet .cs-bd{ position:absolute; inset:0; background:rgba(15,23,42,.5); }
+    #ldSheet .cs-card{ position:absolute; left:0; right:0; bottom:0; background:#fff;
+      border-radius:16px 16px 0 0; padding:14px 16px 24px; max-height:82vh; overflow-y:auto;
+      box-shadow:0 -8px 30px rgba(0,0,0,.25); }
+    #ldSheet .cs-hd{ display:flex; align-items:center; justify-content:space-between;
+      font-weight:800; font-size:15px; margin-bottom:14px; }
+    #ldSheet .cs-x{ border:none; background:#f1f5f9; border-radius:999px;
+      width:32px; height:32px; font-size:18px; line-height:1; }
+    #ldSheet .lb{ font-size:11.5px; color:#8a94a6; font-weight:700; text-transform:uppercase;
+      letter-spacing:.3px; margin:16px 0 8px; }
+    #ldSheet .cs-inp{ width:100%; border:1px solid #dfe3e8; border-radius:10px;
+      padding:11px 13px; font-size:14.5px; outline:none; }
+    #ldSheet .cs-inp:focus{ border-color:#F59E0B; }
+    #ldSheet .cs-opts{ display:flex; flex-wrap:wrap; gap:8px; }
+    #ldSheet .cs-opt{ border:1px solid #dfe3e8; background:#fff; border-radius:8px;
+      padding:9px 14px; font-size:13.5px; color:#454f5b; cursor:pointer; user-select:none; }
+    #ldSheet .cs-opt.on{ background:#fff7e6; border-color:#F59E0B; color:#b45309; font-weight:700; }
+    #ldSheet .cs-opt.warn.on{ background:#fdecea; border-color:#d93025; color:#c62828; }
+    #ldSheet .cs-two{ display:flex; gap:10px; margin-top:10px; }
+    #ldSheet .cs-two > div{ flex:1; }
+    #ldSheet .cs-two label{ display:block; font-size:11.5px; color:#8a94a6; margin-bottom:4px; }
+    #ldSheet .cs-two input{ width:100%; border:1px solid #dfe3e8; border-radius:9px;
+      padding:9px 10px; font-size:13.5px; }
+    #ldSheet .cs-ft{ display:flex; gap:10px; margin-top:22px;
+      position:sticky; bottom:-24px; background:#fff; padding:12px 0 4px; }
+    #ldSheet .cs-ft .clr, #ldSheet .cs-ft .go{ flex:1; border-radius:10px; padding:13px;
+      font-size:15px; font-weight:700; text-align:center; border:none; text-decoration:none; }
+    #ldSheet .cs-ft .clr{ background:#f4f6f8; color:#454f5b; }
+    #ldSheet .cs-ft .go{ background:#F59E0B; color:#fff; }
+    .sticky-hd{ top:44px; }
+    #ldBox{ width:96vw; max-height:92vh; }
+    #ldBox .fld{ flex-direction:column; gap:2px; }
+    #ldBox .fld .k{ width:auto; flex:none; }
+  }
+</style>
+<link rel="stylesheet" href="/static/cc-multiselect.css">
+<script src="/static/cc-multiselect.js" defer></script>
+</head>
+<body>
+{% include "_main_nav.html" %}
+
+<div class="wrap">
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}
+      <div class="alert alert-{{ 'danger' if cat=='error' else 'success' }} py-2 px-3 mb-2">{{ m }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="sticky-hd">
+  <!-- Thanh công cụ -->
+  <div class="pos-toolbar">
+    <strong style="font-size:15px; white-space:nowrap"><i class="bi bi-bag-check text-primary"></i> Đơn LadiPage</strong>
+    <form class="search" method="get" style="margin:0;display:flex;gap:8px;align-items:center;flex:1;min-width:300px">
+      {% if status and status!='all' %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+      <div class="search-box-wrap" style="position:relative;flex:1;min-width:170px">
+        <i class="bi bi-search"></i>
+        <i class="bi bi-x-circle-fill {{ 'on' if q else '' }}" title="Xóa tìm kiếm" id="clearSearchBtn"></i>
+        <input type="search" name="q" id="searchInput" value="{{ q }}" placeholder="Tên khách / SĐT / Ghi chú / Mã đơn POS..."
+               style="width:100%;border:1px solid #dfe3e8;border-radius:6px;padding:7px 28px 7px 34px;font-size:13.5px">
+      </div>
+      <select name="dom" class="dom-sel" data-cc-search placeholder="🌐 Tất cả landing"
+              title="Gõ để tìm nhanh tên miền">
+        <option value="">🌐 Tất cả landing ({{ total }})</option>
+        {% for d in dom_list %}
+        <option value="{{ d.dom }}" {{ 'selected' if dom == d.dom }}>{{ d.dom }} — {{ d.n }} đơn{% if d.thieu %} · {{ d.thieu }} chưa lên POS{% endif %}</option>
+        {% endfor %}
+      </select>
+      <select name="lp" class="dom-sel" data-cc-search placeholder="🛍️ Tất cả sản phẩm"
+              title="Lọc theo sản phẩm (mỗi link ≈ 1 sản phẩm)">
+        <option value="">🛍️ Tất cả sản phẩm ({{ lp_list|length }})</option>
+        {% for l in lp_list %}
+        <option value="{{ l.lp }}" {{ 'selected' if lp == l.lp }}>{{ l.ten }} — {{ l.n }} đơn{% if l.thieu %} · {{ l.thieu }} chưa lên POS{% endif %}</option>
+        {% endfor %}
+      </select>
+      <select name="nv" class="dom-sel" data-cc-search placeholder="👤 Tất cả nhân viên"
+              title="Lọc theo nhân viên chạy ads (số đơn)">
+        <option value="">👤 Tất cả nhân viên ({{ nv_list|length }})</option>
+        {% for n in nv_list %}
+        <option value="{{ n.id }}" {{ 'selected' if nv == n.id|string }}>{{ n.ten }} — {{ n.n }} đơn{% if n.thieu %} · {{ n.thieu }} chưa lên POS{% endif %}</option>
+        {% endfor %}
+      </select>
+      <button class="btn-pos" type="submit"><i class="bi bi-funnel"></i> Lọc</button>
+    </form>
+    {% if date_from or date_to or q %}
+      <a class="btn-pos-light text-decoration-none" href="{{ url_for('ladipage.index', status=status if status!='all' else none) }}">Bỏ lọc</a>
+    {% endif %}
+    <a class="btn-pos-light text-decoration-none" href="{{ url_for('ladipage.huong_dan') }}"><i class="bi bi-book"></i> Hướng dẫn</a>
+    {# lọc bằng AJAX xong URL mới đổi — nên lúc BẤM mới chốt bộ lọc, kẻo xuất theo lọc cũ #}
+    <a class="btn-pos-light text-decoration-none" href="{{ url_for('ladipage.xuat_excel', **request.args) }}"
+       onclick="return ldXuatExcel(this)"><i class="bi bi-file-earmark-excel"></i> Xuất Excel</a>
+    <a class="btn-pos text-decoration-none" href="{{ url_for('ladipage.index') }}"><i class="bi bi-arrow-clockwise"></i> Tải lại</a>
+  </div>
+
+  <!-- Nguồn đơn: file Google Sheet của sale — sếp KHÔNG dùng (12/08), chỉ hiện
+       khi đã cấu hình sẵn link, để không mất đường lùi -->
+  {% if sheet_url %}
+  <div style="background:#fff; border:1px solid #e3e8ee; border-radius:10px; padding:10px 14px; margin-bottom:8px">
+    <form method="post" action="{{ url_for('ladipage.nguon_sheet') }}" class="d-flex gap-2 align-items-center flex-wrap">
+      <span style="font-weight:700; font-size:13px">📄 File Google Sheet của sale</span>
+      <input name="sheet_url" value="{{ sheet_url }}" class="form-control form-control-sm"
+             style="flex:1 1 380px; min-width:240px"
+             placeholder="Dán link Google Sheet (đơn khách đặt từ LadiPage)…">
+      <button class="btn btn-sm btn-primary fw-bold">Lưu &amp; nạp</button>
+      {% if sheet_url %}
+      <button class="btn btn-sm btn-outline-primary" formaction="{{ url_for('ladipage.nap_sheet') }}">
+        <i class="bi bi-arrow-repeat"></i> Nạp lại</button>
+      {% endif %}
+    </form>
+    <div style="font-size:12px; color:#8a94a6; margin-top:5px">
+      Sheet phải chia sẻ <b>“Bất kỳ ai có đường liên kết → Người xem”</b>. Máy tự nhận cột SĐT / họ tên / địa chỉ / thời gian,
+      rồi đối chiếu từng đơn với POS để biết <b>đơn nào sale đã lên, đơn nào chưa</b>.
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Tab theo KẾT QUẢ ĐỐI SOÁT với POS -->
+  <div class="status-tabs" id="ldTabs">
+    <a class="{{ 'active' if status=='all' }}" href="{{ url_for('ladipage.index', q=q or none, dom=dom or none, lp=lp or none, date_from=date_from or none, date_to=date_to or none) }}">
+      Tất cả <span class="cnt">{{ total }}</span></a>
+    <a class="{{ 'active' if status=='win_thieu' }}" href="{{ url_for('ladipage.index', status='win_thieu', q=q or none, dom=dom or none, lp=lp or none, date_from=date_from or none, date_to=date_to or none) }}"
+       style="border-color:#d93025; color:#d93025; font-weight:700">
+      🔥 PAGE ĐANG BÁN — SALE CHƯA LÊN ĐƠN <span class="cnt" style="background:#fee2e2; color:#b91c1c">{{ counts.get('win_thieu',0) }}</span></a>
+    {# Nút gộp "N ngày chưa lên POS" — CÙNG HÀNG với các tab khác, kể cả mobile
+       (đã đổi mobile chỉ ẩn riêng thẻ <a>, không ẩn cả .status-tabs — sếp 07/09
+       "sao ko cho thành 1 hàng"). #}
+    <div class="ndays-wrap" id="ndaysWrap">
+      <button type="button" id="ndaysBtn" class="{{ 'active' if status in ('chua_1ngay','chua_2ngay','chua_3ngay','chua_nngay') }}">
+        <span class="nd-ico">⏳</span>
+        <span class="nd-lbl">Chưa lên POS</span>
+        <span class="nd-badge">≥ {{ n_days or (1 if status=='chua_1ngay' else 2 if status=='chua_2ngay' else 3 if status=='chua_3ngay' else 1) }} ngày</span>
+        <span class="cnt" id="ndaysCnt">{{ counts.get('chua_nngay', counts.get('chua_' + ((n_days or 1)|string) + 'ngay', counts.get('chua_1ngay',0))) }}</span>
+        <i class="bi bi-caret-down-fill" style="font-size:9px;margin-left:2px"></i>
+      </button>
+      <div class="ndays-pop-bd" id="ndaysPopBd"></div>
+      <div class="ndays-pop" id="ndaysPop">
+        <div class="ndays-pop-hd">Lọc theo số ngày chưa lên POS
+          <button type="button" class="ndays-x" id="ndaysX">✕</button>
+        </div>
+        <div class="ndays-grid">
+          {% for m in (1,2,3,4,5,6,7,8,9,10,14,20,30) %}
+          <a href="{{ url_for('ladipage.index', status='chua_nngay', n=m, q=q or none, dom=dom or none, lp=lp or none, date_from=date_from or none, date_to=date_to or none) }}"
+             class="ndays-opt {{ 'on' if (status=='chua_nngay' and n_days==m) or (status=='chua_1ngay' and m==1) or (status=='chua_2ngay' and m==2) or (status=='chua_3ngay' and m==3) }}"
+             data-n="{{ m }}"><b>≥{{ m }}</b><i>ngày</i><span>{{ moc_counts.get(m, 0) }} đơn</span></a>
+          {% endfor %}
+        </div>
+        <div class="ndays-custom">
+          <span>Ngày khác:</span>
+          <input type="number" min="1" id="ndaysInput" placeholder="vd 45" value="{{ n_days if n_days and n_days not in (1,2,3,4,5,6,7,8,9,10,14,20,30) else '' }}">
+          <button type="button" id="ndaysApply">Lọc</button>
+        </div>
+      </div>
+    </div>
+    <a class="{{ 'active' if status=='chua_co_pos' }}" href="{{ url_for('ladipage.index', status='chua_co_pos', q=q or none, dom=dom or none, lp=lp or none, date_from=date_from or none, date_to=date_to or none) }}">
+      ✗ Chưa có trên POS <span class="cnt">{{ counts.get('chua_co_pos',0) }}</span></a>
+    <a class="{{ 'active' if status=='co_pos' }}" href="{{ url_for('ladipage.index', status='co_pos', q=q or none, dom=dom or none, lp=lp or none, date_from=date_from or none, date_to=date_to or none) }}">
+      ✓ Đã có trên POS <span class="cnt">{{ counts.get('co_pos',0) }}</span></a>
+    <a class="{{ 'active' if status=='cho_kiem_tra' }}" href="{{ url_for('ladipage.index', status='cho_kiem_tra', q=q or none, dom=dom or none, lp=lp or none, date_from=date_from or none, date_to=date_to or none) }}">
+      ⏳ Chờ dò <span class="cnt">{{ counts.get('cho_kiem_tra',0) }}</span></a>
+    <a class="{{ 'active' if status=='bo_qua' }}" href="{{ url_for('ladipage.index', status='bo_qua', q=q or none, dom=dom or none, lp=lp or none, date_from=date_from or none, date_to=date_to or none) }}">
+      ⊘ Bỏ qua <span class="cnt">{{ counts.get('bo_qua',0) }}</span></a>
+  </div>
+    <div class="m-dates">
+      <form method="get" id="mDateForm" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%">
+        {% if status and status!='all' %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+        {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+        {% if dom %}<input type="hidden" name="dom" value="{{ dom }}">{% endif %}
+        {% if lp %}<input type="hidden" name="lp" value="{{ lp }}">{% endif %}
+        {% include "_date_range_picker.html" %}
+      </form>
+    </div>
+    <div class="m-chips" id="ldChips">
+      {% if status and status!='all' %}<span class="c">{{ {'win_thieu':'🔥 Page bán — sale chưa lên đơn','chua_1ngay':'1 ngày chưa lên POS','chua_2ngay':'2 ngày chưa lên POS','chua_3ngay':'3 ngày chưa lên POS','chua_nngay':('N ngày (' + (n_days|string) + ') chưa lên POS' if n_days else 'N ngày chưa lên POS'),'chua_co_pos':'Chưa có trên POS','co_pos':'Đã có trên POS','cho_kiem_tra':'Chờ dò','bo_qua':'Bỏ qua'}.get(status, status) }}</span>{% endif %}
+      {% if date_from or date_to %}<span class="c">📅 {{ date_from or '…' }} → {{ date_to or '…' }}</span>{% endif %}
+      {% if dom %}<span class="c">🌐 {{ dom }}</span>{% endif %}
+      {% if lp %}<span class="c">🔗 {{ lp }}</span>{% endif %}
+      {% if nv %}<span class="c">👤 {{ nv_list|selectattr('id','equalto',nv|int)|map(attribute='ten')|first }}</span>{% endif %}
+      {% if q %}<span class="c">🔍 {{ q }}</span>{% endif %}
+      <span class="c" style="background:#f4f6f8;color:#637381" id="ldCount">{{ filtered_total }} đơn</span>
+    </div>
+  </div><!-- /sticky-hd -->
+
+  <!-- FAB "Tìm & Lọc" + bottom-sheet (mobile) — gom ô tìm, lịch, nút ngày -->
+  <button type="button" id="ldFab"><i class="bi bi-funnel-fill"></i> Tìm &amp; Lọc</button>
+  <div id="ldSheet">
+    <div class="cs-bd" onclick="ldSheetClose()"></div>
+    <form class="cs-card" method="get" action="{{ url_for('ladipage.index') }}">
+      <div class="cs-hd"><span><i class="bi bi-funnel me-1"></i>Tìm &amp; Lọc</span>
+        <button type="button" class="cs-x" onclick="ldSheetClose()">&times;</button></div>
+
+      <div class="lb">Tìm kiếm</div>
+      <input name="q" value="{{ q }}" class="cs-inp" autocomplete="off"
+             placeholder="Tên khách, SĐT, ghi chú…">
+
+      <div class="lb">Landing (tên miền)</div>
+      <select name="dom" class="cs-inp" data-cc-search placeholder="🌐 Tất cả landing">
+        <option value="">🌐 Tất cả landing</option>
+        {% for d in dom_list %}
+        <option value="{{ d.dom }}" {{ 'selected' if dom == d.dom }}>{{ d.dom }} — {{ d.n }} đơn</option>
+        {% endfor %}
+      </select>
+
+      <div class="lb">Sản phẩm</div>
+      <select name="lp" class="cs-inp" data-cc-search placeholder="🛍️ Tất cả sản phẩm">
+        <option value="">🛍️ Tất cả sản phẩm</option>
+        {% for l in lp_list %}
+        <option value="{{ l.lp }}" {{ 'selected' if lp == l.lp }}>{{ l.ten }} — {{ l.n }} đơn</option>
+        {% endfor %}
+      </select>
+      <div class="lb">Nhân viên chạy ads</div>
+      <select name="nv" class="cs-inp" data-cc-search placeholder="👤 Tất cả nhân viên">
+        <option value="">👤 Tất cả nhân viên</option>
+        {% for n in nv_list %}
+        <option value="{{ n.id }}" {{ 'selected' if nv == n.id|string }}>{{ n.ten }} — {{ n.n }} đơn</option>
+        {% endfor %}
+      </select>
+
+      <div class="lb">Trạng thái đối soát</div>
+      <div class="cs-opts">
+        <span class="cs-opt {{ 'on' if not status or status=='all' }}" data-v="">Tất cả</span>
+        <span class="cs-opt warn {{ 'on' if status=='win_thieu' }}" data-v="win_thieu">🔥 Page bán — chưa lên đơn</span>
+        <span class="cs-opt warn {{ 'on' if status in ('chua_1ngay','chua_2ngay','chua_3ngay','chua_nngay') }}" data-v="chua_nngay">⏳ N ngày chưa lên POS{% if n_days %} (≥{{ n_days }}){% endif %}</span>
+        <span class="cs-opt {{ 'on' if status=='chua_co_pos' }}" data-v="chua_co_pos">Chưa có trên POS</span>
+        <span class="cs-opt {{ 'on' if status=='co_pos' }}" data-v="co_pos">✓ Đã có trên POS</span>
+        <span class="cs-opt {{ 'on' if status=='bo_qua' }}" data-v="bo_qua">⊘ Bỏ qua</span>
+      </div>
+      <input type="hidden" name="status" id="ldSt" value="{{ status if status!='all' else '' }}">
+      <div class="cs-two" id="ldNdays" style="display:none">
+        <div><label>Số ngày (N)</label><input type="number" name="n" id="ldN" min="1"
+             value="{{ n_days or (1 if status=='chua_1ngay' else 2 if status=='chua_2ngay' else 3 if status=='chua_3ngay' else '') }}"></div>
+      </div>
+
+      <div class="lb">Khoảng ngày</div>
+      <div class="cs-opts" id="ldDates">
+        {% for pr in presets %}
+        <span class="cs-opt {{ 'on' if pr.on }}" data-f="{{ pr.f }}" data-t="{{ pr.t }}">{{ pr.ten }}</span>
+        {% endfor %}
+      </div>
+      <div class="cs-two">
+        <div><label>Từ ngày</label><input type="date" name="date_from" id="ldF" value="{{ date_from }}"></div>
+        <div><label>Đến ngày</label><input type="date" name="date_to" id="ldT" value="{{ date_to }}"></div>
+      </div>
+
+      <div class="cs-ft">
+        <a class="clr" href="{{ url_for('ladipage.index') }}">Thiết lập lại</a>
+        <button class="go" type="submit">Áp dụng</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Danh sách kiểu THẺ — chỉ hiện trên điện thoại -->
+  <div class="m-list" id="ldMList">
+    {% set av_colors2 = ['#1a73e8','#0f9d58','#e37400','#7b1fa2','#00838f','#c2185b','#5d4037','#455a64'] %}
+    {% for r in rows %}
+    <div class="m-card" data-id="{{ r.id }}" onclick="ldOpen({{ r.id }})">
+      <div class="r1">
+        <span class="av" style="background: {{ av_colors2[r.id % 8] }}">{{ (r.ho_ten or '?')[:1]|upper }}</span>
+        <span class="nm">{{ r.ho_ten or '—' }}</span>
+        <span class="id">#{{ '%03d'|format(r.id) }}</span>
+      </div>
+      <div class="ln"><span class="k">SĐT</span><span class="v"><b style="color:#1a73e8">{{ r.so_dien_thoai or '—' }}</b></span></div>
+      <div class="ln"><span class="k">Địa chỉ</span><span class="v">{{ r.dia_chi or '—' }}</span></div>
+      {% if r.lp_full and '/' in r.lp_full %}
+      <div class="ln"><span class="k">Sản phẩm</span><span class="v" style="color:#7b1fa2;font-weight:600">/{{ r.lp_full.split('/', 1)[1] }}</span></div>
+      {% endif %}
+      {% if r.domain %}
+      <div class="ln"><span class="k">Nguồn</span><span class="v">{{ r.domain.replace('www.','') }}
+        {% if r.fb_page_ten %}<br><span class="wt {{ r.win_test|lower }}">{{ r.win_test }}</span>
+          <span style="color:#454f5b">{{ r.fb_page_ten }}</span>{% endif %}
+        {% if r.chu %}<br><span style="color:#454f5b">👤 {{ r.chu }}{% if r.ads_team %} · {{ r.ads_team }}{% endif %}</span>{% endif %}</span></div>
+      {% endif %}
+      <div class="tags">
+        {% if r.size %}<span class="b">{{ r.size }}</span>{% endif %}
+        {% if r.mau %}<span class="b">{{ r.mau }}</span>{% endif %}
+        {% if r.combo %}<div style="font-size:12px;color:#637381;margin-top:3px">{{ r.combo }}</div>{% endif %}
+      </div>
+      <div class="ft">
+        <span class="cod2">{{ '{:,.0f}đ'.format(r.tien).replace(',','.') if r.tien else '—' }}</span>
+        <span style="font-size:12px;color:#919eab">{{ r.received_at.strftime('%d/%m %H:%M') if r.received_at else '' }}</span>
+        {% if r.match_status=='co_pos' %}
+          <span class="stt pushed">✓ Đã lên POS</span>
+        {% elif r.match_status=='chua_co_pos' %}
+          <span class="stt failed">⚠ CHƯA lên POS{% if (r.gio_troi or 0) >= canh_bao_gio %} · {{ '%.0f'|format(r.gio_troi) }}h{% endif %}</span>
+        {% elif r.match_status=='bo_qua' %}
+          <span class="stt manual_done">⊘ Bỏ qua</span>
+        {% else %}<span class="stt pending">⏳ Chờ dò</span>{% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="m-card text-center text-muted">Chưa có đơn nào.</div>
+    {% endfor %}
+  </div>
+
+  <!-- Bảng đơn kiểu POS -->
+  <div class="pos-card" id="ldCard">
+    <div class="tbl-scroll">
+      <table class="pos">
+        <thead>
+          <tr>
+            <th style="width:56px">ID</th>
+            <th>Khách hàng</th>
+            <th>SĐT</th>
+            <th>Nhận hàng</th>
+            <th>Lựa chọn / Ghi chú</th>
+            <th style="text-align:right">COD</th>
+            <th>Nguồn đơn</th>
+            <th>Page FB</th>
+            <th>Nhân viên</th>
+            <th>Lúc</th>
+            <th>Trạng thái</th>
+            <th style="width:150px">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% set av_colors = ['#1a73e8','#0f9d58','#e37400','#7b1fa2','#00838f','#c2185b','#5d4037','#455a64'] %}
+        {% for r in rows %}
+          <tr data-id="{{ r.id }}">
+            <td class="oid clickable" onclick="ldOpen({{ r.id }})" title="Bấm xem chi tiết đơn">{{ '%03d'|format(r.id) }}</td>
+            <td>
+              <div class="kh">
+                <span class="av" style="background: {{ av_colors[r.id % 8] }}">{{ (r.ho_ten or '?')[:1]|upper }}</span>
+                <span class="nm" title="{{ r.ho_ten }}">{{ r.ho_ten or '—' }}</span>
+              </div>
+            </td>
+            <td class="sdt">{{ r.so_dien_thoai or '—' }}</td>
+            <td><div class="addr clickable" title="Bấm xem đầy đủ" onclick="ldOpen({{ r.id }})">{{ r.dia_chi or '—' }}</div></td>
+            <td class="lc clickable" onclick="ldOpen({{ r.id }})" title="Bấm xem đầy đủ">
+              {% if r.size %}<span class="b">{{ r.size }}</span>{% endif %}
+              {% if r.mau %}<span class="b">{{ r.mau }}</span>{% endif %}
+              {% if r.combo %}<span class="cb" title="{{ r.combo }}">{{ r.combo }}</span>
+              {% elif not r.size and not r.mau and r.note %}<span class="cb" title="{{ r.note }}">{{ r.note.replace('\t',' · ') }}</span>{% endif %}
+            </td>
+            <td class="cod" style="text-align:right">{{ '{:,.0f}đ'.format(r.tien).replace(',','.') if r.tien else '—' }}</td>
+            <td class="src" style="font-size:12.5px">
+              {% if r.link_chuan %}
+                <a href="https://{{ r.link_chuan }}" target="_blank" style="color:#1a73e8; text-decoration:none" title="Mở link">🔗 {{ r.link_chuan }}</a>
+              {% elif r.domain %}
+                <a class="dm" title="Bấm để lọc riêng landing này"
+                   href="{{ url_for('ladipage.index', dom=r.domain.replace('www.',''), status=status if status!='all' else none, date_from=date_from or none, date_to=date_to or none) }}"
+                   style="text-decoration:none">{{ r.domain.replace('www.','') }}</a>
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td style="white-space:nowrap">
+              {% if r.fb_page_ten %}
+                <span class="wt {{ r.win_test|lower }}">{{ r.win_test }}</span>
+                <span style="font-size:12.5px;color:#454f5b">{{ r.fb_page_ten }}</span>
+              {% else %}<span class="text-muted">&#8212;</span>
+              {% endif %}
+            </td>
+            <td style="white-space:nowrap">
+              {% if r.chu %}<span style="color:#454f5b">👤 {{ r.chu }}{% if r.ads_team %} · {{ r.ads_team }}{% endif %}</span>
+                {% if r.chu_tu_dong %}<span class="auto" title="Dò tự động từ ID quảng cáo trong link">tự dò</span>
+                {% endif %}
+              {% else %}<span class="text-muted">&#8212;</span>
+              {% endif %}
+            </td>
+            <td style="white-space:nowrap; color:#637381">{{ r.received_at.strftime('%d/%m %H:%M') if r.received_at else '' }}</td>
+            <td>
+              {% if r.match_status=='co_pos' %}
+                <span class="stt pushed"><i class="bi bi-check-circle-fill"></i> Đã có trên POS</span>
+                {% if r.matched_order_code %}<div class="pos-link">Đơn POS #{{ r.matched_order_code }}</div>{% endif %}
+              {% elif r.match_status=='chua_co_pos' %}
+                {% if (r.gio_troi or 0) >= canh_bao_gio %}
+                  <span class="stt failed"><i class="bi bi-exclamation-triangle-fill"></i> CHƯA CÓ TRÊN POS</span>
+                  <div class="err-txt">đã {{ '%.0f'|format(r.gio_troi) }} tiếng — nhờ sale kiểm tra</div>
+                  {% if r.pos_error %}<div class="err-txt" style="color:#b45309">{{ r.pos_error }}</div>{% endif %}
+                {% else %}
+                  <span class="stt pending"><i class="bi bi-hourglass-split"></i> Chờ sale lên đơn</span>
+                {% endif %}
+              {% elif r.match_status=='bo_qua' %}
+                <span class="stt manual_done"><i class="bi bi-slash-circle"></i> Bỏ qua</span>
+              {% else %}
+                <span class="stt pending"><i class="bi bi-hourglass-split"></i> Chờ dò</span>
+              {% endif %}
+              {% if r.pos_status=='failed' and r.pos_error %}<div class="err-txt">{{ r.pos_error[:120] }}</div>{% endif %}
+            </td>
+            <td class="act">
+              {% if r.match_status in ('chua_co_pos','cho_kiem_tra','khach_cu') %}
+                <div class="act-row">
+                  <form method="post" action="{{ url_for('ladipage.do_lai', row_id=r.id, **request.args) }}">
+                    <button class="ibtn" title="Dò lại trên POS"><i class="bi bi-arrow-repeat"></i></button>
+                  </form>
+                  <form method="post" action="{{ url_for('ladipage.bo_qua', row_id=r.id, **request.args) }}"
+                        onsubmit="return confirm('Bỏ qua đơn này (không cần lên POS)?')">
+                    <button class="ibtn muted" title="Bỏ qua đơn này"><i class="bi bi-slash-circle"></i></button>
+                  </form>
+                  <a class="ibtn muted" title="Tìm SĐT này trên POS" target="_blank" rel="noopener"
+                     href="https://pos.pancake.vn/shop/{{ pos_shop_id }}/order?search={{ r.so_dien_thoai or '' }}"><i class="bi bi-box-arrow-up-right"></i></a>
+                </div>
+              {% else %}<span class="text-muted" style="font-size:12px">—</span>{% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="12" class="text-center text-muted py-4">Chưa có đơn nào.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Phân trang kiểu POS -->
+    <div class="pager">
+      <span class="info">
+        Hiển thị {{ ((page-1)*per_page + 1) if filtered_total else 0 }}–{{ [page*per_page, filtered_total]|min }} trong {{ filtered_total }} đơn · {{ per_page }}/trang
+      </span>
+      <div class="pages">
+        <a class="pg {{ 'dis' if page<=1 }}" href="{{ url_for('ladipage.index', status=status if status!='all' else none, q=q or none, date_from=date_from or none, date_to=date_to or none, page=page-1) }}">‹</a>
+        {% for p in range(1, total_pages+1) %}
+          {% if p==1 or p==total_pages or (p>=page-2 and p<=page+2) %}
+            <a class="pg {{ 'cur' if p==page }}" href="{{ url_for('ladipage.index', status=status if status!='all' else none, q=q or none, date_from=date_from or none, date_to=date_to or none, page=p) }}">{{ p }}</a>
+          {% elif p==page-3 or p==page+3 %}
+            <span class="pg dis">…</span>
+          {% endif %}
+        {% endfor %}
+        <a class="pg {{ 'dis' if page>=total_pages }}" href="{{ url_for('ladipage.index', status=status if status!='all' else none, q=q or none, date_from=date_from or none, date_to=date_to or none, page=page+1) }}">›</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal chi tiết 1 đơn -->
+<div id="ldMask" onclick="ldClose()"></div>
+<div id="ldBox">
+  <div class="hd"><b id="ldTitle">Chi tiết đơn</b>
+    <button class="btn btn-sm btn-light" onclick="ldClose()"><i class="bi bi-x-lg"></i></button></div>
+  <div class="bd" id="ldBody"></div>
+  <div class="ft" id="ldFoot"></div>
+</div>
+<script>
+var LD_ROWS = {
+{% for r in rows %}
+  "{{ r.id }}": {
+    id: {{ r.id }},
+    ten: {{ (r.ho_ten or '')|tojson }},
+    sdt: {{ (r.so_dien_thoai or '')|tojson }},
+    dia_chi: {{ (r.dia_chi or '')|tojson }},
+    size: {{ (r.size or '')|tojson }},
+    mau: {{ (r.mau or '')|tojson }},
+    combo: {{ (r.combo or '')|tojson }},
+    note: {{ (r.note or '')|tojson }},
+    selections: {{ (r.selections or '')|tojson }},
+    tien: {{ (r.tien or 0)|int }},
+    luc: {{ (r.received_at.strftime('%d/%m/%Y %H:%M') if r.received_at else '')|tojson }},
+    domain: {{ (r.domain or '')|tojson }},
+    lp_full: {{ (r.lp_full or '')|tojson }},
+    link_chuan: {{ (r.link_chuan or '')|tojson }},
+    sp: {{ (r.sp or '')|tojson }},
+    url: {{ (r.source_url or '')|tojson }},
+    chu: {{ (r.chu or '')|tojson }},
+    ads_chu: {{ (r.ads_chu or '')|tojson }},
+    ads_team: {{ (r.ads_team or '')|tojson }},
+    ads_acct: {{ (r.ads_account_id or '')|tojson }},
+    fb_page: {{ (r.fb_page_ten or '')|tojson }},
+    win_test: {{ (r.win_test or '')|tojson }},
+    pos_tu: {{ (r.pos_tu_ngay.strftime('%d/%m/%Y') if r.pos_tu_ngay else '')|tojson }},
+    tt: {{ (r.match_status or '')|tojson }},
+    don_pos: {{ (r.matched_order_code or '')|tojson }},
+    ghi_chu_ds: {{ (r.pos_error or '')|tojson }},
+    gio: {{ (r.gio_troi or 0)|round|int }}
+  }{{ "," if not loop.last }}
+{% endfor %}
+};
+var LD_USERS = {{ users_ds|tojson }};
+var LD_TT = { co_pos:['✅ Sale ĐÃ lên POS','#0f9d58'], chua_co_pos:['🔴 CHƯA lên POS','#d93025'],
+          cho_kiem_tra:['⏳ Chờ dò','#637381'],
+              bo_qua:['⊘ Bỏ qua','#8a94a6'] };
+function fldFull(k,v){ return fld(k,v,true); }
+function esc(t){ return String(t==null?'':t).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function fld(k,v,full){ return v ? '<div class="fld'+(full?' full':'')+'"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>' : ''; }
+function ldOpen(id){
+  var r = LD_ROWS[String(id)]; if(!r) return;
+  var tt = LD_TT[r.tt] || ['—','#637381'];
+  document.getElementById('ldTitle').innerHTML = 'Đơn #'+('00'+r.id).slice(-3)+' — '+esc(r.ten||'(chưa rõ tên)');
+  var h = '';
+  h += fldFull('Trạng thái', '<b style="color:'+tt[1]+'">'+tt[0]+'</b>'
+        + (r.don_pos ? ' · đơn POS <b>#'+esc(r.don_pos)+'</b>' : '')
+        + (r.ghi_chu_ds ? '<div style="color:#b45309;font-size:12.5px">'+esc(r.ghi_chu_ds)+'</div>' : '')
+        + (r.tt==='chua_co_pos' ? '<div style="color:#8a94a6;font-size:12.5px">đã trôi '+r.gio+' tiếng</div>' : ''));
+  h += fld('Khách hàng', esc(r.ten));
+  h += fld('Số điện thoại','<b>'+esc(r.sdt)+'</b>');
+  h += fldFull('Địa chỉ nhận', esc(r.dia_chi));
+  h += fld('Size', esc(r.size));
+  h += fld('Màu', esc(r.mau));
+  h += fld('Combo / SP', esc(r.combo));
+  h += fld('Sản phẩm', r.sp ? '<b style="color:#7b1fa2">'+esc(r.sp)+'</b>' : (r.lp_full ? esc(r.lp_full) : ''));
+  h += fld('Tiền (COD)', r.tien ? '<b>'+r.tien.toLocaleString('vi-VN')+'đ</b>' : '');
+  h += fld('Khách đặt lúc', esc(r.luc));
+  h += fldFull('Toàn bộ lựa chọn', esc(r.selections).replace(/\|/g,'<br>'));
+  h += fldFull('Ghi chú gửi POS', esc(r.note).replace(/\|/g,'<br>'));
+  // Link gốc kèm cả tá tham số utm dài lê thê — sếp Phong 20/08 bảo bỏ.
+  // Chỉ giữ đường dẫn gọn (tên miền + path), bấm vào vẫn mở đúng trang.
+  h += fldFull('Link chuẩn', r.link_chuan
+        ? '<a href="https://'+esc(r.link_chuan)+'" target="_blank" rel="noopener" style="color:#1a73e8">'
+          + '🔗 '+esc(r.link_chuan)
+          + ' <i class="bi bi-box-arrow-up-right" style="font-size:11px"></i></a>'
+        : '');
+  h += fldFull('Landing (nguồn đơn)', r.url
+        ? '<a href="'+esc(r.url)+'" target="_blank" rel="noopener">'
+          + esc(r.lp_full || r.domain || r.url)
+          + ' <i class="bi bi-box-arrow-up-right" style="font-size:11px"></i></a>'
+        : '');
+  if (r.fb_page) {
+    h += fld('Page Facebook',
+      '<span class="wt '+(r.win_test||'').toLowerCase()+'">'+esc(r.win_test)+'</span> <b>'+esc(r.fb_page)+'</b>'
+      + '<div style="color:#8a94a6;font-size:11.5px">'
+      + (r.win_test==='WIN' ? 'Page đã bán trên POS từ '+esc(r.pos_tu) : 'Page đang TEST sản phẩm — chưa có doanh thu POS')
+      + '</div>');
+  }
+  if (r.ads_chu) {
+    h += fld('Ai chạy ads đơn này',
+      '<b>👤 '+esc(r.ads_chu)+'</b>'+(r.ads_team?' · '+esc(r.ads_team):'')
+      + '<div style="color:#8a94a6;font-size:11.5px">tự dò từ ID quảng cáo trong link'
+      + (r.ads_acct?' · TK QC '+esc(r.ads_acct):'')+'</div>');
+  }
+  // gán chủ landing (chỉ cần khi KHÔNG dò được từ ads)
+  if (r.domain && !r.ads_chu) {
+    var opts = '<option value="">— chưa gán —</option>';
+    LD_USERS.forEach(function(u){
+      opts += '<option value="'+u.id+'"'+(u.ten===r.chu?' selected':'')+'>'+esc(u.ten)+'</option>'; });
+    h += fld('Landing của ai',
+      '<form method="post" action="{{ url_for("ladipage.gan_chu_landing", **request.args) }}" style="display:flex;gap:6px;align-items:center">'
+      + '<input type="hidden" name="domain" value="'+esc(r.domain)+'">'
+      + '<select name="user_id" class="form-select form-select-sm" style="max-width:230px">'+opts+'</select>'
+      + '<button class="btn btn-sm btn-primary">Lưu</button></form>'
+      + '<div style="color:#8a94a6;font-size:11.5px;margin-top:3px">Gán 1 lần — mọi đơn của landing này đều hiện tên đó</div>');
+  }
+  document.getElementById('ldBody').innerHTML = h;
+  document.getElementById('ldFoot').innerHTML =
+      '<a class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener" href="https://pos.pancake.vn/shop/{{ pos_shop_id }}/order?search='+encodeURIComponent(r.sdt||'')+'"><i class="bi bi-box-arrow-up-right"></i> Tìm SĐT này trên POS</a>'
+    + (r.tt!=='co_pos' ? '<form method="post" action="/ladipage/'+r.id+'/do-lai"><button class="btn btn-sm btn-warning"><i class="bi bi-arrow-repeat"></i> Dò lại</button></form>' : '');
+  document.getElementById('ldMask').classList.add('open');
+  document.getElementById('ldBox').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function ldClose(){ document.getElementById('ldMask').classList.remove('open');
+                    document.getElementById('ldBox').classList.remove('open');
+                    document.body.style.overflow = ''; }
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') ldClose(); });
+</script>
+
+
+<script>
+function ldSheetOpen(){ document.getElementById('ldSheet').classList.add('open');
+  document.body.style.overflow='hidden'; }
+function ldSheetClose(){ document.getElementById('ldSheet').classList.remove('open');
+  document.body.style.overflow=''; }
+(function(){
+  var fab=document.getElementById('ldFab'), sheet=document.getElementById('ldSheet');
+  if(!fab||!sheet) return;
+  fab.addEventListener('click', ldSheetOpen);
+  // chọn 1 chip trạng thái
+  sheet.querySelectorAll('.cs-opts .cs-opt[data-v]').forEach(function(o){
+    o.addEventListener('click', function(){
+      o.parentNode.querySelectorAll('.cs-opt').forEach(function(x){ x.classList.remove('on'); });
+      o.classList.add('on');
+      document.getElementById('ldSt').value = o.dataset.v || '';
+      var nd = document.getElementById('ldNdays');
+      if(nd){ nd.style.display = (o.dataset.v === 'chua_nngay') ? 'flex' : 'none'; }
+    });
+  });
+  // chọn 1 chip ngày → điền vào 2 ô ngày + tự lọc luôn
+  var ldSheetForm = sheet.querySelector('form.cs-card');
+  sheet.querySelectorAll('#ldDates .cs-opt').forEach(function(o){
+    o.addEventListener('click', function(){
+      o.parentNode.querySelectorAll('.cs-opt').forEach(function(x){ x.classList.remove('on'); });
+      o.classList.add('on');
+      document.getElementById('ldF').value = o.dataset.f || '';
+      document.getElementById('ldT').value = o.dataset.t || '';
+      if(ldSheetForm && window.ldLoad){
+        var fd = new FormData(ldSheetForm), qs = new URLSearchParams();
+        fd.forEach(function(v,k){ if(String(v).trim()) qs.set(k, v); });
+        ldSheetClose();
+        window.ldLoad(ldSheetForm.getAttribute('action') + (qs.toString() ? '?' + qs.toString() : ''));
+      }
+    });
+  });
+  // gõ tay ngày thì bỏ chọn chip
+  ['ldF','ldT'].forEach(function(id){
+    var el=document.getElementById(id); if(!el) return;
+    el.addEventListener('change', function(){
+      sheet.querySelectorAll('#ldDates .cs-opt').forEach(function(x){ x.classList.remove('on'); });
+    });
+  });
+  // Submit form mobile qua AJAX (không tải lại trang)
+  if(ldSheetForm){
+    ldSheetForm.addEventListener('submit', function(e){
+      e.preventDefault();
+      var fd = new FormData(ldSheetForm), qs = new URLSearchParams();
+      fd.forEach(function(v,k){ if(String(v).trim()) qs.set(k, v); });
+      ldSheetClose();
+      if(window.ldLoad) window.ldLoad(ldSheetForm.getAttribute('action') + (qs.toString() ? '?' + qs.toString() : ''));
+    });
+  }
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape' && sheet.classList.contains('open')) ldSheetClose(); });
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* ── Kéo thu nhỏ/phóng to cột như Excel · nhớ chiều rộng theo từng máy ── */
+function ldInitColResize(){
+  var table=document.querySelector('table.pos'); if(!table) return;
+  var KEY='ladi_col_w_v1';
+  var ths=[].slice.call(table.querySelectorAll('thead th'));
+  var luu={}; try{ luu=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){}
+
+  // Đặt chiều rộng ban đầu (ưu tiên số đã lưu, không thì lấy rộng thực tế)
+  ths.forEach(function(th,i){
+    var w = luu[i] || th.getBoundingClientRect().width;
+    th.style.width = w+'px';
+    var grip=document.createElement('div');
+    grip.className='col-grip'; grip.title='Kéo để chỉnh rộng cột';
+    th.appendChild(grip);
+    grip.addEventListener('mousedown', function(e){
+      e.preventDefault(); e.stopPropagation();
+      var x0=e.pageX, w0=th.getBoundingClientRect().width;
+      grip.classList.add('dragging'); document.body.classList.add('col-resizing');
+      function move(ev){
+        var w=Math.max(46, w0 + (ev.pageX-x0));
+        th.style.width=w+'px'; luu[i]=Math.round(w);
+      }
+      function up(){
+        grip.classList.remove('dragging'); document.body.classList.remove('col-resizing');
+        document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up);
+        try{ localStorage.setItem(KEY, JSON.stringify(luu)); }catch(e){}
+      }
+      document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+    });
+    // Bấm đúp vào tay nắm → trả cột về mặc định
+    grip.addEventListener('dblclick', function(e){
+      e.preventDefault(); e.stopPropagation();
+      th.style.width=''; delete luu[i];
+      try{ localStorage.setItem(KEY, JSON.stringify(luu)); }catch(e){}
+    });
+  });
+
+}
+ldInitColResize();
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   LỌC / TÌM KIẾM KHÔNG TẢI LẠI TRANG (sếp Phong 20/08)
+   Vẫn để máy chủ dựng HTML như cũ, chỉ nạp ngầm rồi thay đúng 4 vùng:
+   hàng tab · chip tóm tắt · bảng · danh sách thẻ (điện thoại).
+   ══════════════════════════════════════════════════════════════════════════ */
+(function(){
+  var form = document.querySelector('.pos-toolbar form.search');
+  var box  = document.querySelector('.wrap');
+  if(!form || !box) return;
+  var VUNG = ['ldTabs','ldChips','ldCard','ldMList'];
+  var dangTai = false;
+
+  function batLoading(on){
+    ['ldCard','ldMList'].forEach(function(id){
+      var el=document.getElementById(id); if(!el) return;
+      el.style.opacity = on ? '.45' : '';
+      el.style.pointerEvents = on ? 'none' : '';
+    });
+    var sw = document.querySelector('.search-box-wrap');
+    if(sw){ sw.classList.toggle('searching', on); }
+  }
+
+  async function ldLoad(url, luuLichSu){
+    if(dangTai) return;
+    dangTai = true; batLoading(true);
+    try{
+      var res  = await fetch(url, {headers:{'X-Requested-With':'fetch'}});
+      var html = await res.text();
+      var doc  = new DOMParser().parseFromString(html, 'text/html');
+      VUNG.forEach(function(id){
+        var moi = doc.getElementById(id), cu = document.getElementById(id);
+        if(moi && cu) cu.innerHTML = moi.innerHTML;
+      });
+      // Đổi landing → fetch lại trang và cập nhật ô sản phẩm trực tiếp từ HTML.
+      (function(){
+        var _url = form.getAttribute('action') || location.pathname;
+        var _fd = new FormData(form);
+        var _qs = new URLSearchParams();
+        _fd.forEach(function(v,k){ if(String(v).trim()) _qs.set(k, v); });
+        var _full = _url + (_qs.toString() ? '?' + _qs.toString() : '');
+        fetch(_full, {headers:{'X-Requested-With':'fetch'}})
+          .then(function(r){ return r.text(); })
+          .then(function(html){
+            var m = html.match(/<select\s+name="lp"[^>]*>([\s\S]*?)<\/select>/);
+            if(!m) return;
+            document.querySelectorAll('select[name="lp"]').forEach(function(sel){
+              sel.innerHTML = m[1];
+              if(window.CCMultiSelect && window.CCMultiSelect.refresh) window.CCMultiSelect.refresh(sel);
+            });
+          })
+          .catch(function(){});
+      })();
+      // Nạp lại LD_ROWS (dữ liệu modal đơn) từ trang mới fetch — thiếu bước này
+      // là JS hỏng cú pháp im lặng ở bản trước, KHIẾN CẢ FILE JS NÀY KHÔNG CHẠY
+      // → mọi click quay về hành vi mặc định của <a> = TẢI LẠI TRANG (07/09).
+      doc.querySelectorAll('script').forEach(function(sc){
+        if(sc.textContent.indexOf('var LD_ROWS') !== -1){
+          try { (0, eval)(sc.textContent.replace('var LD_ROWS', 'window.LD_ROWS')); } catch(e){}
+        }
+      });
+      if(luuLichSu !== false) history.pushState({}, '', url);
+      ldInitColResize();
+      window.scrollTo({top:0, behavior:'smooth'});
+    }catch(err){
+      location.href = url;   // hỏng mạng → quay về cách cũ, không kẹt
+    }finally{
+      dangTai = false; batLoading(false);
+    }
+  }
+  window.ldLoad = ldLoad;
+
+  function urlTuForm(){
+    var fd = new FormData(form), qs = new URLSearchParams();
+    fd.forEach(function(v,k){ if(String(v).trim()) qs.set(k, v); });
+    return form.getAttribute('action') || location.pathname
+           + (qs.toString() ? '?' + qs.toString() : '');
+  }
+
+  // Form lọc ngày (mDateForm) → nạp ngầm bằng ldLoad
+  var mDateForm = document.getElementById('mDateForm');
+  if(mDateForm){
+    mDateForm.addEventListener('submit', function(e){
+      e.preventDefault();
+      var fd = new FormData(mDateForm), qs = new URLSearchParams();
+      fd.forEach(function(v,k){ if(String(v).trim()) qs.set(k, v); });
+      ldLoad(location.pathname + '?' + qs.toString());
+    });
+  }
+
+  // Gõ vào ô tìm → tự lọc sau 300ms (khỏi bấm nút) + hiệu ứng đang tìm
+  var oTim = form.querySelector('input[name="q"]'), hen = null;
+  var searchWrap = oTim ? oTim.closest('.search-box-wrap') : null;
+  var btnXoa = document.getElementById('clearSearchBtn');
+  if(oTim){
+    function toggleXoa(){
+      var co = String(oTim.value).trim() !== '';
+      if(btnXoa){ btnXoa.classList.toggle('on', co); }
+      if(searchWrap){ searchWrap.classList.toggle('searching', !!hen); }
+    }
+    // ── Tìm kiếm client-side kiểu trang Sản phẩm (tieuhiem.com): toàn bộ đơn đã
+    //    nằm sẵn trên trang, gõ tới đâu lọc tới đó — bỏ dấu, khớp từng từ. ──
+    function normVN(s){
+      return String(s==null?'':s).toLowerCase().normalize('NFD')
+        .replace(/[̀-ͯ]/g,'').replace(/đ/g,'d');
+    }
+    // Gõ xong 350ms tự hỏi server (AJAX ldLoad — KHÔNG reload trang);
+    // server lọc toàn bộ DB rồi trả về trang 30 đơn như thường.
+    oTim.addEventListener('input', function(){
+      clearTimeout(hen);
+      toggleXoa();
+      hen = setTimeout(function(){
+        hen = null; toggleXoa();
+        form.dispatchEvent(new Event('submit'));
+      }, 350);
+    });
+    // Enter → chặn reload, hỏi server ngầm luôn
+    oTim.addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){
+        e.preventDefault();
+        clearTimeout(hen); hen = null;
+        form.dispatchEvent(new Event('submit'));
+      }
+    });
+    // Nút Lọc / mọi submit của form → AJAX ldLoad (không reload)
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      ldLoad(location.pathname + '?' + new URLSearchParams(
+        [...new FormData(form)].filter(function(p){ return String(p[1]).trim(); })).toString());
+    });
+
+    // Khi focus lại ô đã có text → hiện nút X
+    oTim.addEventListener('focus', toggleXoa);
+    // Khi blur (nếu user rời chuột) → ẩn nút X
+    oTim.addEventListener('blur', function(){
+      setTimeout(function(){ toggleXoa(); }, 200);
+    });
+    // Nút X → xóa text + submit ngay
+    if(btnXoa){
+      btnXoa.addEventListener('click', function(e){
+        e.preventDefault(); e.stopPropagation();
+        oTim.value = ''; btnXoa.classList.remove('on');
+        form.dispatchEvent(new Event('submit'));
+      });
+    }
+    // Trạng thái ban đầu
+    toggleXoa();
+  }
+
+  // Đổi tên miền / link sản phẩm (cc-multiselect vẫn bắn sự kiện change)
+  form.addEventListener('change', function(e){
+    if(e.target.name === 'dom' || e.target.name === 'lp'){
+      e.preventDefault();
+      form.dispatchEvent(new Event('submit'));
+    }
+  });
+  // Lang nghe truc tiep tren select[name=dom] de dam bao form submit khi doi landing
+  document.querySelectorAll('select[name="dom"]').forEach(function(sel){
+    sel.addEventListener('change', function(){
+      setTimeout(function(){ form.dispatchEvent(new Event('submit')); }, 100);
+    });
+  });
+
+  // Bấm tab trạng thái / phân trang / link tên miền · link SP → nạp ngầm
+  box.addEventListener('click', function(e){
+    var a = e.target.closest('#ldTabs a, .ndays-opt, #ldCard .pager a, td.src a.dm, td.lpc a.lp, .m-dates a');
+    if(!a || e.metaKey || e.ctrlKey || a.target === '_blank') return;
+    var href = a.getAttribute('href') || '';
+    if(href.indexOf('/ladipage') !== 0 && href[0] !== '?') return;
+    e.preventDefault();
+    ldLoad(href);
+  });
+
+  // Nút Back của trình duyệt
+  window.addEventListener('popstate', function(){ ldLoad(location.href, false); });
+})();
+</script>
+
+<!-- Modal tiến trình Xuất Excel (kiểu POS) -->
+<div id="ldXpMask" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:3000">
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+              background:#fff; border-radius:14px; padding:22px 26px; width:min(400px,90vw);
+              box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="font-weight:800; font-size:15px; margin-bottom:6px">
+      <i class="bi bi-file-earmark-excel" style="color:#0f9d58"></i> Đang xuất Excel…</div>
+    <div id="ldXpNote" style="color:#637381; font-size:12.5px; margin-bottom:12px">
+      Đang gom đơn theo bộ lọc — file lớn có thể mất ~10 giây, đừng tắt trang.</div>
+    <div style="background:#eef2f7; border-radius:999px; height:10px; overflow:hidden">
+      <div id="ldXpBar" style="height:100%; width:0%; background:#0f9d58; border-radius:999px;
+                               transition:width .35s"></div>
+    </div>
+    <div id="ldXpPct" style="text-align:right; font-weight:700; font-size:12.5px; color:#0f9d58; margin-top:5px">0%</div>
+  </div>
+</div>
+<script>
+function ldXuatExcel(a){
+  var url = '/ladipage/xuat-excel' + location.search;
+  var mask = document.getElementById('ldXpMask'),
+      bar = document.getElementById('ldXpBar'),
+      pct = document.getElementById('ldXpPct'),
+      note = document.getElementById('ldXpNote');
+  mask.style.display = 'block';
+  bar.style.background = '#0f9d58';
+  note.textContent = 'Đang gom đơn theo bộ lọc — file lớn có thể mất ~10 giây, đừng tắt trang.';
+  var p = 0;
+  // server không báo % được nên nhích dần tới 90%, tải xong nhảy 100%
+  var tick = setInterval(function(){
+    p = Math.min(90, p + (p < 60 ? 7 : 2));
+    bar.style.width = p + '%'; pct.textContent = p + '%';
+  }, 400);
+  fetch(url)
+    .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+    .then(function(b){
+      clearInterval(tick);
+      bar.style.width = '100%'; pct.textContent = '100%';
+      var u = URL.createObjectURL(b), el = document.createElement('a');
+      el.href = u; el.download = 'don_ladipage.xlsx';
+      document.body.appendChild(el); el.click(); el.remove();
+      setTimeout(function(){ URL.revokeObjectURL(u); mask.style.display = 'none';
+                             bar.style.width = '0%'; pct.textContent = '0%'; }, 700);
+    })
+    .catch(function(err){
+      clearInterval(tick);
+      bar.style.background = '#d93025';
+      note.textContent = 'Lỗi xuất file: ' + (err.message || err) + ' — bấm ra ngoài để đóng rồi thử lại.';
+    });
+  return false;   // chặn điều hướng của thẻ <a>
+}
+document.getElementById('ldXpMask').addEventListener('click', function(e){
+  if(e.target === this) this.style.display = 'none';
+});
+</script>
+
+<script>
+// ── Nút gộp "N ngày chưa lên POS" — 1 nút thay 10 tab rời (sếp Phong 07/09) ──
+// #ldTabs bị THAY innerHTML mỗi lần lọc/chuyển trang (xem VUNG trong ldLoad) nên
+// nút + popover bị tạo lại liên tục → PHẢI ủy quyền sự kiện lên document, không
+// gắn addEventListener thẳng vào #ndaysBtn (gắn 1 lần là mất khi DOM bị thay).
+(function(){
+  function dong(wrap){
+    var pop = wrap.querySelector('.ndays-pop'), bd = wrap.querySelector('.ndays-pop-bd');
+    if(pop) pop.classList.remove('open');
+    if(bd) bd.classList.remove('open');
+  }
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest('#ndaysBtn');
+    if(btn){
+      e.stopPropagation();
+      var wrap = btn.closest('.ndays-wrap');
+      var pop = wrap.querySelector('.ndays-pop'), bd = wrap.querySelector('.ndays-pop-bd');
+      document.querySelectorAll('.ndays-wrap').forEach(function(w){ if(w!==wrap) dong(w); });
+      var mo = pop && !pop.classList.contains('open');
+      if(pop) pop.classList.toggle('open', mo);
+      if(bd) bd.classList.toggle('open', mo);
+      return;
+    }
+    if(e.target.closest('#ndaysX') || e.target.closest('.ndays-pop-bd')){
+      var w2 = e.target.closest('.ndays-wrap');
+      if(w2) dong(w2);
+      return;
+    }
+    if(e.target.closest('.ndays-pop')){ e.stopPropagation();
+      if(e.target.closest('#ndaysApply')){ ndaysApDung(e.target.closest('.ndays-pop')); }
+      return;
+    }
+    document.querySelectorAll('.ndays-wrap').forEach(dong);
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Enter' && e.target.id === 'ndaysInput'){
+      e.preventDefault();
+      ndaysApDung(e.target.closest('.ndays-pop'));
+    }
+  });
+  function ndaysApDung(pop){
+    if(!pop) return;
+    var inp = pop.querySelector('#ndaysInput');
+    var n = parseInt(inp && inp.value, 10);
+    if(!n || n < 1) return;
+    var qs = new URLSearchParams(location.search);
+    qs.set('status', 'chua_nngay'); qs.set('n', n);
+    var wrap = pop.closest('.ndays-wrap');
+    if(wrap) dong(wrap);
+    if(window.ldLoad) window.ldLoad(location.pathname + '?' + qs.toString());
+    else location.href = location.pathname + '?' + qs.toString();
+  }
+})();
+</script>
+</body>
+</html>

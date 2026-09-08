@@ -1,0 +1,194 @@
+{% extends "kho_vat_ly/base.html" %}
+{% block title %}Quản lý biến thể{% endblock %}
+
+{% block content %}
+<style>
+.bt-card {
+  background:#fff;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+  padding:14px 16px;
+  margin-bottom:10px;
+  transition:box-shadow .15s;
+}
+.bt-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.08); }
+.bt-sku {
+  display:inline-block;
+  font-size:11px;
+  font-weight:700;
+  background:#f1f5f9;
+  color:#475569;
+  border-radius:5px;
+  padding:2px 7px;
+  font-family:monospace;
+  letter-spacing:.5px;
+}
+.badge-unnamed {
+  background:#fff3e0;
+  color:#e65100;
+  font-size:10px;
+  font-weight:600;
+  border-radius:5px;
+  padding:2px 7px;
+}
+.badge-all-named {
+  background:#e8f5e9;
+  color:#2e7d32;
+  font-size:10px;
+  font-weight:600;
+  border-radius:5px;
+  padding:2px 7px;
+}
+.badge-pos {
+  background:#e3f2fd;
+  color:#1565c0;
+  font-size:10px;
+  font-weight:600;
+  border-radius:5px;
+  padding:2px 7px;
+}
+.filter-btn {
+  border:1px solid #cbd5e1;
+  background:#fff;
+  color:#475569;
+  font-size:13px;
+  border-radius:7px;
+  padding:5px 14px;
+  cursor:pointer;
+  transition:all .12s;
+}
+.filter-btn.active {
+  background:#3b82f6;
+  border-color:#3b82f6;
+  color:#fff;
+}
+.filter-btn:hover:not(.active) { background:#f8fafc; }
+.search-input {
+  border:1px solid #cbd5e1;
+  border-radius:8px;
+  padding:7px 12px;
+  font-size:13px;
+  width:100%;
+  max-width:320px;
+  outline:none;
+}
+.search-input:focus { border-color:#3b82f6; box-shadow:0 0 0 2px rgba(59,130,246,.15); }
+.empty-state {
+  text-align:center;
+  padding:48px 20px;
+  color:#94a3b8;
+}
+</style>
+
+<div style="max-width:900px;margin:0 auto;padding:16px">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center gap-3 mb-3">
+    <div>
+      <h5 class="mb-0 fw-bold" style="color:#1e293b">
+        <i class="bi bi-layers me-2" style="color:#3b82f6"></i>Quản lý biến thể
+      </h5>
+      <div class="text-muted" style="font-size:12px;margin-top:2px">
+        Đặt tên màu/size cho biến thể · Xem tồn POS · Nhập tồn đầu kỳ
+      </div>
+    </div>
+    <div class="ms-auto text-end">
+      <div style="font-size:22px;font-weight:700;color:#1e293b">{{ total_products }}</div>
+      <div style="font-size:11px;color:#64748b">sản phẩm có BT</div>
+    </div>
+    {% if total_unnamed_products > 0 %}
+    <div class="text-end">
+      <div style="font-size:22px;font-weight:700;color:#e65100">{{ total_unnamed_products }}</div>
+      <div style="font-size:11px;color:#e65100">chưa đặt tên</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Filters -->
+  <div class="d-flex gap-2 flex-wrap align-items-center mb-3">
+    <form method="get" class="d-flex gap-2 align-items-center flex-wrap" id="filterForm">
+      <input type="text" name="q" value="{{ q }}" class="search-input"
+             placeholder="Tìm tên hoặc SKU…" autocomplete="off"
+             oninput="document.getElementById('filterForm').submit()">
+      <div class="d-flex gap-1">
+        <button type="submit" name="status" value="all"
+                class="filter-btn {% if filter_status == 'all' %}active{% endif %}">
+          Tất cả
+        </button>
+        <button type="submit" name="status" value="unnamed"
+                class="filter-btn {% if filter_status == 'unnamed' %}active{% endif %}">
+          <i class="bi bi-exclamation-circle me-1"></i>Chưa đặt tên
+        </button>
+        <button type="submit" name="status" value="named"
+                class="filter-btn {% if filter_status == 'named' %}active{% endif %}">
+          <i class="bi bi-check-circle me-1"></i>Đã đặt tên
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Hướng dẫn -->
+  {% if total_unnamed_products > 0 %}
+  <div class="alert" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#166534;margin-bottom:14px">
+    <i class="bi bi-check-circle-fill me-2" style="color:#22c55e"></i>
+    <strong>Tự động:</strong> Hệ thống tự kéo tên biến thể từ Pancake POS sau mỗi lần khởi động. Các ô còn trống sẽ được điền tự động — hoặc bấm <strong>"Quét biến thể"</strong> trên trang Xuất hàng để điền ngay.
+  </div>
+  {% endif %}
+
+  <!-- Product list -->
+  {% if products %}
+  {% for p in products %}
+  <div class="bt-card">
+    <div class="d-flex align-items-start gap-2">
+      <div class="flex-grow-1">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="bt-sku">{{ p.sku }}</span>
+          <span class="fw-semibold" style="font-size:14px;color:#1e293b">{{ p.name }}</span>
+          {% if p.all_named %}
+          <span class="badge-all-named"><i class="bi bi-check-circle me-1"></i>Đã đặt tên đủ</span>
+          {% else %}
+          <span class="badge-unnamed">
+            <i class="bi bi-exclamation-circle me-1"></i>{{ p.n_unnamed }} biến thể chưa tên
+          </span>
+          {% endif %}
+          {% if p.total_pos_qty > 0 %}
+          <span class="badge-pos">
+            <i class="bi bi-shop me-1"></i>Tồn POS: {{ p.total_pos_qty }}
+            {% if p.last_sync %}<span style="opacity:.7;font-size:9px"> · {{ p.last_sync }}</span>{% endif %}
+          </span>
+          {% else %}
+          <span style="font-size:10px;color:#94a3b8">
+            <i class="bi bi-clock me-1"></i>Chưa có dữ liệu POS
+          </span>
+          {% endif %}
+        </div>
+        <div style="margin-top:5px;font-size:11.5px;color:#64748b">
+          {{ p.n_var }} biến thể tổng cộng
+          {% if p.n_named > 0 %} · <span style="color:#2e7d32">{{ p.n_named }} đã đặt tên</span>{% endif %}
+          {% if p.n_unnamed > 0 %} · <span style="color:#e65100">{{ p.n_unnamed }} chưa đặt tên</span>{% endif %}
+        </div>
+      </div>
+      <a href="{{ url_for('kho_vat_ly.opening_stock_variants', product_id=p.id) }}"
+         class="btn btn-sm {% if not p.all_named %}btn-warning{% else %}btn-outline-secondary{% endif %}"
+         style="min-width:120px;font-size:12px;white-space:nowrap">
+        {% if not p.all_named %}
+        <i class="bi bi-pencil me-1"></i>Đặt tên / Nhập tồn
+        {% else %}
+        <i class="bi bi-pencil me-1"></i>Sửa biến thể
+        {% endif %}
+      </a>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% else %}
+  <div class="empty-state">
+    <i class="bi bi-layers" style="font-size:40px;opacity:.3"></i>
+    <div style="margin-top:10px;font-size:14px">
+      {% if q %}Không tìm thấy sản phẩm nào khớp với "{{ q }}"{% else %}Chưa có sản phẩm nào có biến thể{% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

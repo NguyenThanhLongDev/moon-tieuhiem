@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landing Pages</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="/static/cc-multiselect.css">
+<script src="/static/cc-multiselect.js" defer></script>
+<style>
+@view-transition { navigation: auto; }
+html, body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; }
+.container-wide { max-width:1280px; margin:18px auto; padding:0 16px; }
+.stat { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:12px 18px; flex:1; min-width:150px; }
+.stat .n { font-size:22px; font-weight:800; }
+.toolbar { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:12px 16px; margin-bottom:14px; display:flex; gap:12px; align-items:end; flex-wrap:wrap; }
+.toolbar label { font-size:11px; color:#64748b; display:block; margin-bottom:3px; font-weight:600; }
+.toolbar input, .toolbar select { padding:7px 10px; border:1px solid #d1d5db; border-radius:8px; font-size:13px; }
+.acc-card { background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.05); margin-bottom:10px; overflow:hidden; }
+.acc-card > summary { list-style:none; cursor:pointer; padding:12px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.acc-card > summary::-webkit-details-marker { display:none; }
+.acc-card > summary:hover { background:#fafafa; }
+.acc-card[open] > summary { border-bottom:1px solid #eef2f7; background:#eff6ff; }
+.acc-name { font-weight:700; color:#1e293b; }
+.acc-id { color:#94a3b8; font-size:11px; font-family:monospace; }
+.acc-spend { margin-left:auto; text-align:right; }
+.acc-spend .num { font-weight:700; color:#7c3aed; font-size:15px; }
+.nv-tag { background:#f3e8ff; color:#6b21a8; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+.link-row { padding:10px 16px; border-top:1px solid #f1f5f9; }
+.link-row:nth-child(even) { background:#fcfcfd; }
+.link-url { font-weight:600; color:#0369a1; word-break:break-all; text-decoration:none; }
+.link-url:hover { text-decoration:underline; }
+.dom-chip { background:#e0f2fe; color:#0369a1; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+.lp-meta { font-size:12px; color:#475569; display:flex; gap:14px; flex-wrap:wrap; margin-top:4px; }
+.lp-meta b { color:#1e293b; }
+.tbl { width:100%; font-size:12.5px; border-collapse:collapse; margin-top:6px; }
+.tbl th { background:#f8fafc; color:#64748b; font-weight:600; text-align:left; padding:5px 10px; font-size:11px; }
+.tbl td { padding:5px 10px; border-top:1px solid #f1f5f9; }
+.st { padding:1px 8px; border-radius:10px; font-size:10.5px; font-weight:600; white-space:nowrap; display:inline-block; }
+.st-ACTIVE { background:#dcfce7; color:#166534; }
+.st-PAUSED, .st-CAMPAIGN_PAUSED, .st-ADSET_PAUSED { background:#fef3c7; color:#92400e; }
+.st-DELETED, .st-ARCHIVED, .st-DISAPPROVED { background:#fee2e2; color:#991b1b; }
+.ads-toggle { font-size:11.5px; color:#64748b; cursor:pointer; user-select:none; }
+.ads-toggle:hover { color:#0369a1; }
+.tab-pill { padding:6px 14px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none;
+            color:#475569; background:#f1f5f9; border:1px solid #e2e8f0; display:inline-block; }
+.tab-pill:hover { background:#e2e8f0; color:#1e293b; }
+.tab-pill.active { background:#F59E0B; color:#fff; border-color:#F59E0B; }
+.pill-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+@media (max-width:640px){ .acc-spend{margin-left:0} .toolbar{flex-direction:column;align-items:stretch} }
+</style>
+</head>
+<body>
+{% include "_main_nav.html" %}
+{% set pa_active = 'landing_pages' %}
+{% include "page_account/_pa_tabbar.html" %}
+<div class="container-wide">
+  {% set page_ads_view = 'landing' %}{% include "page_account/_page_ads_pills.html" %}
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div>
+      <h5 class="fw-bold mb-1"><i class="bi bi-link-45deg text-primary me-1"></i>Landing Pages — TK chạy chuyển đổi</h5>
+      <p class="text-muted mb-2" style="font-size:12.5px">Link ladipage của từng ad, gom theo <strong>TK QC → link → ad</strong>. TK chạy tin nhắn (không có link đích) không hiện ở đây.</p>
+      <div style="font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;margin-bottom:8px;display:inline-block">
+        <strong>2 trạng thái khác nhau — đừng nhầm:</strong>
+        <span class="st st-ACTIVE ms-1"><i class="bi bi-globe"></i> Trang SỐNG</span> = ladipage vào được ·
+        <span class="st" style="background:#dbeafe;color:#1e40af"><i class="bi bi-megaphone-fill"></i> QC đang chạy</span> = ad còn bật trên FB ·
+        <span class="st" style="background:#dc2626;color:#fff"><i class="bi bi-fire"></i> Đốt tiền</span> = QC chạy nhưng trang chết
+      </div>
+    </div>
+    <a class="btn btn-sm btn-outline-success"
+       href="{{ url_for('page_account.landing_pages', date_from=date_from, date_to=date_to, q=q, acc=acc_f, nv=nv_f, alive=alive_f, export='csv') }}">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Xuất CSV
+    </a>
+  </div>
+
+  {% if totals.active_dead %}
+  <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:13px">
+    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+    <strong>{{ totals.active_dead }} link ĐÃ CHẾT nhưng còn ad ACTIVE</strong> — đang đốt tiền vào trang không truy cập được!
+    <a href="{{ url_for('page_account.page_ads', view='landing', date_from=date_from, date_to=date_to, alive='dead') }}" class="alert-link ms-1">Xem ngay →</a>
+  </div>
+  {% endif %}
+
+  <div class="d-flex gap-3 flex-wrap mb-3">
+    <div class="stat"><div class="text-muted" style="font-size:12px">💰 Chi tiêu ladipage (kỳ) <span title="Tổng chi tiêu MỌI campaign chạy ladipage (trừ tin nhắn inbox) — GỒM cả ad video dùng post có sẵn không dò được link. Khớp tổng CP Quảng cáo.">ⓘ</span></div><div class="n" style="color:#7c3aed">{{ '{:,.0f}'.format(totals.spend_ladipage if totals.spend_ladipage else totals.spend) }}₫</div><div style="font-size:10px;color:#94a3b8">dò được link: {{ '{:,.0f}'.format(totals.spend) }}₫</div></div>
+    <div class="stat"><div class="text-muted" style="font-size:12px">🟢 Trang SỐNG (vào được)</div><div class="n text-success">{{ totals.links_live }}</div></div>
+    <div class="stat"><div class="text-muted" style="font-size:12px">🔴 Trang CHẾT (không vào được)</div><div class="n text-danger">{{ totals.links_dead }}</div></div>
+    <div class="stat" {% if totals.active_dead %}style="border-color:#fca5a5;background:#fef2f2"{% endif %}><div class="text-muted" style="font-size:12px">🔥 Đốt tiền (QC chạy + trang chết)</div><div class="n text-danger">{{ totals.active_dead }}</div></div>
+    <div class="stat"><div class="text-muted" style="font-size:12px">📇 TK chạy LP</div><div class="n">{{ totals.accounts }}</div></div>
+    <div class="stat"><div class="text-muted" style="font-size:12px">🛒 Mua hàng (FB)</div><div class="n text-success">{{ totals.purchases }}</div></div>
+  </div>
+
+  <form method="get" class="toolbar" data-mfilter>
+    <input type="hidden" name="view" value="landing">
+    {% include "_date_range_picker.html" %}
+    <div><label>TK QC</label>
+      <select name="acc" data-cc-search class="form-select form-select-sm" style="min-width:200px">
+        <option value="">— Tất cả TK ({{ acc_options|length }}) —</option>
+        {% for a in acc_options %}
+        <option value="{{ a.id }}" {% if acc_f == a.id %}selected{% endif %}>{{ a.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div><label>Nhân viên</label>
+      <select name="nv" data-cc-search class="form-select form-select-sm" style="min-width:200px">
+        <option value="">— Tất cả nhân viên ({{ nv_options|length }}) —</option>
+        {% for u in nv_options %}
+        <option value="{{ u.id }}" {% if nv_f == u.id %}selected{% endif %}>{{ u.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="flex:1;min-width:150px"><label>Tìm link / domain / ad</label>
+      <input type="search" name="q" value="{{ q }}" placeholder="🔍 nhập link, domain, tên ad..." style="width:100%">
+    </div>
+    <button class="btn btn-warning fw-semibold"><i class="bi bi-funnel"></i> Lọc</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('page_account.page_ads', view='landing', date_from=date_from, date_to=date_to) }}" title="Xoá lọc TK/NV/tìm kiếm"><i class="bi bi-x-circle"></i> Bỏ lọc</a>
+  </form>
+
+  {# ── Nút lọc trạng thái link (pill — giống Chi phí QC) ── #}
+  {% set _base_args = {'date_from': date_from, 'date_to': date_to, 'acc': acc_f, 'nv': nv_f, 'q': q} %}
+  <div class="pill-row">
+    <a class="tab-pill {% if not alive_f %}active{% endif %}"
+       href="{{ url_for('page_account.page_ads', view='landing', **_base_args) }}">Tất cả ({{ pill_counts.all }})</a>
+    <a class="tab-pill {% if alive_f == 'live' %}active{% endif %}"
+       href="{{ url_for('page_account.page_ads', view='landing', alive='live', **_base_args) }}">🟢 Trang SỐNG ({{ pill_counts.live }})</a>
+    <a class="tab-pill {% if alive_f == 'dead' %}active{% endif %}"
+       href="{{ url_for('page_account.page_ads', view='landing', alive='dead', **_base_args) }}">🔴 Trang CHẾT ({{ pill_counts.dead }})</a>
+  </div>
+
+  {% for acc in accounts %}
+  <details class="acc-card" {% if loop.index <= 3 %}open{% endif %}>
+    <summary>
+      <i class="bi bi-megaphone text-primary"></i>
+      <span>
+        <span class="acc-name">{{ acc.account_name }}</span>
+        <span class="acc-id ms-1">act_{{ acc.account_id }}</span><br>
+        {% if acc.nv %}<span class="nv-tag"><i class="bi bi-person"></i> {{ acc.nv }}</span>{% endif %}
+        {% if acc.team %}<span class="text-muted" style="font-size:11px">· {{ acc.team }}</span>{% endif %}
+        <span class="text-muted" style="font-size:11px">· {{ acc.links|length }} link</span>
+      </span>
+      <span class="acc-spend">
+        <div class="num">{{ '{:,.0f}'.format(acc.spend) }}₫</div>
+        <div class="text-muted" style="font-size:11px">Mua hàng: {{ acc.purchases }}</div>
+      </span>
+    </summary>
+    {% for lk in acc.links %}
+    <div class="link-row">
+      <div class="d-flex align-items-start gap-2 flex-wrap">
+        <i class="bi bi-link-45deg text-info" style="font-size:16px"></i>
+        <div style="flex:1;min-width:220px">
+          <a class="link-url {% if lk.alive is false %}text-decoration-line-through text-muted{% endif %}" href="{{ lk.link }}" target="_blank" rel="noopener">{{ lk.link }} <i class="bi bi-box-arrow-up-right" style="font-size:10px;opacity:.6"></i></a>
+          {% set n_ad_active = lk.ads|selectattr('status','equalto','ACTIVE')|list|length %}
+          <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            {# TRẠNG THÁI LINK (trang ladipage truy cập được không) #}
+            {% if lk.alive is true %}
+              <span class="st st-ACTIVE"><i class="bi bi-globe"></i> Trang: SỐNG</span>
+            {% elif lk.alive is false %}
+              <span class="st st-DELETED"><i class="bi bi-globe"></i> Trang: CHẾT (không vào được)</span>
+            {% else %}
+              <span class="st st-unknown" style="background:#f1f5f9;color:#64748b"><i class="bi bi-globe"></i> Trang: chưa check</span>
+            {% endif %}
+            {# TRẠNG THÁI QUẢNG CÁO (ad có đang chạy trên FB không) #}
+            {% if n_ad_active > 0 %}
+              <span class="st" style="background:#dbeafe;color:#1e40af"><i class="bi bi-megaphone-fill"></i> QC: đang chạy ({{ n_ad_active }} ad)</span>
+            {% else %}
+              <span class="st" style="background:#f1f5f9;color:#64748b"><i class="bi bi-pause-circle"></i> QC: đã tắt</span>
+            {% endif %}
+            {# CẢNH BÁO: ad chạy nhưng link chết = đốt tiền #}
+            {% if lk.active_dead %}<span class="st" style="background:#dc2626;color:#fff;font-weight:700"><i class="bi bi-fire"></i> ĐANG ĐỐT TIỀN vào trang chết!</span>{% endif %}
+          </div>
+          {% if lk.pages %}
+          <div style="margin-top:3px">
+            {% for pg in lk.pages %}
+            <a href="https://www.facebook.com/{{ pg.id }}" target="_blank" rel="noopener"
+               style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;color:#1d4ed8;padding:2px 9px 2px 3px;border-radius:12px;font-size:11.5px;font-weight:600;text-decoration:none;margin:1px 3px 1px 0">
+              <img src="https://graph.facebook.com/{{ pg.id }}/picture?type=square" alt=""
+                   style="width:18px;height:18px;border-radius:50%;object-fit:cover"
+                   onerror="this.style.display='none'">
+              {{ pg.name }}
+            </a>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <div class="lp-meta">
+            <span class="dom-chip">{{ lk.domain or '?' }}</span>
+            <span>Chi phí (kỳ chọn): <b>{{ '{:,.0f}'.format(lk.spend) }}₫</b></span>
+            {% if lk.spend_all > lk.spend %}
+            <span style="color:#7c3aed">Tổng đã tiêu (mọi lúc): <b>{{ '{:,.0f}'.format(lk.spend_all) }}₫</b></span>
+            {% endif %}
+            <span>Hiển thị: <b>{{ '{:,.0f}'.format(lk.imp) }}</b></span>
+            <span>Lượt click: <b>{{ '{:,.0f}'.format(lk.clicks) }}</b></span>
+            <span>Mua hàng: <b>{{ lk.purchases }}</b></span>
+            <span class="ads-toggle" onclick="var t=this.closest('.link-row').querySelector('.ads-tbl');t.style.display=(t.style.display=='none'?'':'none');">
+              <i class="bi bi-chevron-expand"></i> Xem {{ lk.ads|length }} ad
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="ads-tbl" style="display:none">
+        <table class="tbl">
+          <thead><tr><th>Ad</th><th>Page</th><th>Campaign</th><th>Trạng thái</th><th class="text-end">Chi tiêu (kỳ)</th><th class="text-end">Σ tổng</th><th class="text-end">Click</th><th class="text-end">Mua</th></tr></thead>
+          <tbody>
+            {% for ad in lk.ads %}
+            <tr>
+              <td>{{ ad.ad_name or ('Ad ' ~ ad.ad_id[-6:]) }}</td>
+              <td style="font-size:11.5px">
+                {% if ad.page_id %}
+                <a href="https://www.facebook.com/{{ ad.page_id }}" target="_blank" rel="noopener" class="text-decoration-none">{{ ad.page_name }}</a>
+                {% else %}<span class="text-muted">—</span>{% endif %}
+              </td>
+              <td class="text-muted" style="font-size:11.5px">{{ ad.campaign_name }}</td>
+              <td><span class="st st-{{ ad.status }}">{{ ad.status or '?' }}</span></td>
+              <td class="text-end fw-semibold" style="color:#7c3aed">{{ '{:,.0f}'.format(ad.spend) }}₫</td>
+              <td class="text-end text-muted">{{ '{:,.0f}'.format(ad.spend_all or 0) }}₫</td>
+              <td class="text-end">{{ '{:,.0f}'.format(ad.clicks) }}</td>
+              <td class="text-end">{{ ad.purchases }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+  </details>
+  {% else %}
+  <div class="text-center text-muted py-5" style="background:#fff;border:1px dashed #d1d5db;border-radius:12px">
+    <i class="bi bi-link-45deg" style="font-size:28px"></i><br>
+    Chưa có ad nào gắn link landing trong dữ liệu.<br>
+    <span style="font-size:12px">Chạy <code>scripts/sync_fb_ad_landing_links.py</code> để quét link từ FB (đã gắn cron).</span>
+  </div>
+  {% endfor %}
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

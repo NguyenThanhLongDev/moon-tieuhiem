@@ -1,0 +1,62 @@
+/* ─── Searchable Select — common component ─────────────────────────────────
+ * Áp dụng: <select data-searchable="true">...</select>
+ * Auto-init khi DOM ready (xem cc-searchable-select.js).
+ * Yêu cầu: KHÔNG depend Bootstrap JS, vanilla CSS thuần.
+ */
+.cc-ss { position: relative; display: block; width: 100%; }
+.cc-ss-native { display: none !important; }
+.cc-ss-trigger {
+  width: 100%; padding: 8px 32px 8px 12px; text-align: left;
+  background: #fff; border: 1px solid #cbd5e1; border-radius: 8px;
+  cursor: pointer; font-size: 13px; min-height: 38px;
+  position: relative; line-height: 1.4;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: #0f172a;
+}
+.cc-ss-trigger::after {
+  content: '▾'; position: absolute; right: 12px; top: 50%;
+  transform: translateY(-50%); color: #94a3b8; font-size: 11px;
+  pointer-events: none;
+}
+.cc-ss-trigger:hover { border-color: #6366f1; }
+.cc-ss-trigger:focus { outline: 2px solid #6366f155; border-color: #6366f1; }
+.cc-ss-trigger.is-empty { color: #94a3b8; }
+.cc-ss-popover {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 1050;
+  background: #fff; border: 1px solid #cbd5e1; border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.12);
+  max-height: 320px; display: flex; flex-direction: column;
+  font-size: 13px;
+}
+.cc-ss-popover[hidden] { display: none; }
+.cc-ss-search-wrap {
+  position: relative; padding: 6px; border-bottom: 1px solid #f1f5f9;
+}
+.cc-ss-search {
+  width: 100%; padding: 7px 10px 7px 30px;
+  border: 1px solid #e2e8f0; border-radius: 6px;
+  outline: none; font-size: 13px;
+  background: #f8fafc;
+}
+.cc-ss-search:focus { background: #fff; border-color: #6366f1; }
+.cc-ss-search-wrap::before {
+  content: '🔍'; position: absolute; left: 14px; top: 50%;
+  transform: translateY(-50%); font-size: 12px; opacity: .6; pointer-events: none;
+}
+.cc-ss-list { overflow-y: auto; max-height: 260px; }
+.cc-ss-item {
+  padding: 8px 12px; cursor: pointer; font-size: 13px;
+  border-bottom: 1px solid #f8fafc; line-height: 1.4;
+}
+.cc-ss-item:last-child { border-bottom: none; }
+.cc-ss-item:hover, .cc-ss-item.is-active { background: #f1f5f9; }
+.cc-ss-item.is-selected {
+  background: #ede9fe; color: #6366f1; font-weight: 600;
+}
+.cc-ss-item.is-selected.is-active { background: #ddd6fe; }
+.cc-ss-item mark {
+  background: #fef3c7; color: #92400e; padding: 0 2px; border-radius: 2px;
+}
+.cc-ss-empty {
+  padding: 14px; text-align: center; color: #94a3b8; font-size: 13px;
+}

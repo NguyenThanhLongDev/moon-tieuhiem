@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lan gửi báo cáo cho ai?</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+  body{ background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; }
+  .lw{ max-width:1080px; margin:0 auto; padding:16px 14px 60px; }
+  .hd{ background:linear-gradient(135deg,#F59E0B,#f97316); color:#fff; border-radius:16px;
+       padding:18px 20px; box-shadow:0 4px 14px rgba(245,158,11,.25); }
+  .hd h4{ font-weight:800; margin:0; } .hd .sub{ opacity:.95; font-size:13.5px; margin-top:4px; }
+  .blk{ background:#fff; border:1px solid #eef2f7; border-radius:14px; margin-top:16px;
+        box-shadow:0 1px 4px rgba(0,0,0,.05); overflow:hidden; }
+  .blk > .bh{ padding:13px 18px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .blk > .bh .n{ width:28px; height:28px; border-radius:50%; background:#F59E0B; color:#fff;
+        font-weight:800; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+  .blk > .bh .t{ font-weight:800; font-size:15.5px; }
+  .blk > .bh .d{ font-size:12.5px; color:#64748b; width:100%; margin-left:38px; }
+  .bb{ padding:6px 18px 16px; }
+  .row-i{ display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px dashed #eef2f7; flex-wrap:wrap; }
+  .row-i:last-child{ border-bottom:0; }
+  .row-i .nm{ font-weight:700; }
+  .row-i .mu{ font-size:12px; color:#94a3b8; }
+  .grow{ flex:1 1 220px; min-width:0; }
+  .pill{ font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:999px; }
+  .pill.on{ background:#dcfce7; color:#15803d; } .pill.off{ background:#f1f5f9; color:#64748b; }
+  .pill.warn{ background:#fef3c7; color:#b45309; }
+  .btn-xs{ font-size:12.5px; font-weight:600; padding:4px 12px; border-radius:8px; }
+  .empty{ color:#94a3b8; font-size:13px; padding:16px 0; text-align:center; }
+  .warnbox{ background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:12px;
+       padding:13px 16px; margin-top:14px; font-size:13.5px; }
+  .okbox{ background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; border-radius:12px;
+       padding:11px 16px; margin-top:14px; font-size:13.5px; }
+  .howto{ background:#f8fafc; border-radius:10px; padding:12px 16px; font-size:13px; color:#475569; margin-top:6px; }
+  .howto b{ color:#0f172a; }
+  table.nv{ width:100%; font-size:13.5px; } table.nv th{ font-size:12px; color:#64748b; font-weight:700; padding:6px 8px; }
+  table.nv td{ padding:9px 8px; border-top:1px solid #f1f5f9; vertical-align:middle; }
+</style>
+</head>
+<body>
+{% include "_main_nav.html" %}
+{% set cpqc_active = 'lan' %}{% include "_cpqc_subnav.html" ignore missing %}
+
+<div class="lw">
+
+  <div class="hd">
+    <h4>🌸 Lan gửi báo cáo cho ai?</h4>
+    <div class="sub">Trang này quyết định <b>ai nhận gì</b>.<br>🕗 <b>20h00</b> — báo cáo TỔNG gửi nhóm &amp; sếp (số trong ngày) &nbsp;·&nbsp; 🕗 <b>08h00 sáng hôm sau</b> — báo cáo RIÊNG từng mar + báo cáo TEAM (số ngày hôm qua)</div>
+  </div>
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for c,m in msgs %}
+    <div class="alert alert-{{ 'success' if c=='success' else ('danger' if c=='danger' else 'info') }} mt-3 mb-0 py-2">{{ m }}</div>
+  {% endfor %}{% endwith %}
+
+  {% if bridge_ok %}
+    <div class="okbox">✅ <b>Lan đang online</b> — sẵn sàng gửi báo cáo.</div>
+  {% else %}
+    <div class="warnbox">
+      ⚠️ <b>Lan đang NGỦ — chưa đăng nhập Zalo</b> nên chưa gửi được tin nào.
+      <div class="mt-2"><a href="/lan-qr" class="btn btn-warning btn-sm fw-bold"><i class="bi bi-qr-code-scan"></i> Quét mã QR để đánh thức Lan</a></div>
+      <div class="mu mt-1" style="font-size:11.5px">Chi tiết kỹ thuật: {{ bridge_err }}</div>
+    </div>
+  {% endif %}
+
+  <!-- ① NHÓM -->
+  <div class="blk">
+    <div class="bh"><div class="n">1</div><div class="t">👥 Nhóm Zalo nhận báo cáo TỔNG <span class="pill off">gửi 20h00</span></div>
+      <div class="d">Báo cáo toàn công ty: doanh thu, lãi/lỗ từng page, page test, xếp hạng nhân viên.</div></div>
+    <div class="bb">
+      {% for g in groups %}
+      <div class="row-i">
+        <div class="grow">
+          <div class="nm">{{ g.name }}</div>
+          <div class="mu">{{ g.member_count }} thành viên · mã {{ g.thread_id[:14] }}…</div>
+        </div>
+        <span class="pill {{ 'on' if g.on else 'off' }}">{{ '✓ ĐANG NHẬN' if g.on else 'không nhận' }}</span>
+        <form method="post" action="{{ url_for('chi_phi_qc.lan_toggle_group') }}" class="m-0">
+          <input type="hidden" name="thread_id" value="{{ g.thread_id }}">
+          <input type="hidden" name="enable" value="{{ '0' if g.on else '1' }}">
+          <button class="btn btn-xs {{ 'btn-outline-secondary' if g.on else 'btn-success' }}">{{ 'Tắt' if g.on else 'Bật nhận' }}</button>
+        </form>
+        {% if g.on %}
+        <form method="post" action="{{ url_for('chi_phi_qc.lan_gui_thu') }}" class="m-0">
+          <input type="hidden" name="kind" value="group"><input type="hidden" name="target" value="{{ g.thread_id }}">
+          <button class="btn btn-xs btn-outline-warning">Gửi thử</button>
+        </form>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="empty">Chưa thấy nhóm nào. Hãy thêm Lan vào nhóm Zalo trước, rồi tải lại trang.</div>
+      {% endfor %}
+      <div class="howto">💡 Muốn nhóm mới nhận báo cáo: <b>thêm tài khoản Lan vào nhóm đó</b> → tải lại trang → bấm <b>Bật nhận</b>.</div>
+    </div>
+  </div>
+
+  <!-- ①B NHÓM TEAM -->
+  <div class="blk">
+    <div class="bh"><div class="n">1b</div><div class="t">🏳️ Nhóm riêng của từng TEAM <span class="pill off">gửi 08h00 sáng hôm sau</span></div>
+      <div class="d">Chỉ số của <b>team đó</b>: lãi/lỗ team, xếp hạng người trong team, page đốt ads, page lỗ, test SP.
+        <b>Không</b> thấy team khác.</div></div>
+    <div class="bb">
+      {% for g in groups %}
+      <div class="row-i">
+        <div class="grow">
+          <div class="nm">{{ g.name }}</div>
+          <div class="mu">{{ g.member_count }} thành viên</div>
+        </div>
+        {% if g.team %}<span class="pill on">✓ báo cáo {{ g.team }}</span>{% endif %}
+        <form method="post" action="{{ url_for('chi_phi_qc.lan_map_team') }}" class="d-flex gap-2 m-0 align-items-center">
+          <input type="hidden" name="thread_id" value="{{ g.thread_id }}">
+          <select name="team" class="form-select form-select-sm" style="max-width:220px">
+            <option value="">— không nhận báo cáo team —</option>
+            {% for t in team_list %}<option value="{{ t }}" {{ 'selected' if g.team==t }}>{{ t }}</option>{% endfor %}
+          </select>
+          <button class="btn btn-xs btn-success">Lưu</button>
+        </form>
+        {% if g.team %}
+        <form method="post" action="{{ url_for('chi_phi_qc.lan_gui_thu_team') }}" class="m-0">
+          <input type="hidden" name="thread_id" value="{{ g.thread_id }}">
+          <input type="hidden" name="team" value="{{ g.team }}">
+          <button class="btn btn-xs btn-outline-warning">Gửi thử</button>
+        </form>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="empty">Chưa thấy nhóm nào — thêm Lan vào nhóm của từng team trước.</div>
+      {% endfor %}
+      <div class="howto">💡 Một nhóm có thể vừa nhận báo cáo TỔNG (ô ①) vừa nhận báo cáo TEAM (ô này) — nhưng thường
+        nhóm team chỉ nên bật <b>báo cáo team</b> thôi, để mar không thấy số của team khác.</div>
+    </div>
+  </div>
+
+  <!-- ② SẾP -->
+  <div class="blk">
+    <div class="bh"><div class="n">2</div><div class="t">👑 Sếp / cá nhân nhận báo cáo TỔNG <span class="pill off">gửi 20h00</span></div>
+      <div class="d">Nhận đúng nội dung như nhóm (số TOÀN công ty), gửi riêng vào tin nhắn cá nhân.
+        Danh sách này <b>do quản trị thêm tay</b> — nhân viên KHÔNG tự vào đây được.</div></div>
+    <div class="bb">
+      {% for s in seps %}
+      <div class="row-i">
+        <div class="grow">
+          <div class="nm">{{ s.ten }}</div>
+          <div class="mu">Zalo {{ s.uid[:16] }}… ·
+            {% if s.la_nv %}<span style="color:#b45309">⚠️ đây là nhân viên <b>{{ s.la_nv }}</b> — bạn ấy sẽ thấy số của TOÀN công ty</span>
+            {% else %}chỉ nhận báo cáo tổng, do người quản trị thêm tay{% endif %}</div>
+        </div>
+        <span class="pill on">✓ ĐANG NHẬN</span>
+        <form method="post" action="{{ url_for('chi_phi_qc.lan_gui_thu') }}" class="m-0">
+          <input type="hidden" name="kind" value="user"><input type="hidden" name="target" value="{{ s.uid }}">
+          <button class="btn btn-xs btn-outline-warning">Gửi thử</button>
+        </form>
+        <form method="post" action="{{ url_for('chi_phi_qc.lan_toggle_sep') }}" class="m-0"
+              onsubmit="return confirm('Bỏ người này khỏi danh sách nhận báo cáo tổng?')">
+          <input type="hidden" name="zalo_uid" value="{{ s.uid }}"><input type="hidden" name="enable" value="0">
+          <button class="btn btn-xs btn-outline-secondary">Bỏ</button>
+        </form>
+      </div>
+      {% else %}
+      <div class="empty">Chưa có ai.</div>
+      {% endfor %}
+      <form method="post" action="{{ url_for('chi_phi_qc.lan_toggle_sep') }}" class="d-flex gap-2 mt-3 flex-wrap align-items-center">
+        <input type="hidden" name="enable" value="1">
+        {% if danhba %}
+        <select name="zalo_uid" class="form-select form-select-sm" style="max-width:360px" required>
+          <option value="">— Chọn người trong danh bạ Zalo của Lan —</option>
+          {% for d in danhba %}{% if d.uid not in sep_uids %}
+            <option value="{{ d.uid }}">{{ d.ten }}</option>
+          {% endif %}{% endfor %}
+        </select>
+        <button class="btn btn-warning btn-xs fw-bold">+ Thêm người nhận</button>
+        <span class="mu">({{ danhba|length }} người đã kết bạn với Lan)</span>
+        {% else %}
+        <input name="zalo_uid" class="form-control form-control-sm" style="max-width:340px"
+               placeholder="Dán mã Zalo (uid)…" required>
+        <button class="btn btn-warning btn-xs fw-bold">+ Thêm người nhận</button>
+        {% endif %}
+      </form>
+      {% if danhba %}
+      <div class="howto">💡 Không thấy tên mình/ai đó trong danh sách? Người đó <b>chưa kết bạn với Lan</b> — kết bạn xong tải lại trang là hiện.</div>
+      {% else %}
+      <div class="howto">⚠️ Chưa lấy được danh bạ Zalo{% if danhba_err %} ({{ danhba_err }}){% endif %} — Lan cần đăng nhập trước thì mới chọn được theo tên.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ③ NHÂN VIÊN -->
+  <div class="blk">
+    <div class="bh"><div class="n">3</div><div class="t">👤 Nhân viên nhận báo cáo RIÊNG <span class="pill off">gửi 08h00 sáng hôm sau</span></div>
+      <div class="d">Mỗi mar nhận số của <b>riêng mình</b>: lãi/lỗ, tiền ads/đơn, camp lên mới, mẫu test, ngân sách test…</div></div>
+    <div class="bb">
+      <div class="mb-2" style="font-size:13px;color:#475569">
+        Đã nối Zalo: <b style="color:{{ '#15803d' if da_noi else '#b45309' }}">{{ da_noi }}/{{ tong_nv }}</b> nhân viên
+        {% if da_noi < tong_nv %}— những người còn lại <b>chưa nhận được báo cáo</b>{% endif %}
+      </div>
+      <div class="table-responsive">
+      <table class="nv">
+        <thead><tr><th>Nhân viên</th><th>Team</th><th>TK QC</th><th>Zalo</th><th style="text-align:right">Thao tác</th></tr></thead>
+        <tbody>
+        {% for n in nvs %}
+          <tr>
+            <td><span class="nm">{{ n.ten }}</span> <span class="mu">({{ n.username }})</span></td>
+            <td>{{ n.team or '—' }}</td>
+            <td>{{ n.so_tk }}</td>
+            <td>
+              {% if n.zalo_uid %}<span class="pill on">✓ đã nối</span>
+              {% else %}<span class="pill warn">chưa nối</span>{% endif %}
+            </td>
+            <td style="text-align:right; white-space:nowrap">
+              {% if n.zalo_uid %}
+                <form method="post" action="{{ url_for('chi_phi_qc.lan_gui_thu') }}" class="d-inline">
+                  <input type="hidden" name="kind" value="nv"><input type="hidden" name="target" value="{{ n.zalo_uid }}">
+                  <input type="hidden" name="user_id" value="{{ n.id }}"><input type="hidden" name="name" value="{{ n.ten }}">
+                  <button class="btn btn-xs btn-outline-warning">Gửi thử</button>
+                </form>
+                <form method="post" action="{{ url_for('chi_phi_qc.lan_unmap_nv') }}" class="d-inline"
+                      onsubmit="return confirm('Ngắt Zalo của {{ n.ten }}?')">
+                  <input type="hidden" name="user_id" value="{{ n.id }}">
+                  <button class="btn btn-xs btn-outline-secondary">Ngắt</button>
+                </form>
+              {% else %}
+                <span class="mu">chờ bạn ấy nhắn Lan →</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="empty">Chưa có nhân viên nào giữ tài khoản quảng cáo.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ④ PENDING -->
+  <div class="blk">
+    <div class="bh"><div class="n">4</div><div class="t">🔗 Zalo đã nhắn Lan — cần chỉ rõ đó là ai</div>
+      <div class="d">Zalo chỉ cho biết tên hiển thị (hay khác tên trong phần mềm) nên cần bạn xác nhận 1 lần.</div></div>
+    <div class="bb">
+      {% for p in pending %}
+      <form method="post" action="{{ url_for('chi_phi_qc.lan_map_nv') }}" class="row-i m-0">
+        <input type="hidden" name="zalo_uid" value="{{ p.uid }}">
+        <div class="grow">
+          <div class="nm">{{ p.ten }}</div>
+          <div class="mu">{{ p.count }} tin · mã {{ p.uid[:16] }}…</div>
+        </div>
+        <select name="user_id" class="form-select form-select-sm" style="max-width:280px" required>
+          <option value="">— Đây là nhân viên nào? —</option>
+          {% for n in nvs %}<option value="{{ n.id }}">{{ n.ten }}{% if n.team %} · {{ n.team }}{% endif %}</option>{% endfor %}
+        </select>
+        <button class="btn btn-xs btn-success fw-bold">Nối</button>
+        <button class="btn btn-xs btn-outline-secondary" name="user_id" value="0">Bỏ qua</button>
+      </form>
+      {% else %}
+      <div class="empty">Chưa ai nhắn Lan — dùng danh bạ bên dưới cũng được.</div>
+      {% endfor %}
+
+      {% if danhba %}
+      <div style="border-top:2px solid #f1f5f9; margin-top:10px; padding-top:12px">
+        <div class="nm mb-1">📒 Danh bạ Zalo của Lan — {{ danhba|length }} người đã kết bạn</div>
+        <div class="mu mb-2">Ai kết bạn với Lan sẽ hiện ở đây. Chọn xem đó là ai trong phần mềm rồi bấm <b>Nối</b>.</div>
+        {% for d in danhba %}
+        <div class="row-i">
+          <div class="grow">
+            <div class="nm">{{ d.ten }}</div>
+            <div class="mu">Zalo {{ d.uid[:16] }}…</div>
+          </div>
+          {% if d.noi_voi %}
+            <span class="pill on">✓ đã nối: {{ d.noi_voi }}</span>
+          {% elif d.nhan_tong %}
+            <span class="pill on">nhận báo cáo TỔNG</span>
+          {% else %}
+            <span class="pill warn">chưa nối</span>
+          {% endif %}
+          {% if not d.noi_voi %}
+          <form method="post" action="{{ url_for('chi_phi_qc.lan_map_nv') }}" class="d-flex gap-2 m-0 align-items-center flex-wrap">
+            <input type="hidden" name="zalo_uid" value="{{ d.uid }}">
+            <select name="user_id" class="form-select form-select-sm" style="max-width:280px" required>
+              <option value="">— là ai trong phần mềm? —</option>
+              {% for u in all_users %}
+                <option value="{{ u.id }}">{{ u.ten }} ({{ u.username }}){% if u.team %} · {{ u.team }}{% endif %}</option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-xs btn-success fw-bold">Nối</button>
+          </form>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="howto">
+        <b>Hướng dẫn gửi cho team (copy dán vào nhóm):</b><br>
+        <span style="color:#0f172a">“Mọi người kết bạn Zalo với <b>Lan</b> rồi nhắn <b>tên mình + team</b> nhé, để mỗi sáng 8h nhận báo cáo ads riêng của mình.”</span>
+        <div class="mt-2">⚠️ <b>Phải kết bạn trước</b> — chưa kết bạn thì Lan không nhận được tin và tên sẽ không hiện ở đây.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

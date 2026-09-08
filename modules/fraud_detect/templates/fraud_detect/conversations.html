@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hội thoại đã chụp</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+html,body{background:#f5f6fa;font-family:'Segoe UI',sans-serif;font-size:14px}
+.wrap{max-width:1280px;margin:18px auto;padding:0 16px}
+.stat{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px 18px;flex:1;min-width:150px}
+.stat .n{font-size:24px;font-weight:800}
+.toolbar{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 16px;margin:14px 0;display:flex;gap:12px;align-items:end;flex-wrap:wrap}
+.toolbar label{font-size:11px;color:#64748b;font-weight:600;display:block;margin-bottom:3px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px}
+.tbl{width:100%;background:#fff;border:1px solid #e5e7eb;border-radius:12px;border-collapse:separate;border-spacing:0;overflow:hidden;font-size:13px}
+.tbl th{background:#f8fafc;color:#64748b;font-weight:600;text-align:left;padding:10px 12px;font-size:12px}
+.tbl td{padding:9px 12px;border-top:1px solid #f1f5f9}
+.tbl tbody tr{cursor:pointer}
+.tbl tbody tr:hover{background:#f8fafc}
+.sale-tag{background:#dbeafe;color:#1e40af;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:600}
+.badge-del{background:#fee2e2;color:#991b1b;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700}
+.badge-blk{background:#fef3c7;color:#92400e;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.pill{padding:7px 16px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;color:#475569;background:#fff;border:1px solid #e2e8f0;display:inline-block}
+.pill.active{background:#dc2626;color:#fff;border-color:#dc2626}
+.cv-msg{max-width:75%;padding:7px 12px;border-radius:14px;margin:4px 0;font-size:13px;word-break:break-word}
+.cv-in{background:#fff;border:1px solid #e2e8f0;margin-right:auto}
+.cv-out{background:#2563eb;color:#fff;margin-left:auto}
+.cv-del{background:#fee2e2!important;color:#991b1b!important;border:1px dashed #dc2626!important}
+.cv-time{font-size:10px;opacity:.65;margin-top:2px}
+.cv-delbadge{display:inline-block;background:#dc2626;color:#fff;font-size:9.5px;font-weight:700;padding:0 6px;border-radius:6px;margin-bottom:2px}
+</style>
+</head>
+<body>
+{% include "_main_nav.html" %}
+<div class="wrap">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <h4 class="fw-bold mb-1"><i class="bi bi-chat-square-text text-primary me-2"></i>Hội thoại đã chụp</h4>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('fraud_detect.report') }}" class="pill">🚩 Nghi vấn gian lận</a>
+      <a href="{{ url_for('fraud_detect.conversations') }}" class="pill active">💬 Tất cả hội thoại</a>
+    </div>
+  </div>
+  <p class="text-muted mb-3" style="font-size:13px">Toàn bộ hội thoại hệ thống đã chụp từ Facebook. Bấm vào 1 dòng để xem nguyên cuộc chat (tin bị xoá tô đỏ).</p>
+
+  <div class="d-flex gap-3 flex-wrap mb-2">
+    <div class="stat"><div class="text-muted" style="font-size:12px">💬 Hội thoại</div><div class="n text-primary">{{ '{:,}'.format(cc.conversations) }}</div></div>
+    <div class="stat"><div class="text-muted" style="font-size:12px">✉️ Tin nhắn đã chụp</div><div class="n">{{ '{:,}'.format(cc.messages) }}</div></div>
+    <div class="stat"><div class="text-muted" style="font-size:12px">🔴 Có tin bị xoá</div><div class="n text-danger">{{ cc.with_deleted }}</div></div>
+  </div>
+
+  <form method="get" class="toolbar">
+    <div><label>Từ ngày</label>
+      <input type="date" name="date_from" value="{{ date_from }}"></div>
+    <div><label>Đến ngày</label>
+      <input type="date" name="date_to" value="{{ date_to }}"></div>
+    <div style="flex:1;min-width:200px"><label>Tìm khách / page</label>
+      <input type="search" name="q" value="{{ f_q }}" placeholder="tên khách hoặc page..." style="width:100%"></div>
+    <div><label>Sale</label><input type="search" name="sale" value="{{ f_sale }}" placeholder="username sale..."></div>
+    <div><label>&nbsp;</label>
+      <label style="font-weight:500;font-size:13px;color:#334155"><input type="checkbox" name="only_deleted" value="1" {% if only_deleted %}checked{% endif %}> Chỉ hội thoại có tin bị xoá</label>
+    </div>
+    <button class="btn btn-primary fw-semibold"><i class="bi bi-funnel"></i> Lọc</button>
+  </form>
+
+  <table class="tbl">
+    <thead><tr>
+      <th>Khách</th><th>Page</th><th>Sale</th><th class="text-end">Số tin</th>
+      <th class="text-center">Tin bị xoá</th><th class="text-center">Trạng thái</th><th>Cập nhật</th>
+    </tr></thead>
+    <tbody>
+      {% for c in convs %}
+      <tr data-conv="{{ c.conv_key }}">
+        <td>
+          <span class="d-inline-flex align-items-center gap-2">
+            {% if c.customer_avatar %}<img src="{{ c.customer_avatar }}" style="width:26px;height:26px;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">{% endif %}
+            {{ c.customer_name or '—' }}
+          </span>
+        </td>
+        <td style="color:#64748b">{{ c.page_name or c.page_id or '—' }}</td>
+        <td>{% if c.sale %}<span class="sale-tag">{{ c.sale }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td class="text-end">{{ c.total_messages }}</td>
+        <td class="text-center">{% if c.deleted_n %}<span class="badge-del">{{ c.deleted_n }} xoá</span>{% else %}<span class="text-muted">0</span>{% endif %}</td>
+        <td class="text-center">{% if c.status=='blocked' %}<span class="badge-blk">Chặn khách</span>{% else %}<span class="text-muted" style="font-size:11px">bình thường</span>{% endif %}</td>
+        <td style="color:#94a3b8;font-size:12px;white-space:nowrap">{{ c.last_synced_at.strftime('%d/%m %H:%M') if c.last_synced_at else '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" style="padding:24px;text-align:center;color:#94a3b8">Chưa chụp được hội thoại nào. Bấm "Kéo từ Facebook" ở trang Nghi vấn.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal xem hội thoại -->
+<div class="modal fade" id="convModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="cvTitle"><i class="bi bi-chat-dots me-1"></i>Hội thoại</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="background:#f1f5f9">
+        <div id="cvInfo" class="mb-2" style="font-size:12.5px;color:#475569"></div>
+        <div id="cvLoading" class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> Đang tải...</div>
+        <div id="cvBody"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  let modal;
+  function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+  async function openConv(k){
+    if(!modal) modal=new bootstrap.Modal(document.getElementById('convModal'));
+    document.getElementById('cvLoading').style.display='';
+    document.getElementById('cvBody').innerHTML=''; document.getElementById('cvInfo').innerHTML='';
+    modal.show();
+    try{
+      const res=await fetch('/bat-gian-lan/conv/'+encodeURIComponent(k));
+      const data=await res.json(); if(data.error) throw new Error(data.error);
+      const c=data.conv;
+      document.getElementById('cvTitle').innerHTML='<i class="bi bi-chat-dots me-1"></i>'+esc(c.customer_name||'Khách');
+      document.getElementById('cvInfo').innerHTML=
+        (c.customer_avatar?'<img src="'+c.customer_avatar+'" style="width:30px;height:30px;border-radius:50%;object-fit:cover;margin-right:6px" onerror="this.style.display=\'none\'">':'')+
+        '<b>'+esc(c.customer_name||'—')+'</b> · Page: <b>'+esc(c.page_name||c.page_id||'—')+'</b>'+
+        (c.sale?' · Sale: <span class="sale-tag">'+esc(c.sale)+'</span>':'')+
+        (c.status==='blocked'?' · <span class="badge-blk">ĐANG CHẶN</span>':'')+' · '+data.messages.length+' tin';
+      let html='',del=0;
+      data.messages.forEach(m=>{
+        const d=!!m.deleted_at; if(d)del++;
+        const t=m.sent_at?m.sent_at.replace('T',' ').slice(0,16):'';
+        html+='<div class="cv-msg cv-'+(m.direction==='out'?'out':'in')+(d?' cv-del':'')+'">'+
+          (d?'<div><span class="cv-delbadge">ĐÃ BỊ XOÁ — bản chụp</span></div>':'')+esc(m.content)+
+          '<div class="cv-time">'+t+(m.direction==='out'?' · shop':' · khách')+'</div></div>';
+      });
+      if(del) html='<div class="alert alert-danger py-1 px-2 mb-2" style="font-size:12px">⚠ '+del+' tin đã bị xoá trên nguồn — dưới là bản chụp.</div>'+html;
+      document.getElementById('cvBody').innerHTML=html||'<div class="text-center text-muted py-3">Chưa có tin.</div>';
+    }catch(e){document.getElementById('cvBody').innerHTML='<div class="text-danger">Lỗi: '+esc(e.message||e)+'</div>';}
+    document.getElementById('cvLoading').style.display='none';
+  }
+  document.querySelectorAll('tr[data-conv]').forEach(tr=>tr.addEventListener('click',()=>openConv(tr.dataset.conv)));
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

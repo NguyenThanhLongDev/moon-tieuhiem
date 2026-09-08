@@ -1,0 +1,524 @@
+{% extends "cham_cong/base.html" %}
+{% block title %}Giám sát chấm công{% endblock %}
+{% set active_page = 'giam_sat' %}
+
+{% block extra_css %}
+<style>
+.gs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.gs-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gs-date {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+.gs-refresh-info {
+  font-size: 12px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+  display: inline-block;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .4; transform: scale(.7); }
+}
+
+/* Summary cards */
+.gs-stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.gs-stat {
+  flex: 1;
+  min-width: 130px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: box-shadow .15s, transform .1s;
+  border: 2px solid transparent;
+}
+.gs-stat:hover { box-shadow: 0 3px 12px rgba(0,0,0,.12); transform: translateY(-1px); }
+.gs-stat.active { box-shadow: 0 3px 12px rgba(0,0,0,.12); }
+.gs-stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.gs-stat-val { font-size: 26px; font-weight: 700; line-height: 1; }
+.gs-stat-lbl { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+
+/* Filter bar */
+.gs-filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.gs-filter-btn {
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: .15s;
+  background: #f1f5f9;
+  color: #64748b;
+}
+.gs-filter-btn:hover, .gs-filter-btn.active { background: #6366f1; color: #fff; }
+.gs-search {
+  margin-left: auto;
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #1e293b;
+  width: 180px;
+  outline: none;
+}
+.gs-search:focus { border-color: #6366f1; }
+
+/* Employee grid */
+.gs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.emp-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  border-left: 4px solid #e2e8f0;
+  transition: box-shadow .15s, transform .1s;
+  position: relative;
+}
+.emp-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.1); transform: translateY(-1px); }
+.emp-card.working { border-left-color: #10b981; }
+.emp-card.done    { border-left-color: #6366f1; }
+.emp-card.absent  { border-left-color: #e2e8f0; opacity: .75; }
+
+.emp-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.emp-role {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  display: inline-block;
+  margin-bottom: 10px;
+  background: #ede9fe;
+  color: #6366f1;
+}
+.emp-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  margin-bottom: 8px;
+}
+.badge-working { background: #d1fae5; color: #065f46; }
+.badge-done    { background: #ede9fe; color: #5b21b6; }
+.badge-absent  { background: #f1f5f9; color: #94a3b8; }
+
+.emp-times {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.8;
+}
+.emp-times .ci { color: #059669; font-weight: 600; }
+.emp-times .co { color: #dc2626; font-weight: 600; }
+.emp-times .dur { color: #6366f1; font-weight: 600; }
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #94a3b8;
+  font-size: 14px;
+  grid-column: 1 / -1;
+}
+.empty-state i { font-size: 40px; display: block; margin-bottom: 10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="gs-header">
+  <div>
+    <div class="gs-title">
+      <span class="live-dot"></span>
+      Giám sát chấm công hôm nay
+    </div>
+    <div class="gs-date">
+      {{ today.strftime('%A, %d/%m/%Y') | replace('Monday','Thứ 2') | replace('Tuesday','Thứ 3') | replace('Wednesday','Thứ 4') | replace('Thursday','Thứ 5') | replace('Friday','Thứ 6') | replace('Saturday','Thứ 7') | replace('Sunday','Chủ nhật') }}
+    </div>
+  </div>
+  <div class="gs-refresh-info">
+    <i class="bi bi-arrow-clockwise"></i>
+    Tự động làm mới sau <strong id="countdown">60</strong>s
+    <button onclick="doRefresh()" style="background:#ede9fe;color:#6366f1;border:none;padding:4px 10px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:600;margin-left:4px;">
+      <i class="bi bi-arrow-clockwise"></i> Làm mới
+    </button>
+  </div>
+</div>
+
+<!-- Summary cards -->
+<div class="gs-stats">
+  <div class="gs-stat" id="stat-all" onclick="filterBy('all')" style="border-color:#6366f122;">
+    <div class="gs-stat-icon" style="background:#ede9fe22;color:#6366f1;"><i class="bi bi-people-fill"></i></div>
+    <div>
+      <div class="gs-stat-val" id="cnt-total" style="color:#6366f1;">{{ cnt_total }}</div>
+      <div class="gs-stat-lbl">Tổng nhân viên</div>
+    </div>
+  </div>
+  <div class="gs-stat" id="stat-working" onclick="filterBy('working')">
+    <div class="gs-stat-icon" style="background:#d1fae522;color:#059669;"><i class="bi bi-person-check-fill"></i></div>
+    <div>
+      <div class="gs-stat-val" id="cnt-working" style="color:#059669;">{{ cnt_working }}</div>
+      <div class="gs-stat-lbl">Đang làm việc</div>
+    </div>
+  </div>
+  <div class="gs-stat" id="stat-done" onclick="filterBy('done')">
+    <div class="gs-stat-icon" style="background:#ede9fe22;color:#6366f1;"><i class="bi bi-box-arrow-right"></i></div>
+    <div>
+      <div class="gs-stat-val" id="cnt-done" style="color:#6366f1;">{{ cnt_done }}</div>
+      <div class="gs-stat-lbl">Đã về</div>
+    </div>
+  </div>
+  <div class="gs-stat" id="stat-absent" onclick="filterBy('absent')">
+    <div class="gs-stat-icon" style="background:#fef2f222;color:#dc2626;"><i class="bi bi-person-x-fill"></i></div>
+    <div>
+      <div class="gs-stat-val" id="cnt-absent" style="color:#dc2626;">{{ cnt_absent }}</div>
+      <div class="gs-stat-lbl">Chưa đến</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<div class="gs-filter-bar">
+  <button class="gs-filter-btn active" id="btn-all"     onclick="filterBy('all')">Tất cả</button>
+  <button class="gs-filter-btn"        id="btn-working" onclick="filterBy('working')"><i class="bi bi-circle-fill" style="color:#10b981;font-size:8px;"></i> Đang làm</button>
+  <button class="gs-filter-btn"        id="btn-done"    onclick="filterBy('done')"><i class="bi bi-circle-fill" style="color:#6366f1;font-size:8px;"></i> Đã về</button>
+  <button class="gs-filter-btn"        id="btn-absent"  onclick="filterBy('absent')"><i class="bi bi-circle-fill" style="color:#e2e8f0;font-size:8px;"></i> Chưa đến</button>
+  <input class="gs-search" type="text" id="search-box" placeholder="🔍 Tìm tên..." oninput="applyFilters()">
+</div>
+
+<!-- Employee grid -->
+<div class="gs-grid" id="emp-grid">
+  {% for e in employees %}
+  {% if e.check_in and not e.check_out %}
+    {% set st = 'working' %}
+  {% elif e.check_in and e.check_out %}
+    {% set st = 'done' %}
+  {% else %}
+    {% set st = 'absent' %}
+  {% endif %}
+
+  <div class="emp-card {{ st }}" data-status="{{ st }}" data-name="{{ (e.full_name or e.user_id) | lower }}">
+    <div class="emp-name">{{ e.full_name or e.user_id }}</div>
+    <div class="emp-role">{{ cc_role_label_fn(e.cc_role) if e.cc_role else 'Nhân viên' }}</div>
+
+    {% if st == 'working' %}
+    <div class="emp-status-badge badge-working">
+      <span class="live-dot" style="width:6px;height:6px;"></span> Đang làm việc
+    </div>
+    <div class="emp-times">
+      <span class="ci"><i class="bi bi-box-arrow-in-right"></i> {{ e.check_in | hcm_time }}</span>
+      {% if e.check_in_lat and e.check_in_lng %}
+      <br>
+      <a href="https://www.google.com/maps?q={{ e.check_in_lat }},{{ e.check_in_lng }}" target="_blank"
+         style="font-size:11px;color:#6366f1;text-decoration:none;">
+        <i class="bi bi-geo-alt-fill"></i>
+        {{ '%.6f'|format(e.check_in_lat|float) }}, {{ '%.6f'|format(e.check_in_lng|float) }}
+        {% if e.check_in_distance_m is not none %}
+        <span style="color:{% if e.check_in_distance_m <= 300 %}#059669{% else %}#dc2626{% endif %};font-weight:600;">({{ e.check_in_distance_m }}m)</span>
+        {% endif %}
+      </a>
+      {% endif %}
+    </div>
+
+    {% elif st == 'done' %}
+    <div class="emp-status-badge badge-done">
+      <i class="bi bi-check-circle-fill"></i> Đã về
+    </div>
+    <div class="emp-times">
+      <span class="ci"><i class="bi bi-box-arrow-in-right"></i> {{ e.check_in | hcm_time }}</span>
+      &nbsp;→&nbsp;
+      <span class="co"><i class="bi bi-box-arrow-right"></i> {{ e.check_out | hcm_time }}</span>
+      <br>
+      {% set mins = ((e.check_out - e.check_in).total_seconds() / 60) | round | int %}
+      <span class="dur"><i class="bi bi-stopwatch"></i> {{ (mins // 60) | int }}g{{ '%02d' % (mins % 60) }}p</span>
+      {% if e.check_in_lat and e.check_in_lng %}
+      <br>
+      <a href="https://www.google.com/maps?q={{ e.check_in_lat }},{{ e.check_in_lng }}" target="_blank"
+         style="font-size:11px;color:#6366f1;text-decoration:none;">
+        <i class="bi bi-geo-alt-fill"></i>
+        {{ '%.6f'|format(e.check_in_lat|float) }}, {{ '%.6f'|format(e.check_in_lng|float) }}
+        {% if e.check_in_distance_m is not none %}
+        <span style="color:{% if e.check_in_distance_m <= 300 %}#059669{% else %}#dc2626{% endif %};font-weight:600;">({{ e.check_in_distance_m }}m)</span>
+        {% endif %}
+      </a>
+      {% endif %}
+    </div>
+
+    {% else %}
+    <div class="emp-status-badge badge-absent">
+      <i class="bi bi-clock"></i> Chưa check-in
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i class="bi bi-people"></i>
+    Chưa có nhân viên nào trong hệ thống.
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Tổng giờ tăng ca theo team (Sale / Kho-đóng hàng) -->
+<div class="cc-card" style="margin-top:16px;">
+  <div class="cc-card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <span><i class="bi bi-hourglass-split"></i> Tổng giờ tăng ca theo team</span>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+      <select id="otTeamSelect" class="form-select form-select-sm" style="flex:1 1 130px;min-width:120px;">
+        <option value="sale">Team Sale</option>
+        <option value="packing">Đội đóng hàng / Kho</option>
+        <option value="">Tất cả</option>
+      </select>
+      <input type="month" id="otMonth" class="form-control form-control-sm" style="flex:1 1 130px;min-width:120px;">
+      <button class="btn btn-sm btn-primary" onclick="loadTeamOT()" style="flex:0 0 auto;"><i class="bi bi-arrow-clockwise"></i></button>
+    </div>
+  </div>
+  <div id="teamOtSummary" style="margin:10px 0;font-size:13px;color:#475569;">Đang tải…</div>
+  <div style="overflow-x:auto;">
+    <table class="table table-sm" style="font-size:13px;">
+      <thead style="background:#f8fafc;">
+        <tr>
+          <th>Nhân viên</th>
+          <th>Vai trò</th>
+          <th style="text-align:right;">Giờ thường</th>
+          <th style="text-align:right;color:#b45309;">Tăng ca</th>
+          <th style="text-align:right;color:#047857;">Quy lương (x hệ số)</th>
+        </tr>
+      </thead>
+      <tbody id="teamOtRows">
+        <tr><td colspan="5" style="text-align:center;color:#94a3b8;">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Data từ server ─────────────────────────────────────────────
+let allData = [
+  {% for e in employees %}
+  {
+    user_id:   {{ e.user_id | tojson }},
+    full_name: {{ (e.full_name or e.user_id) | tojson }},
+    cc_role:   {{ (e.cc_role or '') | tojson }},
+    check_in:  {{ (e.check_in | hcm_time) | tojson if e.check_in else 'null' }},
+    check_out: {{ (e.check_out | hcm_time) | tojson if e.check_out else 'null' }},
+    status:    {% if e.check_in and not e.check_out %}'working'{% elif e.check_in and e.check_out %}'done'{% else %}'absent'{% endif %},
+    cc_role_label: {{ (cc_role_label_fn(e.cc_role) if e.cc_role else 'Nhân viên') | tojson }},
+    duration:  {% if e.check_in and e.check_out %}{{ (((e.check_out - e.check_in).total_seconds() / 60) | round | int) }}{% else %}null{% endif %},
+    check_in_lat:  {{ e.check_in_lat if e.check_in_lat is not none else 'null' }},
+    check_in_lng:  {{ e.check_in_lng if e.check_in_lng is not none else 'null' }},
+    check_in_distance_m: {{ e.check_in_distance_m if e.check_in_distance_m is not none else 'null' }},
+  },
+  {% endfor %}
+];
+
+let currentFilter = 'all';
+
+// ── Filter ─────────────────────────────────────────────────────
+function filterBy(st) {
+  currentFilter = st;
+  document.querySelectorAll('.gs-filter-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('btn-' + st);
+  if (btn) btn.classList.add('active');
+  applyFilters();
+}
+
+function applyFilters() {
+  const q = (document.getElementById('search-box').value || '').toLowerCase();
+  document.querySelectorAll('.emp-card').forEach(card => {
+    const stMatch = currentFilter === 'all' || card.dataset.status === currentFilter;
+    const nameMatch = !q || card.dataset.name.includes(q);
+    card.style.display = (stMatch && nameMatch) ? '' : 'none';
+  });
+}
+
+// ── Auto-refresh ────────────────────────────────────────────────
+let countdown = 60;
+
+function buildCard(e) {
+  let statusHtml, timesHtml;
+  let gpsHtml = '';
+  if (e.check_in_lat && e.check_in_lng) {
+    const lat = parseFloat(e.check_in_lat), lng = parseFloat(e.check_in_lng);
+    const dist = (e.check_in_distance_m !== null && e.check_in_distance_m !== undefined)
+      ? `<span style="color:${e.check_in_distance_m <= 300 ? '#059669' : '#dc2626'};font-weight:600;">(${e.check_in_distance_m}m)</span>`
+      : '';
+    gpsHtml = `<br><a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" style="font-size:11px;color:#6366f1;text-decoration:none;"><i class="bi bi-geo-alt-fill"></i> ${lat.toFixed(6)}, ${lng.toFixed(6)} ${dist}</a>`;
+  }
+  if (e.status === 'working') {
+    statusHtml = `<div class="emp-status-badge badge-working"><span class="live-dot" style="width:6px;height:6px;"></span> Đang làm việc</div>`;
+    timesHtml  = `<div class="emp-times"><span class="ci"><i class="bi bi-box-arrow-in-right"></i> ${e.check_in}</span>${gpsHtml}</div>`;
+  } else if (e.status === 'done') {
+    const h = Math.floor(e.duration / 60), m = e.duration % 60;
+    statusHtml = `<div class="emp-status-badge badge-done"><i class="bi bi-check-circle-fill"></i> Đã về</div>`;
+    timesHtml  = `<div class="emp-times">
+      <span class="ci"><i class="bi bi-box-arrow-in-right"></i> ${e.check_in}</span>
+      &nbsp;→&nbsp;
+      <span class="co"><i class="bi bi-box-arrow-right"></i> ${e.check_out}</span>
+      <br>
+      <span class="dur"><i class="bi bi-stopwatch"></i> ${h}g${String(m).padStart(2,'0')}p</span>
+      ${gpsHtml}
+    </div>`;
+  } else {
+    statusHtml = `<div class="emp-status-badge badge-absent"><i class="bi bi-clock"></i> Chưa check-in</div>`;
+    timesHtml  = '';
+  }
+  return `<div class="emp-card ${e.status}" data-status="${e.status}" data-name="${e.full_name.toLowerCase()}">
+    <div class="emp-name">${e.full_name}</div>
+    <div class="emp-role">${e.cc_role_label}</div>
+    ${statusHtml}
+    ${timesHtml}
+  </div>`;
+}
+
+function renderGrid(data) {
+  const grid = document.getElementById('emp-grid');
+  if (!data.length) {
+    grid.innerHTML = '<div class="empty-state"><i class="bi bi-people"></i>Chưa có nhân viên nào.</div>';
+    return;
+  }
+  grid.innerHTML = data.map(buildCard).join('');
+  applyFilters();
+}
+
+function updateCounters(d) {
+  document.getElementById('cnt-total').textContent   = d.cnt_total;
+  document.getElementById('cnt-working').textContent = d.cnt_working;
+  document.getElementById('cnt-done').textContent    = d.cnt_done;
+  document.getElementById('cnt-absent').textContent  = d.cnt_absent;
+}
+
+async function doRefresh() {
+  countdown = 60;
+  try {
+    const r = await fetch('/cham-cong/api/giam-sat');
+    const d = await r.json();
+    if (!d.ok) return;
+    allData = d.employees;
+    updateCounters(d);
+    renderGrid(d.employees);
+  } catch (e) { console.error(e); }
+}
+
+// Countdown timer
+setInterval(() => {
+  countdown--;
+  const el = document.getElementById('countdown');
+  if (el) el.textContent = countdown;
+  if (countdown <= 0) { doRefresh(); }
+}, 1000);
+
+// ── Team OT summary ─────────────────────────────────────────────
+async function loadTeamOT() {
+  const team = document.getElementById('otTeamSelect').value;
+  const ym   = document.getElementById('otMonth').value;  // YYYY-MM
+  const [y, m] = (ym || '').split('-');
+  const now = new Date();
+  const year  = y || now.getFullYear();
+  const month = m || (now.getMonth() + 1);
+  const summary = document.getElementById('teamOtSummary');
+  const rows    = document.getElementById('teamOtRows');
+  summary.textContent = 'Đang tải…';
+  try {
+    const url = `/cham-cong/api/team-ot?team=${encodeURIComponent(team)}&year=${year}&month=${month}`;
+    const r = await fetch(url).then(r => r.json());
+    if (!r.ok) { summary.textContent = r.msg || 'Lỗi tải dữ liệu'; return; }
+    const t = r.totals || {};
+    const teamLbl = team === 'sale' ? 'Team Sale'
+                   : team === 'packing' ? 'Đội đóng hàng / Kho'
+                   : 'Toàn bộ';
+    summary.innerHTML = `
+      <strong>${teamLbl}</strong> — Tháng ${month}/${year} •
+      ${t.staff_count || 0} NV •
+      Giờ thường: <strong style="color:#1e40af;">${t.reg_h || 0}h</strong> •
+      Tăng ca: <strong style="color:#b45309;">${t.ot_h || 0}h</strong> •
+      Quy lương: <strong style="color:#047857;">${t.pay_h || 0}h</strong>
+    `;
+    const items = r.members || [];
+    if (!items.length) {
+      rows.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8;">Không có dữ liệu</td></tr>';
+      return;
+    }
+    rows.innerHTML = items.map(m => `
+      <tr>
+        <td>${m.full_name || m.user_id}</td>
+        <td style="color:#64748b;font-size:12px;">${m.cc_role || ''}</td>
+        <td style="text-align:right;">${m.reg_h}h</td>
+        <td style="text-align:right;color:#b45309;font-weight:700;">${m.ot_h}h</td>
+        <td style="text-align:right;color:#047857;font-weight:700;">${m.pay_h}h</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    summary.textContent = 'Lỗi mạng: ' + e.message;
+  }
+}
+// Auto-load on first render (tháng hiện tại)
+(function initTeamOT() {
+  const ym = document.getElementById('otMonth');
+  if (ym) {
+    const d = new Date();
+    ym.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+  loadTeamOT();
+})();
+</script>
+{% endblock %}

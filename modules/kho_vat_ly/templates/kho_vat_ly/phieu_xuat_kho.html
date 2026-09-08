@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Phiếu giao hàng ĐVVC — {{ printed_at }}</title>
+{% set copies   = (tmpl.copies    if tmpl is defined else 1) | int %}
+{% set paper    = tmpl.paper_size if tmpl is defined else 'A4' %}
+{% set fs_map   = {'small':'10pt','medium':'11pt','large':'13pt'} %}
+{% set fs       = fs_map.get(tmpl.font_size if tmpl is defined else 'medium', '11pt') %}
+{% set c_header = tmpl.custom_header if (tmpl is defined and tmpl.custom_header) else '' %}
+{% set c_footer = tmpl.custom_footer if (tmpl is defined and tmpl.custom_footer) else '' %}
+{% set show_logo= tmpl.show_logo if tmpl is defined else True %}
+<style>
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Times New Roman',serif; font-size:{{ fs }}; color:#111; background:#fff; }
+
+@page { size: {{ paper }}; margin: 10mm 12mm; }
+
+.page { max-width:{{ '148mm' if paper=='A5' else '210mm' }};
+        margin:0 auto; padding:10mm 12mm 16mm; }
+
+/* Toolbar */
+.toolbar { position:fixed; top:0; left:0; right:0; background:#1a3a5c; color:#fff;
+           padding:6px 16px; display:flex; align-items:center; gap:10px; z-index:100;
+           box-shadow:0 2px 8px rgba(0,0,0,.3); }
+.toolbar .tbtn { background:#fff; color:#1a3a5c; border:none; border-radius:5px;
+                 padding:5px 14px; font-size:12px; font-weight:700; cursor:pointer; }
+.toolbar .tbtn:hover { background:#dbeafe; }
+.toolbar .tbtn.red { background:#fee2e2; color:#991b1b; }
+.toolbar .tinfo { font-size:11px; opacity:.75; margin-left:auto; }
+.toolbar .tmpl-badge { background:rgba(255,255,255,.15); border-radius:4px;
+                       padding:2px 8px; font-size:11px; }
+body { padding-top:48px; }
+
+/* Header */
+.hd-custom  { text-align:center; font-weight:700; text-transform:uppercase;
+              letter-spacing:.5px; margin-bottom:4px; }
+.hd-company { font-size:9pt; color:#666; text-align:center; }
+.hd-title   { font-size:{% if paper=='A5' %}16pt{% else %}20pt{% endif %};
+              font-weight:bold; text-transform:uppercase; letter-spacing:2px;
+              color:#1a3a5c; text-align:center; margin:5px 0 3px; }
+.hd-sub     { font-size:9pt; color:#666; text-align:center; }
+.hd-divider { border:none; border-bottom:2px solid #1a3a5c; margin:8px 0 10px; }
+
+/* Summary box */
+.summary-box { display:flex; gap:0; border:2px solid #1a3a5c; border-radius:6px;
+               overflow:hidden; margin:10px 0; }
+.sum-item { flex:1; text-align:center; padding:8px 6px; border-right:1px solid #c7d8ec; }
+.sum-item:last-child { border-right:none; }
+.sum-item .num { font-size:20pt; font-weight:bold; color:#1a3a5c; line-height:1.1; }
+.sum-item .lbl { font-size:8pt; color:#666; }
+
+/* Table */
+table { width:100%; border-collapse:collapse; font-size:{% if paper=='A5' %}9pt{% else %}10.5pt{% endif %}; margin:10px 0; }
+thead th { background:#1a3a5c; color:#fff; padding:5px 8px; text-align:left; font-weight:bold; white-space:nowrap; }
+thead th.center { text-align:center; } thead th.right { text-align:right; }
+tbody tr:nth-child(even) { background:#f7faff; }
+tbody td { padding:5px 8px; border-bottom:1px solid #e0e8f5; vertical-align:middle; }
+tbody td.center { text-align:center; } tbody td.right { text-align:right; font-weight:bold; }
+tbody td.mono   { font-family:'Courier New',monospace; font-size:9pt; }
+tfoot td { font-weight:bold; background:#dbeafe; padding:5px 8px; border-top:2px solid #1a3a5c; }
+tfoot td.right { text-align:right; }
+
+/* Signatures */
+.sign-section { margin-top:24px; display:flex; gap:0; }
+.sign-box { flex:1; text-align:center; padding:0 8px; }
+.sign-box .sign-title { font-weight:bold; font-size:10pt; }
+.sign-box .sign-sub   { font-size:8.5pt; color:#666; margin-bottom:46px; }
+.sign-box .sign-line  { border-top:1px solid #555; margin:0 16px; }
+.sign-box .sign-name  { font-size:8.5pt; color:#999; margin-top:3px; }
+
+.note { font-size:8.5pt; color:#666; margin-top:10px; border-left:3px solid #c7d8ec; padding-left:8px; }
+.c-footer { text-align:center; font-size:9pt; color:#555; margin-top:12px; font-style:italic; }
+.copy-label { background:#f1f5f9; border:1px dashed #94a3b8; border-radius:4px;
+              padding:2px 10px; font-size:8pt; color:#64748b; display:inline-block; margin-bottom:6px; }
+.page-break { page-break-after:always; break-after:page; }
+
+@media print {
+  .toolbar { display:none !important; }
+  body { padding-top:0 !important; }
+  table { page-break-inside:auto; }
+}
+</style>
+</head>
+<body>
+
+{# ── Toolbar ── #}
+<div class="toolbar">
+  <button class="tbtn" onclick="window.print()">🖨 In phiếu</button>
+  {% if copies > 1 %}
+  <button class="tbtn" onclick="window.print()" style="background:#dbeafe;color:#1e40af;">
+    🗐 In {{ copies }} bản
+  </button>
+  {% endif %}
+  <span style="font-size:12px">PHIẾU GIAO HÀNG ĐVVC — {{ printed_at }}</span>
+  <span class="tmpl-badge">{{ paper }} · {{ copies }} bản</span>
+  <span class="tinfo">{{ total_orders }} đơn · {{ total_qty }} kiện</span>
+  <button class="tbtn red" onclick="window.close()">✕ Đóng</button>
+</div>
+
+{# ── In N bản ── #}
+{% for copy_i in range(copies) %}
+<div class="page {% if not loop.last %}page-break{% endif %}">
+
+  {% if copies > 1 %}
+  <div class="copy-label">Bản {{ loop.index }}/{{ copies }}</div>
+  {% endif %}
+
+  {% if c_header %}
+  <div class="hd-custom">{{ c_header }}</div>
+  {% endif %}
+
+  <div class="hd-company">
+    {% if show_logo %}TIỂU HIỀM — HỆ THỐNG QUẢN LÝ KHO v2.5{% endif %}
+  </div>
+  <div class="hd-title">Phiếu giao hàng ĐVVC</div>
+  <div class="hd-sub">
+    In lúc {{ printed_at }}{% if staff_name %} · NV: <strong>{{ staff_name }}</strong>{% endif %}
+    {% if shop_filter %} · Cửa hàng: <strong>{{ shop_filter }}</strong>{% endif %}
+  </div>
+  <hr class="hd-divider">
+
+  <div class="summary-box">
+    <div class="sum-item">
+      <div class="num">{{ total_orders }}</div>
+      <div class="lbl">Tổng đơn</div>
+    </div>
+    <div class="sum-item">
+      <div class="num" style="font-size:13pt">{{ printed_at }}</div>
+      <div class="lbl">Thời gian in</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="center" style="width:32px">#</th>
+        <th>Mã vận đơn</th>
+        <th>ĐVVC</th>
+        <th style="width:90px">Người CB</th>
+        <th class="center" style="width:90px">Ký nhận</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in orders %}
+      <tr>
+        <td class="center" style="color:#999;font-size:8.5pt">{{ loop.index }}</td>
+        <td class="mono"><strong>{{ o.tracking_code or o.order_code }}</strong></td>
+        <td>
+          {% if o.carrier_name and o.carrier_name != '—' %}
+            <span style="background:#e0f2fe;color:#0c4a6e;padding:2px 6px;border-radius:3px;font-size:8.5pt">{{ o.carrier_name }}</span>
+          {% else %}
+            <span style="color:#bbb;font-size:8.5pt">Không rõ ĐVVC</span>
+          {% endif %}
+        </td>
+        <td style="font-size:9pt">
+          {% if o.pre_confirmed_by %}
+            <strong>{{ o.pre_confirmed_by }}</strong>
+            {% if o.pre_confirmed_at %}
+              <div style="font-size:8pt;color:#888">{{ o.pre_confirmed_at }}</div>
+            {% endif %}
+          {% else %}
+            <span style="color:#bbb">—</span>
+          {% endif %}
+        </td>
+        <td class="center" style="min-width:70px"></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="5" style="text-align:right;font-weight:bold">Tổng cộng: {{ total_orders }} đơn</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="sign-section">
+    <div class="sign-box">
+      <div class="sign-title">Nhân viên kho</div>
+      <div class="sign-sub">(ký, ghi rõ họ tên)</div>
+      <div class="sign-line"></div>
+      <div class="sign-name">{{ staff_name or '&nbsp;' }}</div>
+    </div>
+    <div class="sign-box">
+      <div class="sign-title">ĐVVC nhận hàng</div>
+      <div class="sign-sub">(ký, ghi rõ họ tên + ngày)</div>
+      <div class="sign-line"></div>
+      <div class="sign-name">&nbsp;</div>
+    </div>
+    <div class="sign-box">
+      <div class="sign-title">Quản lý xác nhận</div>
+      <div class="sign-sub">(ký, đóng dấu)</div>
+      <div class="sign-line"></div>
+      <div class="sign-name">&nbsp;</div>
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:16px">
+    ✦ Phiếu giao hàng ĐVVC — in tự động từ hệ thống Kho Hàng v2.5 · Hai bên ký xác nhận sau khi ĐVVC đã nhận đủ hàng · Mỗi bên giữ 01 bản.
+  </p>
+
+  {% if c_footer %}
+  <div class="c-footer">{{ c_footer }}</div>
+  {% endif %}
+
+</div>
+{% endfor %}
+
+<script>
+if (new URLSearchParams(location.search).get('autoprint') === '1') {
+  window.onload = () => window.print();
+}
+</script>
+</body>
+</html>

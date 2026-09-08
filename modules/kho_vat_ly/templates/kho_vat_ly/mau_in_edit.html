@@ -1,0 +1,453 @@
+{% extends "kho_vat_ly/base.html" %}
+{% block title %}Sửa mẫu in — {{ tmpl.name }}{% endblock %}
+
+{% block content %}
+<style>
+/* ─── Layout ─── */
+.me-wrap { display:grid; grid-template-columns:380px 1fr; gap:1.5rem; align-items:start;
+           max-width:1200px; margin:0 auto; }
+@media(max-width:900px){ .me-wrap{ grid-template-columns:1fr; } }
+
+/* ─── Left panel ─── */
+.me-panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }
+.me-panel-head { background:linear-gradient(135deg,#1e40af,#2563eb); color:#fff; padding:.9rem 1.2rem; }
+.me-panel-head h5 { margin:0; font-size:.95rem; font-weight:600; }
+.me-panel-head p  { margin:0; font-size:.75rem; opacity:.8; margin-top:.15rem; }
+.me-body { padding:1.1rem 1.2rem; }
+
+/* ─── Section titles ─── */
+.me-section { margin-bottom:1.1rem; }
+.me-section-title { font-size:.7rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
+                    color:#94a3b8; margin-bottom:.5rem; display:flex; align-items:center; gap:.4rem; }
+.me-section-title::after { content:''; flex:1; height:1px; background:#f1f5f9; }
+
+/* ─── Pill options ─── */
+.me-pills { display:flex; flex-wrap:wrap; gap:.4rem; }
+.me-pill  { padding:.32rem .75rem; border-radius:20px; border:1.5px solid #e2e8f0; font-size:.8rem;
+            cursor:pointer; transition:all .15s; background:#fff; color:#475569; user-select:none; }
+.me-pill:hover { border-color:#93c5fd; background:#eff6ff; color:#1e40af; }
+.me-pill.active { border-color:#2563eb; background:#dbeafe; color:#1d4ed8; font-weight:600; }
+
+/* ─── Copies stepper ─── */
+.me-stepper { display:flex; align-items:center; gap:.5rem; }
+.me-stepper-btn { width:30px; height:30px; border:1.5px solid #e2e8f0; border-radius:50%;
+                  background:#fff; cursor:pointer; font-size:.9rem; font-weight:700; color:#475569;
+                  display:flex; align-items:center; justify-content:center; transition:all .15s; }
+.me-stepper-btn:hover { border-color:#2563eb; color:#2563eb; background:#eff6ff; }
+.me-stepper-val { width:50px; text-align:center; border:1.5px solid #e2e8f0; border-radius:8px;
+                  padding:.3rem; font-size:.9rem; font-weight:600; }
+
+/* ─── Toggle ─── */
+.me-toggle-row { display:flex; align-items:center; justify-content:space-between;
+                 padding:.45rem 0; border-bottom:1px solid #f8fafc; }
+.me-toggle-row:last-child { border-bottom:none; }
+.me-toggle-label { font-size:.82rem; color:#374151; display:flex; align-items:center; gap:.5rem; }
+.me-toggle-label i { color:#94a3b8; }
+.form-switch .form-check-input { width:2.2em; height:1.2em; cursor:pointer; }
+.form-switch .form-check-input:checked { background-color:#2563eb; border-color:#2563eb; }
+
+/* ─── Text inputs ─── */
+.me-input { width:100%; border:1.5px solid #e2e8f0; border-radius:8px; padding:.45rem .7rem;
+            font-size:.82rem; color:#374151; transition:border .15s; }
+.me-input:focus { outline:none; border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.1); }
+.me-textarea { resize:vertical; min-height:60px; }
+
+/* ─── Save btn ─── */
+.me-save-btn { width:100%; padding:.7rem; background:#2563eb; color:#fff; border:none;
+               border-radius:8px; font-size:.9rem; font-weight:600; cursor:pointer; transition:all .15s;
+               display:flex; align-items:center; justify-content:center; gap:.5rem; }
+.me-save-btn:hover { background:#1d4ed8; box-shadow:0 4px 12px rgba(37,99,235,.35); }
+.me-cancel-btn { width:100%; padding:.6rem; background:#fff; color:#6b7280; border:1.5px solid #e2e8f0;
+                 border-radius:8px; font-size:.85rem; cursor:pointer; text-align:center;
+                 text-decoration:none; display:block; margin-top:.5rem; transition:all .15s; }
+.me-cancel-btn:hover { border-color:#94a3b8; color:#374151; }
+
+/* ─── Right: preview ─── */
+.me-preview-wrap { position:sticky; top:80px; }
+.me-preview-header { display:flex; align-items:center; justify-content:space-between;
+                     margin-bottom:.75rem; }
+.me-preview-label { font-size:.8rem; font-weight:600; color:#6b7280;
+                    display:flex; align-items:center; gap:.4rem; }
+.me-paper-select { display:flex; gap:.35rem; }
+.me-paper-indicator { font-size:.72rem; background:#f1f5f9; color:#64748b; border-radius:4px;
+                      padding:.15rem .5rem; border:1px solid #e2e8f0; }
+
+/* Paper */
+.me-paper { background:#fff; box-shadow:0 4px 32px rgba(0,0,0,.18), 0 0 0 1px rgba(0,0,0,.06);
+            border-radius:3px; margin:0 auto; transition:all .3s; position:relative;
+            font-family:'Times New Roman',serif; overflow:hidden; }
+
+/* Paper sizes — proportional, scaled down */
+.me-paper.sz-A4     { width:210px; min-height:297px; }
+.me-paper.sz-A5     { width:210px; min-height:210px; }
+.me-paper.sz-70x100 { width:140px; min-height:200px; }
+.me-paper.sz-80x120 { width:160px; min-height:240px; }
+.me-paper.sz-100x150{ width:180px; min-height:250px; }
+.me-paper.sz-custom { width:210px; min-height:230px; }
+
+.me-paper-inner { padding:14px 16px 18px; }
+.me-ph-custom   { font-size:6.5px; font-weight:700; text-align:center; text-transform:uppercase;
+                  letter-spacing:.5px; color:#222; margin-bottom:3px; display:none; }
+.me-ph-company  { font-size:6px; color:#888; text-align:center; margin-bottom:2px; }
+.me-ph-title    { font-size:9.5px; font-weight:bold; text-align:center; text-transform:uppercase;
+                  letter-spacing:1px; color:#1a3a5c; margin-bottom:2px; }
+.me-ph-sub      { font-size:5.5px; color:#777; text-align:center; margin-bottom:4px; }
+.me-ph-divider  { border:none; border-top:1px solid #1a3a5c; margin:4px 0; }
+.me-ph-meta     { display:grid; grid-template-columns:1fr 1fr; gap:3px; border:1px solid #c7d8ec;
+                  border-radius:3px; padding:4px; margin:4px 0; }
+.me-ph-meta-item .lbl { font-size:4.5px; color:#aaa; }
+.me-ph-meta-item .val { font-size:5.5px; font-weight:bold; color:#333; }
+.me-ph-table    { width:100%; border-collapse:collapse; margin:5px 0; }
+.me-ph-table th { background:#1a3a5c; color:#fff; font-size:5px; padding:2px 4px; text-align:left; }
+.me-ph-table td { font-size:5px; padding:2px 4px; border-bottom:1px solid #e8eef8; color:#444; }
+.me-ph-table tr:nth-child(even) td { background:#f7faff; }
+.me-ph-tfoot td { background:#dbeafe; font-weight:bold; font-size:5px; padding:2px 4px;
+                  border-top:1px solid #1a3a5c; }
+.me-ph-signs    { display:flex; margin-top:10px; }
+.me-ph-sign     { flex:1; text-align:center; }
+.me-ph-sign .stitle { font-size:5.5px; font-weight:bold; color:#333; }
+.me-ph-sign .ssub   { font-size:4.5px; color:#888; margin-bottom:12px; }
+.me-ph-sign .sline  { border-top:1px solid #888; margin:0 8px; }
+.me-ph-footer   { font-size:5px; text-align:center; color:#888; font-style:italic; margin-top:8px;
+                  display:none; }
+.me-ph-note     { font-size:4.5px; color:#999; border-left:2px solid #c7d8ec; padding-left:4px; margin-top:4px; }
+
+/* Copies preview */
+.me-copies-row { display:flex; gap:6px; margin-top:.75rem; flex-wrap:wrap; }
+.me-copy-thumb { width:50px; height:65px; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.12);
+                 border-radius:2px; display:flex; align-items:center; justify-content:center;
+                 font-size:7px; color:#94a3b8; border:1px solid #e2e8f0; }
+
+/* Status bar */
+.me-status { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px;
+             padding:.45rem .85rem; font-size:.78rem; color:#15803d; margin-bottom:1rem;
+             display:flex; align-items:center; gap:.4rem; }
+</style>
+
+<div style="max-width:1200px;margin:0 auto">
+  <nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb small mb-0">
+      <li class="breadcrumb-item"><a href="/kho-vat-ly/cai-dat-mau-in" class="text-muted">Mẫu in</a></li>
+      <li class="breadcrumb-item text-muted">{{ print_types.get(tmpl.type, tmpl.type) }}</li>
+      <li class="breadcrumb-item active">{{ tmpl.name }}</li>
+    </ol>
+  </nav>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+    <div class="alert alert-{{ 'success' if cat=='success' else 'danger' }} alert-dismissible py-2 small">
+      {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+  {% endwith %}
+
+  <div id="saveNotice" class="me-status d-none">
+    <i class="bi bi-check-circle-fill"></i> Đang lưu…
+  </div>
+
+  <form method="post" id="editForm">
+  <div class="me-wrap">
+
+    {# ─── LEFT: Settings ─── #}
+    <div>
+      <div class="me-panel">
+        <div class="me-panel-head">
+          <h5><i class="bi bi-sliders me-2"></i>{{ tmpl.name }}</h5>
+          <p>{{ print_types.get(tmpl.type, tmpl.type) }}</p>
+        </div>
+        <div class="me-body">
+
+          {# Tên mẫu #}
+          <div class="me-section">
+            <div class="me-section-title"><i class="bi bi-tag"></i>Tên mẫu in</div>
+            <input type="text" name="name" class="me-input" value="{{ tmpl.name }}" required
+                   oninput="schedulePreview()">
+          </div>
+
+          {# Khổ giấy #}
+          <div class="me-section">
+            <div class="me-section-title"><i class="bi bi-file-earmark"></i>Khổ giấy</div>
+            <div class="me-pills" id="paperPills">
+              {% for s in paper_sizes %}
+              <div class="me-pill {% if tmpl.paper_size == s %}active{% endif %}"
+                   onclick="selectPaper('{{ s }}', this)">{{ s }}</div>
+              {% endfor %}
+            </div>
+            <input type="hidden" name="paper_size" id="paperVal" value="{{ tmpl.paper_size }}">
+          </div>
+
+          {# Cỡ chữ #}
+          <div class="me-section">
+            <div class="me-section-title"><i class="bi bi-fonts"></i>Cỡ chữ</div>
+            <div class="me-pills" id="fontPills">
+              {% for val, lbl in font_sizes %}
+              <div class="me-pill {% if tmpl.font_size == val %}active{% endif %}"
+                   onclick="selectFont('{{ val }}', this)">{{ lbl }}</div>
+              {% endfor %}
+            </div>
+            <input type="hidden" name="font_size" id="fontVal" value="{{ tmpl.font_size }}">
+          </div>
+
+          {# Số bản in #}
+          <div class="me-section">
+            <div class="me-section-title"><i class="bi bi-stack"></i>Số bản in</div>
+            <div class="me-stepper">
+              <button type="button" class="me-stepper-btn" onclick="adjustCopies(-1)">−</button>
+              <input type="number" name="copies" id="copiesVal"
+                     value="{{ tmpl.copies }}" min="1" max="10"
+                     class="me-stepper-val" oninput="updateCopiesPreview()">
+              <button type="button" class="me-stepper-btn" onclick="adjustCopies(1)">+</button>
+              <span class="text-muted small">bản / lần in</span>
+            </div>
+          </div>
+
+          {# Hiển thị #}
+          <div class="me-section">
+            <div class="me-section-title"><i class="bi bi-eye"></i>Hiển thị trên phiếu</div>
+            <div class="me-toggle-row">
+              <span class="me-toggle-label"><i class="bi bi-image"></i>Logo thương hiệu</span>
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" name="show_logo" value="1"
+                       id="showLogo" {% if tmpl.show_logo %}checked{% endif %}
+                       onchange="schedulePreview()">
+              </div>
+            </div>
+            <div class="me-toggle-row">
+              <span class="me-toggle-label"><i class="bi bi-upc-scan"></i>Barcode</span>
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" name="show_barcode" value="1"
+                       id="showBarcode" {% if tmpl.show_barcode %}checked{% endif %}
+                       onchange="schedulePreview()">
+              </div>
+            </div>
+            <div class="me-toggle-row">
+              <span class="me-toggle-label"><i class="bi bi-qr-code"></i>QR Code</span>
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" name="show_qr" value="1"
+                       id="showQr" {% if tmpl.show_qr %}checked{% endif %}
+                       onchange="schedulePreview()">
+              </div>
+            </div>
+          </div>
+
+          {# Header / Footer #}
+          <div class="me-section">
+            <div class="me-section-title"><i class="bi bi-text-left"></i>Nội dung tuỳ chỉnh</div>
+            <label class="small text-muted mb-1 d-block">Tiêu đề đầu phiếu</label>
+            <input type="text" name="custom_header" id="customHeader" class="me-input mb-2"
+                   value="{{ tmpl.custom_header or '' }}"
+                   placeholder="VD: CÔNG TY TNHH TIỂU HIỀM"
+                   oninput="schedulePreview()">
+            <label class="small text-muted mb-1 d-block">Ghi chú cuối phiếu</label>
+            <textarea name="custom_footer" id="customFooter" class="me-input me-textarea"
+                      placeholder="VD: Cảm ơn quý khách!"
+                      oninput="schedulePreview()">{{ tmpl.custom_footer or '' }}</textarea>
+          </div>
+
+          {# Actions #}
+          <button type="submit" class="me-save-btn">
+            <i class="bi bi-floppy"></i> Lưu thay đổi
+          </button>
+          <a href="/kho-vat-ly/cai-dat-mau-in?tab={{ tmpl.type }}"
+             class="me-cancel-btn">← Quay lại danh sách</a>
+
+        </div>
+      </div>
+    </div>
+
+    {# ─── RIGHT: Live preview ─── #}
+    <div class="me-preview-wrap">
+      <div class="me-preview-header">
+        <div class="me-preview-label">
+          <i class="bi bi-eye"></i> Xem trước phiếu
+          <span class="me-paper-indicator" id="paperIndicator">{{ tmpl.paper_size }}</span>
+        </div>
+        <div style="font-size:.75rem;color:#94a3b8">* Tỷ lệ xấp xỉ</div>
+      </div>
+
+      <div id="paperWrap" style="display:flex;gap:10px;flex-wrap:wrap;">
+        <div class="me-paper sz-{{ tmpl.paper_size | replace('x','x') | replace('mm','') | replace('/','') }}"
+             id="paperEl">
+          <div class="me-paper-inner">
+            <div class="me-ph-custom" id="pv-header"></div>
+            <div class="me-ph-company" id="pv-company">TIỂU HIỀM — HỆ THỐNG QUẢN LÝ KHO</div>
+            <div class="me-ph-title" id="pv-title">
+              {{ 'PHIẾU XUẤT KHO NỘI BỘ' if tmpl.type == 'xuat_kho_noi_bo' else ('BIÊN BẢN BÀN GIAO' if tmpl.type == 'ban_giao_shipper' else 'PHIẾU IN HÀNG LOẠT') }}
+            </div>
+            <div class="me-ph-sub">Mã phiếu: <strong>XK-0001</strong> · In lúc 19/04/2025</div>
+            <hr class="me-ph-divider">
+
+            {% if tmpl.type == 'xuat_kho_noi_bo' %}
+            <div class="me-ph-meta">
+              <div class="me-ph-meta-item"><div class="lbl">Kho nguồn</div><div class="val">Kho Vĩnh Xá</div></div>
+              <div class="me-ph-meta-item"><div class="lbl">Kho đích</div><div class="val">Shop Hà Nội 01</div></div>
+              <div class="me-ph-meta-item"><div class="lbl">Người tạo</div><div class="val">admin</div></div>
+              <div class="me-ph-meta-item"><div class="lbl">Thời gian</div><div class="val">19/04/2025 09:00</div></div>
+            </div>
+            <table class="me-ph-table">
+              <thead><tr><th>#</th><th>Tên sản phẩm</th><th>SKU</th><th>Mẫu mã</th><th>SL</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>Áo thun đen</td><td>THANHHY0001</td><td>XL/Đen</td><td>5</td></tr>
+                <tr><td>2</td><td>Quần jean trắng</td><td>THANHHY0002</td><td>M/Trắng</td><td>3</td></tr>
+                <tr><td>3</td><td>Áo polo xanh</td><td>KEN0001</td><td>L/Xanh</td><td>10</td></tr>
+              </tbody>
+              <tfoot><tr><td colspan="4" style="text-align:right">Tổng:</td><td>18</td></tr></tfoot>
+            </table>
+            {% elif tmpl.type == 'ban_giao_shipper' %}
+            <table class="me-ph-table">
+              <thead><tr><th>STT</th><th>Mã vận đơn</th><th>Cửa hàng</th><th>SL</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>SPX123456</td><td>HN 01</td><td>3</td></tr>
+                <tr><td>2</td><td>SPX234567</td><td>HN 02</td><td>2</td></tr>
+              </tbody>
+              <tfoot><tr><td colspan="3" style="text-align:right">Tổng:</td><td>5</td></tr></tfoot>
+            </table>
+            {% else %}
+            <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:4px;padding:8px;margin:6px 0;text-align:center;font-size:5.5px;color:#94a3b8;">
+              [Nội dung hàng loạt — đang phát triển]
+            </div>
+            {% endif %}
+
+            <div class="me-ph-signs">
+              <div class="me-ph-sign"><div class="stitle">Bên xuất</div><div class="ssub">(ký tên)</div><div class="sline"></div></div>
+              <div class="me-ph-sign"><div class="stitle">Bên nhận</div><div class="ssub">(ký tên)</div><div class="sline"></div></div>
+              <div class="me-ph-sign"><div class="stitle">Quản lý</div><div class="ssub">(xác nhận)</div><div class="sline"></div></div>
+            </div>
+            <div class="me-ph-note">✦ Phiếu tự động in từ Kho Hàng v2.5 · Mỗi bên giữ 01 bản.</div>
+            <div class="me-ph-footer" id="pv-footer"></div>
+          </div>
+        </div>
+      </div>
+
+      {# Copies thumbnails #}
+      <div id="copiesPreview" class="me-copies-row"></div>
+
+      {# Info card #}
+      <div class="card border-0 bg-light mt-3">
+        <div class="card-body p-3">
+          <div class="small fw-semibold mb-2 text-muted">
+            <i class="bi bi-link-45deg me-1"></i>Áp dụng cho
+          </div>
+          {% if tmpl.type == 'xuat_kho_noi_bo' %}
+          <div class="small text-muted mb-1">
+            <i class="bi bi-arrow-left-right me-1 text-primary"></i>
+            Tất cả phiếu <strong>Xuất kho nội bộ</strong>
+            <a href="/kho-vat-ly/outbound/xuat-kho-noi-bo" class="ms-2 text-primary" target="_blank">
+              <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+          </div>
+          <div class="small text-success">
+            <i class="bi bi-check-circle me-1"></i>Mẫu này ảnh hưởng nút "In phiếu" trong xuất kho nội bộ
+          </div>
+          {% elif tmpl.type == 'ban_giao_shipper' %}
+          <div class="small text-muted mb-1">
+            <i class="bi bi-truck me-1 text-warning"></i>
+            Phiếu <strong>Bàn giao cho Shipper / ĐVVC</strong>
+            <a href="/kho-vat-ly/outbound" class="ms-2 text-primary" target="_blank">
+              <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+          </div>
+          <div class="small text-success">
+            <i class="bi bi-check-circle me-1"></i>Ảnh hưởng biên bản bàn giao in từ trang xuất kho
+          </div>
+          {% else %}
+          <div class="small text-muted">
+            <i class="bi bi-stack me-1 text-secondary"></i>
+            Phiếu <strong>In hàng loạt</strong> — chức năng đang phát triển
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var _pvTimer = null;
+
+// ── Paper size ──
+var PAPER_SIZES_CSS = {
+  'A4':'sz-A4','A5':'sz-A5','70x100mm':'sz-70x100','80x120mm':'sz-80x120',
+  '100x150mm':'sz-100x150','Tùy chỉnh':'sz-custom'
+};
+
+function selectPaper(val, el) {
+  document.querySelectorAll('#paperPills .me-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('paperVal').value = val;
+  document.getElementById('paperIndicator').textContent = val;
+  // Update paper class
+  var pe = document.getElementById('paperEl');
+  Object.values(PAPER_SIZES_CSS).forEach(c => pe.classList.remove(c));
+  pe.classList.add(PAPER_SIZES_CSS[val] || 'sz-A5');
+  schedulePreview();
+}
+
+// ── Font size ──
+function selectFont(val, el) {
+  document.querySelectorAll('#fontPills .me-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('fontVal').value = val;
+  // Update preview font-size
+  var fmap = {small:'5px', medium:'5.5px', large:'6.5px'};
+  document.getElementById('paperEl').style.fontSize = fmap[val] || '5.5px';
+  schedulePreview();
+}
+
+// ── Copies ──
+function adjustCopies(delta) {
+  var inp = document.getElementById('copiesVal');
+  inp.value = Math.max(1, Math.min(10, parseInt(inp.value || 1) + delta));
+  updateCopiesPreview();
+}
+
+function updateCopiesPreview() {
+  var n = parseInt(document.getElementById('copiesVal').value || 1);
+  var row = document.getElementById('copiesPreview');
+  row.innerHTML = '';
+  for (var i = 0; i < Math.min(n, 6); i++) {
+    var d = document.createElement('div');
+    d.className = 'me-copy-thumb';
+    d.innerHTML = '<span>Bản ' + (i+1) + '/' + n + '</span>';
+    row.appendChild(d);
+  }
+  if (n > 6) {
+    var more = document.createElement('div');
+    more.className = 'me-copy-thumb';
+    more.style.cssText = 'background:#f1f5f9;color:#64748b;font-size:8px;';
+    more.innerHTML = '+' + (n-6) + ' bản';
+    row.appendChild(more);
+  }
+}
+
+// ── Live preview ──
+function schedulePreview() {
+  clearTimeout(_pvTimer);
+  _pvTimer = setTimeout(updatePreview, 150);
+}
+
+function updatePreview() {
+  var header  = (document.getElementById('customHeader')?.value || '').trim();
+  var footer  = (document.getElementById('customFooter')?.value || '').trim();
+  var showLogo= document.getElementById('showLogo')?.checked;
+
+  var pvHeader  = document.getElementById('pv-header');
+  var pvCompany = document.getElementById('pv-company');
+  var pvFooter  = document.getElementById('pv-footer');
+
+  if (pvHeader)  { pvHeader.textContent  = header;  pvHeader.style.display  = header  ? '' : 'none'; }
+  if (pvCompany) { pvCompany.style.display = showLogo ? '' : 'none'; }
+  if (pvFooter)  { pvFooter.textContent  = footer;  pvFooter.style.display  = footer  ? '' : 'none'; }
+}
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', function() {
+  updateCopiesPreview();
+  updatePreview();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hướng dẫn kế toán — Đọc báo cáo chi phí QC</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; line-height:1.65; }
+.topbar { background:#1a1a1a; padding:10px 20px; color:#F59E0B; font-weight:700; }
+.topbar a { color:rgba(255,255,255,.85); text-decoration:none; margin-left:14px; font-weight:400; font-size:13px; }
+.topbar a:hover { color:#fff; }
+.container-narrow { max-width: 1100px; margin: 20px auto; padding: 0 16px 40px; }
+.section { background:#fff; padding:20px 24px; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.05); margin-bottom:16px; }
+h2 { color:#1a1a1a; font-weight:700; margin-top:0; font-size:22px; border-bottom:2px solid #F59E0B; padding-bottom:8px; }
+h3 { color:#0d6efd; font-weight:600; margin-top:18px; font-size:17px; }
+h4 { color:#374151; font-weight:600; margin-top:14px; font-size:15px; }
+code { background:#f3f4f6; padding:1px 6px; border-radius:4px; font-size:12.5px; color:#dc2626; }
+.flow-box { background:#f0f9ff; border-left:4px solid #0d6efd; padding:12px 16px; margin:12px 0; border-radius:6px; }
+.warn-box { background:#fef3c7; border-left:4px solid #f59e0b; padding:12px 16px; margin:12px 0; border-radius:6px; }
+.bad-box { background:#fee2e2; border-left:4px solid #dc2626; padding:12px 16px; margin:12px 0; border-radius:6px; }
+.good-box { background:#d1fae5; border-left:4px solid #10b981; padding:12px 16px; margin:12px 0; border-radius:6px; }
+.cmp-table { width:100%; font-size:13px; }
+.cmp-table th { background:#f3f4f6; padding:8px; text-align:left; }
+.cmp-table td { padding:8px; border-top:1px solid #e5e7eb; vertical-align:top; }
+.formula { background:#1f2937; color:#e5e7eb; padding:10px 14px; border-radius:6px; font-family:monospace; font-size:13px; overflow-x:auto; }
+.tag-step { background:#0d6efd; color:#fff; padding:2px 10px; border-radius:12px; font-size:12px; font-weight:600; margin-right:6px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <i class="bi bi-book"></i> Hướng dẫn dành cho Kế toán — Báo cáo chi phí QC
+  <a href="{{ url_for('chi_phi_qc.bao_cao') }}">Báo cáo</a>
+  <a href="{{ url_for('chi_phi_qc.index') }}">Trang chính</a>
+</div>
+
+<div class="container-narrow">
+
+  <!-- Mục lục -->
+  <div class="section">
+    <h2>📚 Mục lục</h2>
+    <ol>
+      <li><a href="#vai-tro">Vai trò của kế toán</a></li>
+      <li><a href="#cards">Đọc 5 card thống kê trên đầu trang</a></li>
+      <li><a href="#tabs">4 tab chi tiết: Nhân viên / Theo Page / Chi tiết / TK QC</a></li>
+      <li><a href="#unbound">"⚠ Chưa gán shop" là gì? Có phải lỗi không?</a></li>
+      <li><a href="#verify">Logic kiểm tra số liệu — 4 cấp cross-check</a></li>
+      <li><a href="#sai-so">Khi thấy sai số phải làm gì</a></li>
+      <li><a href="#chot-ky">Chốt kỳ + xuất Excel</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ol>
+  </div>
+
+  <!-- 1. Vai trò -->
+  <div class="section" id="vai-tro">
+    <h2>1. 👤 Vai trò của kế toán</h2>
+    <div class="good-box">
+      <strong>Kế toán KHÔNG cần gán TK QC, KHÔNG cần gán Page.</strong>
+      Việc đó do IT và NV phụ trách làm trước, ở module <em>Page & Tài khoản</em>.
+      Kế toán chỉ làm 3 việc tại trang này:
+      <ol class="mb-0 mt-1">
+        <li><strong>Đọc</strong> báo cáo (Nhân viên / Page / TK QC).</li>
+        <li><strong>Kiểm tra</strong> số liệu khớp giữa hệ thống và FB Ads Manager.</li>
+        <li><strong>Báo IT/admin</strong> khi phát hiện sai số hoặc thiếu data.</li>
+      </ol>
+    </div>
+    <div class="flow-box">
+      <strong>Triết lý của hệ thống:</strong> Mỗi đồng VND đều phải truy được nguồn. Không cộng dồn, không thất thoát, không đoán phân bổ.
+      Nếu kế toán thấy con số không khớp → đó là tín hiệu cần điều tra (chứ không phải bug ngầm). Hệ thống luôn hiển thị MINH BẠCH phần chưa rõ vào bucket "⚠ Chưa gán shop".
+    </div>
+  </div>
+
+  <!-- 2. Đọc cards -->
+  <div class="section" id="cards">
+    <h2>2. 📊 5 card thống kê trên đầu trang</h2>
+    <p>Trang Báo cáo (<code>/chi-phi-qc/bao-cao</code>) có 5 card chính:</p>
+    <table class="cmp-table">
+      <thead>
+        <tr><th>Card</th><th>Ý nghĩa</th><th>Nguồn</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge bg-primary">FB ADS THỰC TẾ</span></td>
+          <td>Tổng spend FB Ads Manager trả về cho kỳ này. <strong>Đây là số gốc, KHÔNG có VAT.</strong></td>
+          <td>FB Graph API sync tự động vào <code>fb_ads_page_daily_spend</code></td>
+        </tr>
+        <tr>
+          <td><span class="badge bg-success">WIN KHAI (ĐÃ VAT)</span></td>
+          <td>Spend của các page được phân loại "Win" (ma_win), đã nhân VAT 11.3%.</td>
+          <td>FB Ads × 1.113 cho page có <em>auto_phan_loai='ma_win'</em></td>
+        </tr>
+        <tr>
+          <td><span class="badge bg-warning text-dark">TEST KHAI (ĐÃ VAT)</span></td>
+          <td>Spend của các page được phân loại "Test", đã nhân VAT 11.3%.</td>
+          <td>FB Ads × 1.113 cho page có <em>auto_phan_loai='ma_test'</em></td>
+        </tr>
+        <tr>
+          <td><span class="badge bg-info">TỔNG KHAI (ĐÃ VAT)</span></td>
+          <td>Tổng Win + Test (đã VAT). <strong>Đây là chi phí kế toán cần ghi sổ.</strong></td>
+          <td>WIN + TEST</td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:#a78bfa;color:#fff">TIỀN VAT (11.3%)</span></td>
+          <td>Số tiền VAT thực = (Tổng đã VAT − FB Ads thực tế).</td>
+          <td>TỔNG KHAI − FB ADS THỰC TẾ</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="warn-box">
+      <strong>Quy tắc check nhanh:</strong> <code>FB Ads thực tế × 1.113 ≈ Tổng khai (đã VAT)</code>.
+      Nếu lệch > 1% → có vấn đề (page chưa phân loại, NV chưa khai báo, hoặc sync chưa đầy đủ).
+    </div>
+  </div>
+
+  <!-- 3. 4 tabs -->
+  <div class="section" id="tabs">
+    <h2>3. 🗂 4 tab chi tiết</h2>
+    <table class="cmp-table">
+      <thead>
+        <tr><th>Tab</th><th>Mục đích</th><th>Khi nào dùng</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Nhân viên</strong></td>
+          <td>Mỗi dòng = 1 shop. Hiển thị NV phụ trách, chi phí FB Ads + khai báo + chênh lệch POS.</td>
+          <td>Tổng hợp KPI / lương theo NV. Đây là báo cáo chính.</td>
+        </tr>
+        <tr>
+          <td><strong>Theo Page</strong></td>
+          <td>Mỗi dòng = 1 page. Spend, NV phụ trách, phân loại Win/Test.</td>
+          <td>Soi chi tiết page nào tiêu nhiều, win/test bao nhiêu.</td>
+        </tr>
+        <tr>
+          <td><strong>Chi tiết</strong></td>
+          <td>Chi tiết từng khai báo thủ công (NV nhập tay).</td>
+          <td>Audit phiếu thủ công (vd POS-only không sync FB).</td>
+        </tr>
+        <tr>
+          <td><strong>TK QC</strong></td>
+          <td>Mỗi dòng = 1 TK QC. Spend, impressions, clicks, NV, shop.
+              Phân nhóm "Đã gán shop" / "Chưa gán shop".</td>
+          <td>Kiểm tra TK nào hoạt động, TK nào chưa gán shop.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 4. Unbound -->
+  <div class="section" id="unbound">
+    <h2>4. ⚠ "Chưa gán shop" là gì?</h2>
+    <p>Ở tab <strong>Nhân viên</strong>, có thể xuất hiện dòng đỏ:</p>
+    <div class="bad-box">
+      <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+      <strong>⚠ Chưa gán shop (page chưa binding / TK đa shop)</strong> — số tiền X đ
+    </div>
+    <p><strong>Đây KHÔNG phải lỗi.</strong> Đây là <strong>thiết kế</strong>: hệ thống hiển thị minh bạch phần chi phí chưa được quy về shop nào.</p>
+    <h3>Nguyên nhân</h3>
+    <ul>
+      <li><strong>TK QC chạy nhiều page</strong>, hệ thống không biết page nào thuộc shop nào — đợi IT/NV gán ở <em>"Page → Shop"</em>.</li>
+      <li><strong>TK QC chạy cho nhiều shop</strong> — không thể auto-detect, cần admin chỉ định.</li>
+      <li><strong>Page test / marketing chung</strong> — không thuộc shop cụ thể (cần đánh dấu để tách riêng).</li>
+    </ul>
+    <h3>Vì sao không xoá / ẩn?</h3>
+    <p>Vì <strong>tiền vẫn đang chạy thực tế</strong>. Nếu ẩn đi, tổng spend hiển thị sẽ bị thiếu so với FB API → kế toán không phát hiện ra. Hiển thị bucket riêng = nhắc admin xử lý mà không làm sai con số tổng.</p>
+    <div class="good-box">
+      <strong>Quy tắc:</strong> <code>Tổng các shop + "⚠ Chưa gán shop" = FB ADS THỰC TẾ</code> (luôn luôn).
+      Nếu không bằng → có bug sync, báo IT.
+    </div>
+  </div>
+
+  <!-- 5. Logic kiểm tra -->
+  <div class="section" id="verify">
+    <h2>5. 🔍 Logic kiểm tra số liệu — 4 cấp cross-check</h2>
+    <p>Khi kế toán muốn xác minh số liệu, kiểm tra theo thứ tự:</p>
+
+    <h3>Cấp 1: Khớp với FB Ads Manager (gốc nhất)</h3>
+    <ol>
+      <li>Vào tab <strong>TK QC</strong> trong báo cáo.</li>
+      <li>Click vào tên TK QC bất kỳ → tab mới mở Ads Manager của TK đó trên Facebook.</li>
+      <li>Chọn đúng ngày trong Ads Manager → so spend "Amount spent".</li>
+      <li>Số trong báo cáo (CP Ads FB chưa VAT) <strong>phải bằng</strong> số trong Ads Manager.</li>
+    </ol>
+    <div class="warn-box">
+      Nếu chênh: kiểm tra TZ (FB Ads ở múi giờ tài khoản, hệ thống ở giờ VN). Chênh nhẹ 1-3% có thể do FB chưa fix data cuối ngày. Chênh >5% → báo IT.
+    </div>
+
+    <h3>Cấp 2: Khớp tổng spend hệ thống</h3>
+    <p>Tất cả các view phải khớp:</p>
+    <div class="formula">
+SUM(FB ADS THỰC TẾ ở các tab) = SUM(spend từng TK trong tab "TK QC")
+                              = SUM(spend từng page trong tab "Theo Page")
+                              = FB ADS thực tế ở Card top
+    </div>
+    <p>Hệ thống dùng cùng 1 nguồn (<code>fb_ads_page_daily_spend</code>) cho mọi view → luôn khớp. Nếu lệch → có bug query, báo IT.</p>
+
+    <h3>Cấp 3: Khớp VAT</h3>
+    <div class="formula">FB ADS THỰC TẾ × 1.113 = TỔNG KHAI (ĐÃ VAT)</div>
+    <p>Nếu lệch nhiều → page chưa phân loại Win/Test, hoặc NV khai báo thủ công thừa/thiếu. Vào tab Theo Page → tìm page có spend cao mà chưa có Win/Test.</p>
+
+    <h3>Cấp 4: Khớp NV phụ trách</h3>
+    <p>Trong tab Nhân viên, cột "Chênh: Tổng khai − POS":</p>
+    <ul>
+      <li><strong>= 0 hoặc gần 0</strong> → NV đã khai báo đầy đủ, khớp POS</li>
+      <li><strong>Dương (đỏ)</strong> → khai báo nhiều hơn POS — NV phải bổ sung POS-Ads</li>
+      <li><strong>Âm</strong> → POS có nhưng NV chưa khai báo — bất thường, cần kiểm tra</li>
+    </ul>
+  </div>
+
+  <!-- 6. Khi sai số -->
+  <div class="section" id="sai-so">
+    <h2>6. 🚨 Khi phát hiện sai số phải làm gì</h2>
+
+    <h3>Trường hợp 1: Tổng FB Ads thực tế lệch FB Ads Manager</h3>
+    <ol>
+      <li><span class="tag-step">Bước 1</span> Check FB Ads Manager → so chênh bao nhiêu, ngày nào.</li>
+      <li><span class="tag-step">Bước 2</span> Nếu chênh ≤ 3% và data vừa cập nhật → đợi sync tiếp (FB chưa fix số cuối ngày).</li>
+      <li><span class="tag-step">Bước 3</span> Nếu chênh > 5% hoặc data đã > 2 ngày → báo IT để sync lại (lệnh: <code>sync_fb_ads_to_db.py --date YYYY-MM-DD</code>).</li>
+    </ol>
+
+    <h3>Trường hợp 2: Bucket "⚠ Chưa gán shop" có số lớn</h3>
+    <ol>
+      <li><span class="tag-step">Bước 1</span> Xem tab <strong>TK QC</strong> → nhóm "Chưa gán shop". Đây là các TK chưa map shop.</li>
+      <li><span class="tag-step">Bước 2</span> Gửi danh sách TK chưa gán shop cho IT → IT vào <code>/page-account/ad-accounts</code> hoặc <code>/page-account/page-binding</code> để gán.</li>
+      <li><span class="tag-step">Bước 3</span> Sau khi IT gán xong → bucket "Chưa gán shop" giảm dần. Khi về 0 → kế toán có báo cáo đầy đủ.</li>
+    </ol>
+
+    <h3>Trường hợp 3: NV không hiện ra ở tab Nhân viên (dù có spend)</h3>
+    <ol>
+      <li><span class="tag-step">Bước 1</span> Check TK QC của NV có trong tab TK QC không (có spend không)?</li>
+      <li><span class="tag-step">Bước 2</span> TK QC đã gán NV (cột "Nhân viên" có badge xanh tên NV)? Nếu chưa → báo IT gán.</li>
+      <li><span class="tag-step">Bước 3</span> Shop của NV đã setup đúng (cột "assigned_shops" trong trang Users)? Nếu chưa → báo IT.</li>
+    </ol>
+
+    <h3>Trường hợp 4: VAT không đúng 11.3%</h3>
+    <ol>
+      <li>Hệ thống fix cứng 11.3% theo quy định FB Việt Nam.</li>
+      <li>Nếu công thức khác cho 1 shop nào → kiểm tra cài đặt riêng, hoặc báo admin update.</li>
+    </ol>
+
+    <h3>Trường hợp 5: Số liệu hôm qua đột nhiên đổi</h3>
+    <ol>
+      <li>Bình thường nếu FB Ads Manager còn cập nhật trong vài ngày sau.</li>
+      <li>Nếu đã quá 3 ngày mà đổi → FB sync lại số cũ. Check lịch sử <strong>Lịch sử chốt</strong> để xem khoảng đã chốt chưa.</li>
+      <li>Đã chốt rồi mà đổi → báo admin (data không nên đổi sau chốt).</li>
+    </ol>
+  </div>
+
+  <!-- 7. Chốt kỳ -->
+  <div class="section" id="chot-ky">
+    <h2>7. 🔒 Chốt kỳ + xuất Excel</h2>
+    <h3>Chốt kỳ là gì?</h3>
+    <p><strong>Chốt kỳ</strong> = đóng băng số liệu của 1 khoảng ngày để báo cáo không bị thay đổi nữa (kể cả FB sync lại data cũ).</p>
+    <h3>Quy trình</h3>
+    <ol>
+      <li>Đảm bảo bucket "⚠ Chưa gán shop" = 0 hoặc đã ghi nhận lý do.</li>
+      <li>Cross-check 4 cấp như mục 5.</li>
+      <li>Bấm nút <span class="badge bg-warning text-dark">🔒 Chốt kỳ</span> → nhập tên kỳ (vd "Tháng 5/2026") + ghi chú.</li>
+      <li>Hệ thống snapshot toàn bộ số liệu vào bảng riêng. Sau đó xem lại ở tab <strong>Lịch sử chốt</strong>.</li>
+      <li>Xuất Excel: bấm <span class="badge bg-success">📥 Xuất Excel</span> → file <code>chi-phi-qc-YYYY-MM-DD.xlsx</code> có đầy đủ các tab.</li>
+    </ol>
+    <div class="warn-box">
+      Chốt kỳ <strong>không thể undo</strong>. Nếu chốt nhầm → báo admin để revert thủ công.
+    </div>
+  </div>
+
+  <!-- 8. FAQ -->
+  <div class="section" id="faq">
+    <h2>8. ❓ FAQ</h2>
+
+    <h4>Q: Tôi không thấy tài khoản A trong tab TK QC?</h4>
+    <p>A: TK chưa có spend trong kỳ này, hoặc chưa được sync. Vào <code>/page-account/ad-accounts</code> kiểm tra trạng thái TK.</p>
+
+    <h4>Q: 1 TK QC hiện ra nhiều dòng trong tab Nhân viên?</h4>
+    <p>A: Không xảy ra ở tab Nhân viên (1 dòng/shop). Nếu xảy ra ở tab TK QC → là vì TK chạy cho nhiều shop → đó là design đúng (xem cột Shop để phân biệt).</p>
+
+    <h4>Q: Hôm nay xem báo cáo thấy 0đ, dù FB Ads Manager vẫn có chi phí?</h4>
+    <p>A: Sync FB Ads chạy mỗi 1 tiếng. Bấm <strong>"Sync KPI Ads"</strong> ở góc phải để force sync ngay.</p>
+
+    <h4>Q: Có khi nào hệ thống bịa số không?</h4>
+    <p>A: Không. Mọi số đều từ FB Graph API (page-level spend). Nếu thấy bất thường → cross-check 4 cấp như mục 5 sẽ tìm ra nguyên nhân.</p>
+
+    <h4>Q: Kế toán có thể tự gán Page → Shop không?</h4>
+    <p>A: <strong>Không</strong> (theo phân quyền hiện tại). Việc gán do IT/NV phụ trách. Kế toán chỉ quan sát kết quả + báo lại nếu thấy sai.</p>
+
+    <h4>Q: Báo cáo có thể tải Excel để gửi sếp không?</h4>
+    <p>A: Có. Nút "Xuất Excel" ở thanh filter — tải xuống file đầy đủ tất cả tab.</p>
+
+    <h4>Q: Tôi muốn xem chi phí của 1 NV cụ thể?</h4>
+    <p>A: Filter "Nhân viên" trên đầu trang → chọn NV → bấm "Lọc". Tab Nhân viên sẽ chỉ hiện shop của NV đó.</p>
+  </div>
+
+</div>
+
+</body>
+</html>

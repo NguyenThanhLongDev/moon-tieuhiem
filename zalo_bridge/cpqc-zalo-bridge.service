@@ -1,0 +1,19 @@
+[Unit]
+Description=CPQC Zalo Bridge — forward Zalo messages tới Flask cpqc budget_chat (moon)
+After=network-online.target cpqc.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=admin1
+WorkingDirectory=/home/admin1/cpqc/zalo_bridge
+EnvironmentFile=/home/admin1/cpqc/zalo_bridge/.env
+ExecStart=/usr/bin/node /home/admin1/cpqc/zalo_bridge/bridge.js
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/admin1/cpqc/zalo_bridge/bridge.log
+StandardError=append:/home/admin1/cpqc/zalo_bridge/bridge.log
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

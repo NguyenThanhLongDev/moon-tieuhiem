@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leader Brain — Scoreboard</title>
+<link rel="stylesheet" href="/static/cc-theme.css">
+<style>
+  body { background:#f5f6f8; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; margin:0; }
+  .lb-topbar { background:#1a1a1a; color:#fff; padding:10px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .lb-topbar a { color:#F59E0B; text-decoration:none; font-weight:600; }
+  .wrap { max-width:1200px; margin:0 auto; padding:16px; }
+  .card { background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); padding:14px 18px; margin-bottom:14px; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th { text-align:left; color:#666; font-weight:600; padding:8px; border-bottom:2px solid #eee; white-space:nowrap; }
+  td { padding:8px; border-bottom:1px solid #f0f0f0; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .muted { color:#999; font-size:12px; }
+  .good { color:#059669; font-weight:700; } .bad { color:#dc2626; font-weight:700; } .warn { color:#b45309; font-weight:700; }
+  .rank { display:inline-flex; width:26px; height:26px; border-radius:50%; background:#f1f5f9; align-items:center; justify-content:center; font-weight:700; font-size:13px; }
+  .rank-1 { background:#fef3c7; color:#92400e; }
+  a.teamlink { color:#1d4ed8; text-decoration:none; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="lb-topbar">
+  <a href="/">← Trang chủ</a>
+  <strong>👑 Leader Brain</strong>
+  <span class="muted" style="color:#aaa">Scoreboard team kinh doanh — kỳ đã chín {{ d_from }} → {{ d_to }}</span>
+  <a href="/marketing-brain/" style="margin-left:auto">🧠 Marketing Brain</a>
+</div>
+<div class="wrap">
+
+<form class="card" method="get" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:10px 18px;">
+  {% set date_from = d_from %}{% set date_to = d_to %}
+  {% include "_date_range_picker.html" %}
+  <a href="/leader-brain/" style="padding:6px 14px;border-radius:8px;background:#64748b;color:#fff;font-weight:600;text-decoration:none;font-size:13px;">Kỳ chín (mặc định)</a>
+  <span class="muted">Mặc định = 7 ngày đã chín (lùi 4 ngày). Chọn kỳ gần hơn thì %0 đơn sẽ cao ảo do đơn chưa gắn mã ads.</span>
+</form>
+
+<div class="card">
+  <h3 style="margin:0 0 4px; font-size:16px;">🏆 Xếp hạng 6 team kinh doanh ({{ d_from }} → {{ d_to }}) — theo 🎖️ Leader Score</h3>
+  <p class="muted" style="margin:0 0 10px">🎖️ Điểm = <b>60 kỷ luật</b> (30 xử lý thẻ việc 30 ngày + 30 nhịp đập NV) + <b>40 tiền</b> (15 dưới hòa vốn + 10 đốt 0 đơn + 15 %Ads/DT) — di chuột vào điểm để xem chi tiết. ≥85 xuất sắc · 70-84 đạt · <b class="bad">&lt;70 hai tháng liên tiếp = thay người</b>. Bảng đo HIỆU QUẢ ADS, khác trang chủ (sổ kế toán).</p>
+  <div style="overflow-x:auto">
+  <table>
+    <tr>
+      <th>#</th><th>Team</th><th>Leader</th>
+      <th class="num" title="60đ kỷ luật (30 xử lý thẻ việc + 30 nhịp đập) + 40đ tiền (15 %dưới hòa vốn + 10 %0 đơn + 15 %Ads/DT). <70 hai tháng liên tiếp = thay người.">🎖️ Điểm</th>
+      <th class="num">NV ads</th>
+      <th class="num">CP Ads</th><th class="num" title="đơn TẠO trong kỳ có gắn mã ads, trừ hoàn/hủy">Đơn từ ads</th><th class="num" title="gồm cả đơn đang giao — khác doanh thu chốt POS ở trang chủ">DT từ ads</th>
+      <th class="num" title="DT − giá vốn − ads VAT. CHƯA trừ ship/phí sàn — muốn lãi kế toán đầy đủ xem trang chủ">Lãi gộp MKT</th><th class="num">%Ads/DT</th>
+      <th class="num" title="tiền trên page nhãn TEST — R&D có hạn mức, không tính vào 'đốt'">🧪 Test</th>
+      <th class="num" title="% ngân sách (NGOÀI test) vào ads có DT < chi phí">% dưới hòa vốn</th>
+      <th class="num" title="% ngân sách (NGOÀI test) vào ads 0 đơn — đốt thật">🔥 % 0 đơn</th>
+      <th class="num">Hoàn/Hủy</th>
+    </tr>
+    {% for t in teams %}
+    <tr>
+      <td><span class="rank {{ 'rank-1' if loop.index == 1 }}">{{ loop.index }}</span></td>
+      <td>
+        {% if tier == 'full' or my_team == t.id %}
+          <a class="teamlink" href="/leader-brain/team/{{ t.id }}">{{ t.team_name }}</a>
+        {% else %}{{ t.team_name }}{% endif %}
+      </td>
+      <td>{{ t.leader_name }}</td>
+      <td class="num" title="Kỷ luật: thẻ việc {{ t.lscore.p_alert }}/30 ({{ t.lscore.alert_acted }}/{{ t.lscore.alert_total }} xử lý) + nhịp đập {{ t.lscore.p_pulse }}/30 ({{ t.lscore.pulse }}%) · Tiền: hòa vốn {{ t.lscore.p_lo }}/15 + 0 đơn {{ t.lscore.p_0don }}/10 + Ads/DT {{ t.lscore.p_adsdt }}/15">
+        <span class="{{ 'good' if t.lscore.score >= 85 else ('warn' if t.lscore.score >= 70 else 'bad') }}" style="font-size:15px;">{{ t.lscore.score }}</span>
+        <div class="muted">{{ t.lscore.grade }}</div>
+      </td>
+      <td class="num">{{ t.nv_ads }}</td>
+      <td class="num">{{ "{:,.0f}".format(t.spend).replace(',', '.') }}</td>
+      <td class="num">{{ t.orders }}</td>
+      <td class="num">{{ "{:,.0f}".format(t.rev).replace(',', '.') }}</td>
+      <td class="num"><span class="{{ 'good' if t.profit > 0 else 'bad' }}">{{ "{:,.0f}".format(t.profit).replace(',', '.') }}</span></td>
+      <td class="num">{% if t.pct_ads_dt is not none %}<span class="{{ 'good' if t.pct_ads_dt < 25 else ('warn' if t.pct_ads_dt < 35 else 'bad') }}">{{ t.pct_ads_dt }}%</span>{% else %}—{% endif %}</td>
+      <td class="num">{{ t.pct_test }}%</td>
+      <td class="num"><span class="{{ 'good' if t.pct_lo < 10 else ('warn' if t.pct_lo < 20 else 'bad') }}">{{ t.pct_lo }}%</span></td>
+      <td class="num"><span class="{{ 'good' if t.pct_0don < 3 else ('warn' if t.pct_0don < 8 else 'bad') }}">{{ t.pct_0don }}%</span></td>
+      <td class="num">{{ t.pct_hoan }}%</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  <p class="muted" style="margin:10px 0 0">Ngưỡng: %dưới hòa vốn xanh &lt;10% · %0 đơn xanh &lt;3% · %Ads/DT xanh &lt;25%. Mọi team cùng 1 thước — đều từ đơn POS thật + FB API, không tự khai.</p>
+  <p class="muted" style="margin:6px 0 0; background:#f8fafc; border-radius:8px; padding:8px 12px;">
+    ⚠️ <b>Đừng so thẳng với trang chủ</b> — 2 bảng đo 2 thứ khác nhau:
+    <b>Leader Brain</b> = hiệu quả ADS (gom theo TK QC của NV · đơn tạo có mã ads · <b>Lãi gộp MKT</b> chưa trừ ship/phí — để xếp hạng marketing công bằng, NV không kiểm soát được phí ship).
+    <b>Trang chủ</b> = sổ kế toán (gom theo shop gán team · doanh thu POS chốt · lãi đã trừ đủ ship/phí sàn).
+    Muốn biết team cuối cùng bỏ túi bao nhiêu → <a href="/" style="color:#1d4ed8">xem trang chủ</a>; muốn biết tiền ads ai xài giỏi → bảng này.
+  </p>
+</div>
+
+</div>
+</body>
+</html>

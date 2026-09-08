@@ -1,0 +1,136 @@
+{% extends "fb_pages/base.html" %}
+{% block title %}Báo cáo Chi phí QC{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-2">
+  <div>
+    <h1><i class="bi bi-bar-chart-line me-2 text-primary"></i>Báo cáo Chi phí Quảng cáo</h1>
+    <p class="text-muted mb-0">Tổng hợp chi phí QC theo nhân viên — mã win / mã test</p>
+  </div>
+</div>
+
+{# ── Filter bar ── #}
+<div class="card mb-3">
+  <div class="card-body py-3">
+    <form method="get" action="/fb-pages/bao-cao-chi-phi-qc" class="row g-2 align-items-end">
+      <div class="col-auto">
+        {% include "_date_range_picker.html" %}
+      </div>
+      <div class="col-auto">
+        <a href="/fb-pages/bao-cao-chi-phi-qc" class="btn btn-outline-secondary btn-sm ms-1">Tháng này</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ── Summary totals ── #}
+{% if rows %}
+{% set total_win_chua = rows | sum(attribute='win_chua_vat') %}
+{% set total_win_co   = rows | sum(attribute='win_co_vat') %}
+{% set total_test_chua= rows | sum(attribute='test_chua_vat') %}
+{% set total_test_co  = rows | sum(attribute='test_co_vat') %}
+{% set total_all      = rows | sum(attribute='tong') %}
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md">
+    <div class="card h-100">
+      <div class="card-body p-3 text-center">
+        <div class="text-muted small">Mã win (chưa VAT)</div>
+        <div class="fw-bold text-primary" style="font-size:1.2rem">{{ '{:,.0f}'.format(total_win_chua) }}₫</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md">
+    <div class="card h-100">
+      <div class="card-body p-3 text-center">
+        <div class="text-muted small">Mã win (đã VAT)</div>
+        <div class="fw-bold text-success" style="font-size:1.2rem">{{ '{:,.0f}'.format(total_win_co) }}₫</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md">
+    <div class="card h-100">
+      <div class="card-body p-3 text-center">
+        <div class="text-muted small">Mã test (chưa VAT)</div>
+        <div class="fw-bold text-warning" style="font-size:1.2rem">{{ '{:,.0f}'.format(total_test_chua) }}₫</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md">
+    <div class="card h-100">
+      <div class="card-body p-3 text-center">
+        <div class="text-muted small">Mã test (đã VAT)</div>
+        <div class="fw-bold text-danger" style="font-size:1.2rem">{{ '{:,.0f}'.format(total_test_co) }}₫</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md">
+    <div class="card h-100">
+      <div class="card-body p-3 text-center">
+        <div class="text-muted small">Tổng (đã VAT)</div>
+        <div class="fw-bold text-dark" style="font-size:1.2rem">{{ '{:,.0f}'.format(total_all) }}₫</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Detail table ── #}
+<div class="card">
+  <div class="card-header py-2 d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-table me-2"></i>Chi tiết theo nhân viên</span>
+    <span class="text-muted small">{{ rows|length }} nhân viên · {{ date_from }} → {{ date_to }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Nhân viên</th>
+          <th class="text-end">Mã win (chưa VAT)</th>
+          <th class="text-end">Mã win (đã VAT)</th>
+          <th class="text-end">Mã test (chưa VAT)</th>
+          <th class="text-end">Mã test (đã VAT)</th>
+          <th class="text-end fw-bold">Tổng (đã VAT)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="text-muted small">{{ loop.index }}</td>
+          <td>
+            <div class="fw-semibold">{{ r.full_name or r.username }}</div>
+            <div class="text-muted small">{{ r.username }}</div>
+          </td>
+          <td class="text-end">{{ '{:,.0f}'.format(r.win_chua_vat or 0) }}₫</td>
+          <td class="text-end text-success fw-semibold">{{ '{:,.0f}'.format(r.win_co_vat or 0) }}₫</td>
+          <td class="text-end">{{ '{:,.0f}'.format(r.test_chua_vat or 0) }}₫</td>
+          <td class="text-end text-warning fw-semibold">{{ '{:,.0f}'.format(r.test_co_vat or 0) }}₫</td>
+          <td class="text-end fw-bold text-dark">{{ '{:,.0f}'.format(r.tong or 0) }}₫</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="table-light">
+        <tr class="fw-bold">
+          <td colspan="2">Tổng cộng</td>
+          <td class="text-end">{{ '{:,.0f}'.format(total_win_chua) }}₫</td>
+          <td class="text-end text-success">{{ '{:,.0f}'.format(total_win_co) }}₫</td>
+          <td class="text-end">{{ '{:,.0f}'.format(total_test_chua) }}₫</td>
+          <td class="text-end text-warning">{{ '{:,.0f}'.format(total_test_co) }}₫</td>
+          <td class="text-end text-dark">{{ '{:,.0f}'.format(total_all) }}₫</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<div class="card">
+  <div class="card-body text-center py-5">
+    <i class="bi bi-inbox" style="font-size:3rem; opacity:.3"></i>
+    <h5 class="mt-3 text-muted">Không có dữ liệu trong kỳ này</h5>
+    <p class="text-muted">Thay đổi bộ lọc ngày để xem dữ liệu khác.</p>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

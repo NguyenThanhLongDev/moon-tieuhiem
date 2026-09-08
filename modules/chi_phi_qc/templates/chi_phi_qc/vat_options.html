@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Quản lý TK 6.1% VAT</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="/static/cc-multiselect.css">
+<script src="/static/cc-multiselect.js" defer></script>
+<style>
+  body { background:#f8fafc; font-size:14px; }
+  .header-bar { background:#1e293b; color:#fff; padding:10px 16px; }
+  .header-bar a { color:#cbd5e1; text-decoration:none; margin-right:14px; font-weight:600 }
+  .header-bar a:hover { color:#fff }
+  .note { background:#fef3c7; border-left:4px solid #f59e0b; padding:10px 14px; border-radius:6px; font-size:13px; color:#92400e; }
+  .acc-tag { font-family:monospace; font-size:12px; color:#0369a1; background:#e0f2fe; padding:2px 6px; border-radius:4px; }
+
+  /* ── Responsive: mobile (≤640px) ── */
+  @media (max-width: 640px) {
+    html, body { overflow-x: hidden; max-width: 100%; }
+    .header-bar { display:flex; flex-wrap:wrap; gap:6px 12px; padding:8px 12px; }
+    .header-bar a { margin-right:0; font-size:13px; }
+    .header-bar .float-end { float:none !important; width:100%; margin-top:4px; }
+    .container-fluid { padding:12px 10px !important; }
+    /* Form lọc: ô tìm full dòng, team + nút xuống dòng gọn */
+    .filter-bar .fb-search { flex:1 1 100%; }
+    .filter-bar .fb-team { flex:1 1 100%; }
+    .filter-bar .fb-team select { min-width:0 !important; width:100%; }
+    .filter-bar .ms-auto { margin-left:0 !important; width:100%; }
+    /* Form thêm TK: mỗi ô full dòng (Bootstrap col tự lo, ép select/input không tràn) */
+    input, select, textarea, .form-control, .form-select { max-width:100%; }
+    /* Bảng danh sách TK: cuộn ngang riêng, không kéo giãn trang */
+    .table-responsive, .table { -webkit-overflow-scrolling: touch; }
+    .table { display:block; overflow-x:auto; white-space:nowrap; max-width:100%; }
+  }
+</style>
+</head>
+<body>
+{% include "_main_nav.html" %}
+
+<div class="header-bar">
+  <a href="/"><i class="bi bi-house-door"></i> Trang chủ</a>
+  <a href="/chi-phi-qc/"><i class="bi bi-cash-coin"></i> Chi phí QC</a>
+  <a href="/chi-phi-qc/vat-options"><i class="bi bi-percent"></i> Quản lý TK 6.1%</a>
+  <span class="float-end" style="font-size:12px;color:#94a3b8">
+    {{ session.get('full_name') or session.get('username') }} · <a href="/logout" style="color:#fca5a5">Đăng xuất</a>
+  </span>
+</div>
+
+<div class="container-fluid p-3">
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}
+      <div class="alert alert-{{ cat if cat in ['success','danger','warning','info'] else 'info' }} py-2">{{ m|safe }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <h4 class="mb-3"><i class="bi bi-percent text-info"></i> Quản lý TK được phép chọn VAT 6.1%</h4>
+
+  <div class="note mb-3">
+    <i class="bi bi-info-circle me-1"></i>
+    <b>Cách hoạt động:</b> Mặc định mọi TK quảng cáo tính VAT <b>11.3%</b>. Chỉ TK có trong danh sách dưới đây mới <b>được phép chọn 6.1%</b> — page chạy trên các TK này sẽ <b>hiện nút radio</b> để NV chọn 6.1 hoặc 11.3 cho từng page.
+    <br>TK <b>không có trong danh sách</b> → page tự áp <b>11.3</b>, không hiện radio.
+  </div>
+
+  {# Filter Team + Tìm kiếm #}
+  <form method="get" action="/chi-phi-qc/vat-options" class="filter-bar d-flex gap-2 align-items-end flex-wrap mb-3 bg-white border rounded p-2">
+    <div class="fb-search flex-grow-1">
+      <label class="form-label small mb-1"><i class="bi bi-search me-1"></i>Tìm kiếm</label>
+      <input type="text" name="q" value="{{ f_q or '' }}" class="form-control form-control-sm"
+             placeholder="ID tài khoản / tên TK / nhân viên / ghi chú…">
+    </div>
+    <div class="fb-team">
+      <label class="form-label small mb-1">Lọc theo Team</label>
+      <select name="team" class="form-select form-select-sm" style="min-width:180px">
+        <option value="">— Tất cả team —</option>
+        {% for t in teams %}
+        <option value="{{ t.code }}" {% if f_team==t.code %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+        <option value="_none" {% if f_team=='_none' %}selected{% endif %}>(Chưa gán team)</option>
+      </select>
+    </div>
+    <button class="btn btn-primary btn-sm"><i class="bi bi-search"></i> Tìm</button>
+    {% if f_team or f_q %}<a href="/chi-phi-qc/vat-options" class="btn btn-outline-secondary btn-sm">Bỏ lọc</a>{% endif %}
+    <span class="ms-auto small text-muted align-self-center">Hiện <b>{{ items|length }}</b> TK</span>
+  </form>
+
+  {# Nút mở modal thêm TK #}
+  <div class="mb-3">
+    <button type="button" class="btn btn-success btn-sm" onclick="openVatAdd()">
+      <i class="bi bi-plus-circle me-1"></i>Thêm tài khoản VAT
+    </button>
+  </div>
+
+  {# Modal thêm/cập nhật TK #}
+  <div class="modal fade" id="modalAddTk" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form method="post" action="/chi-phi-qc/vat-options">
+          <input type="hidden" name="action" value="add">
+          <div class="modal-header py-2">
+            <h6 class="modal-title" id="vatModalTitle"><i class="bi bi-percent text-info me-1"></i>Thêm tài khoản VAT</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Tài khoản quảng cáo <span class="text-danger">*</span></label>
+              <select name="fb_ad_account_id" id="vatAcctId" required multiple class="form-select form-select-sm" data-cc-search>
+                {% for a in ad_accounts %}<option value="{{ a.id }}" data-name="{{ a.name }}">{{ a.name }}</option>{% endfor %}
+              </select>
+              <small class="text-muted" style="font-size:11px">📋 {{ ad_accounts|length }} TK — chọn <b>1 hoặc nhiều</b> TK (áp chung 1 mức VAT/team).</small>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Team</label>
+              <select name="team_code" id="vatTeam" class="form-select form-select-sm">
+                <option value="">— Chưa rõ —</option>
+                {% for t in teams %}
+                <option value="{{ t.code }}">{{ t.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">VAT (%) <span class="text-danger">*</span></label>
+              <div class="input-group input-group-sm">
+                <input type="number" name="default_vat_rate" id="vatRate" step="0.1" min="0" max="100" value="11.3" required
+                       class="form-control form-control-sm" placeholder="vd: 6.1 / 8 / 10">
+                <span class="input-group-text">%</span>
+              </div>
+              <small class="text-muted" style="font-size:11px">Mỗi cty 1 mức thuế riêng — nhập theo % (vd 8 = 8%)</small>
+            </div>
+            <div class="mb-1">
+              <label class="form-label small fw-semibold">Ghi chú</label>
+              <input type="text" name="note" id="vatNote" class="form-control form-control-sm" placeholder="vd: hợp đồng 6.1%">
+            </div>
+          </div>
+          <div class="modal-footer py-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Hủy</button>
+            <button type="submit" class="btn btn-success btn-sm" id="vatSubmitBtn">
+              <i class="bi bi-plus-circle me-1"></i>Lưu
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {# Danh sách #}
+  <div class="bg-white border rounded">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Ad Account ID</th>
+            <th>Tên TK</th>
+            <th>Team</th>
+            <th>Nhân viên</th>
+            <th>VAT mặc định</th>
+            <th>Ghi chú</th>
+            <th>Cập nhật lúc</th>
+            <th>Bởi</th>
+            <th class="text-end">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in items %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td><span class="acc-tag">{{ v.fb_ad_account_id }}</span></td>
+            <td>
+              {% set _aid = (v.fb_ad_account_id|string).replace('act_','') %}
+              <a href="https://www.facebook.com/adsmanager/manage/campaigns?act={{ _aid }}"
+                 target="_blank" rel="noopener" title="Mở Trình quản lý quảng cáo của TK này"
+                 style="font-weight:600;text-decoration:none;color:#1d4ed8">
+                {{ v.account_name or '—' }} <i class="bi bi-box-arrow-up-right" style="font-size:10px;opacity:.6"></i>
+              </a>
+            </td>
+            <td>
+              {% if v.team_name %}
+                <span class="badge bg-info text-dark">{{ v.team_name }}</span>
+              {% else %}
+                <span class="text-muted small">— chưa gán —</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if v.assigned_nv %}
+                <span class="text-success small"><i class="bi bi-person-check"></i> {{ v.assigned_nv }}</span>
+              {% else %}
+                <span class="text-muted small">— chưa gán NV —</span>
+              {% endif %}
+            </td>
+            <td>
+              {% set _r = (v.default_vat_rate|float) if v.default_vat_rate is not none else 0.113 %}
+              <span class="badge bg-info text-dark" style="font-size:12px">{{ '%.1f'|format(_r * 100) }}%</span>
+            </td>
+            <td class="text-muted small">{{ v.note or '—' }}</td>
+            <td class="small text-muted">{{ v.updated_at.strftime('%d/%m/%Y %H:%M') if v.updated_at else '—' }}</td>
+            <td class="small text-muted">{{ v.updated_by_name or '—' }}</td>
+            <td class="text-end">
+              <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2 me-1" style="font-size:12px"
+                onclick='editVat({{ {"aid": v.fb_ad_account_id|string, "team": v.team_code or "", "rate": ((v.default_vat_rate|float * 100)|round(1)) if v.default_vat_rate is not none else 11.3, "note": v.note or ""} | tojson }})'>
+                <i class="bi bi-pencil"></i> Sửa
+              </button>
+              <form method="post" action="/chi-phi-qc/vat-options" style="display:inline" onsubmit="return confirm('Gỡ TK này khỏi danh sách? Mọi page TK này sẽ về VAT mặc định 11.3%.');">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="fb_ad_account_id" value="{{ v.fb_ad_account_id }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size:12px">
+                  <i class="bi bi-trash3"></i> Gỡ
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="10" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> Chưa có TK nào — mọi page đang dùng VAT mặc định 11.3%</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="text-muted mt-3" style="font-size:12px">
+    <i class="bi bi-shield-lock me-1"></i>Trang này chỉ admin/IT/manager/kế toán xem được. NV thường truy cập sẽ bị 403.
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function _ccRefresh(sel){
+  if (sel && window.CCMultiSelect) {
+    if (sel._ccms) window.CCMultiSelect.refresh(sel);
+    else window.CCMultiSelect.upgrade(sel);
+  }
+}
+// Mở modal THÊM mới (reset)
+function openVatAdd(){
+  var sel = document.getElementById('vatAcctId');
+  Array.prototype.forEach.call(sel.options, function(o){ o.selected = false; });
+  _ccRefresh(sel);
+  document.getElementById('vatTeam').value = '';
+  document.getElementById('vatRate').value = '11.3';
+  document.getElementById('vatNote').value = '';
+  document.getElementById('vatModalTitle').innerHTML = '<i class="bi bi-percent text-info me-1"></i>Thêm tài khoản VAT';
+  new bootstrap.Modal(document.getElementById('modalAddTk')).show();
+}
+// Mở modal SỬA 1 TK (điền sẵn)
+function editVat(d){
+  var sel = document.getElementById('vatAcctId');
+  var found = false;
+  Array.prototype.forEach.call(sel.options, function(o){
+    o.selected = (o.value === String(d.aid));
+    if (o.selected) found = true;
+  });
+  if (!found) {  // TK chưa có trong danh sách sync → thêm option tạm
+    var opt = document.createElement('option');
+    opt.value = String(d.aid); opt.textContent = String(d.aid); opt.selected = true;
+    sel.appendChild(opt);
+  }
+  _ccRefresh(sel);
+  document.getElementById('vatTeam').value = d.team || '';
+  document.getElementById('vatRate').value = d.rate;
+  document.getElementById('vatNote').value = d.note || '';
+  document.getElementById('vatModalTitle').innerHTML = '<i class="bi bi-pencil text-info me-1"></i>Sửa tài khoản VAT';
+  new bootstrap.Modal(document.getElementById('modalAddTk')).show();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,643 @@
+{% extends "cham_cong/base.html" %}
+{% block title %}Công việc — Tiểu Hiềm{% endblock %}
+{% set active_page = 'tasks' %}
+
+{% block extra_css %}
+<style>
+.task-col {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 14px;
+  min-height: 200px;
+}
+.task-col-header {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.task-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  border-left: 4px solid transparent;
+  transition: box-shadow .15s;
+}
+.task-card:hover { box-shadow: 0 3px 8px rgba(0,0,0,.1); }
+.task-card.urgent { border-left-color: #dc2626; }
+.task-card.high    { border-left-color: #d97706; }
+.task-card.normal  { border-left-color: #2563eb; }
+.task-card.low     { border-left-color: #cbd5e1; }
+.task-title { font-size: 14px; font-weight: 600; color: #1e293b; line-height: 1.4; }
+.task-meta  { font-size: 12px; color: #94a3b8; margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; }
+.task-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.task-actions button {
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: .1s;
+  min-height: 36px;
+}
+.btn-start    { background:#dbeafe;color:#2563eb; }
+.btn-start:hover { background:#bfdbfe; }
+.btn-done     { background:#d1fae5;color:#059669; }
+.btn-done:hover  { background:#a7f3d0; }
+.btn-reopen   { background:#f1f5f9;color:#64748b; }
+.btn-del      { background:#fee2e2;color:#dc2626; }
+.btn-progress { background:#fef3c7;color:#b45309; position:relative; }
+.btn-progress:hover { background:#fde68a; }
+.btn-progress .cnt {
+  display:inline-block;min-width:18px;height:18px;border-radius:9px;
+  background:#b45309;color:#fff;font-size:10px;font-weight:700;
+  padding:0 5px;margin-left:4px;line-height:18px;
+}
+.progress-item {
+  background:#fff;border:1px solid #e2e8f0;border-radius:8px;
+  padding:10px 12px;margin-bottom:8px;
+}
+.progress-item .ph {
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:12px;color:#64748b;margin-bottom:4px;
+}
+.progress-item .pc { font-size:13px;color:#1e293b;white-space:pre-wrap;line-height:1.4; }
+.ptype-done    { color:#059669;font-weight:600; }
+.ptype-pending { color:#dc2626;font-weight:600; }
+.ptype-note    { color:#6366f1;font-weight:600; }
+.ptype-blocker { color:#b91c1c;font-weight:600; }
+
+/* Mobile tab switcher */
+.mobile-tabs {
+  display: none;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  margin-bottom: 14px;
+}
+.mobile-tabs button {
+  flex: 1;
+  padding: 12px 8px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: .15s;
+  border-bottom: 3px solid transparent;
+}
+.mobile-tabs button.active { color: var(--brand); border-bottom-color: var(--brand); background: #f8f8ff; }
+.mobile-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 5px;
+  margin-left: 4px;
+  background: #e2e8f0;
+  color: #64748b;
+}
+.mobile-tabs button.active .mobile-tab-count { background: #ede9fe; color: #6366f1; }
+
+@media (max-width: 767px) {
+  .mobile-tabs { display: flex; }
+  .mobile-col-hide { display: none !important; }
+  .mobile-col-show { display: block !important; }
+  .task-col { border-radius: 0; box-shadow: none; background: transparent; padding: 0; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+  <h5 style="margin:0;font-weight:700;color:#1e293b;">
+    <i class="bi bi-kanban" style="color:var(--brand);"></i> Quản lý công việc
+  </h5>
+  {% if is_manager %}
+  <button class="btn btn-sm" style="background:var(--brand);color:#fff;border-radius:8px;font-weight:600;"
+          data-bs-toggle="modal" data-bs-target="#modalTask">
+    <i class="bi bi-plus-lg"></i> Tạo công việc
+  </button>
+  {% endif %}
+</div>
+
+<!-- Filters -->
+<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+  {% for val, lbl in [('','Tất cả'),('todo','Chờ'),('in-progress','Đang làm'),('done','Xong')] %}
+  <a href="?status={{ val }}&role={{ filter_role }}"
+     style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;text-decoration:none;
+            background:{{ '#6366f1' if filter_status == val else '#e2e8f0' }};
+            color:{{ '#fff' if filter_status == val else '#64748b' }};">
+    {{ lbl }}
+  </a>
+  {% endfor %}
+
+  {% if is_manager %}
+  &nbsp;|&nbsp;
+  {% for role, info in CC_ROLES.items() %}
+  <a href="?status={{ filter_status }}&role={{ role }}"
+     style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;text-decoration:none;
+            background:{{ info[2] if filter_role == role else '#e2e8f0' }};
+            color:{{ '#fff' if filter_role == role else '#64748b' }};">
+    {{ info[0] }}
+  </a>
+  {% endfor %}
+  <a href="?status={{ filter_status }}&role="
+     style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;text-decoration:none;
+            background:{{ '#6366f1' if not filter_role else '#e2e8f0' }};
+            color:{{ '#fff' if not filter_role else '#64748b' }};">
+    Tất cả vai trò
+  </a>
+  {% endif %}
+</div>
+
+<!-- Mobile tab switcher (hidden on desktop) -->
+<div class="mobile-tabs" id="mobileTabs">
+  <button class="active" onclick="switchTab('todo', this)">
+    Chờ làm <span class="mobile-tab-count">{{ tasks_todo | length }}</span>
+  </button>
+  <button onclick="switchTab('inprogress', this)">
+    Đang làm <span class="mobile-tab-count">{{ tasks_in_progress | length }}</span>
+  </button>
+  <button onclick="switchTab('done', this)">
+    Xong <span class="mobile-tab-count">{{ tasks_done | length }}</span>
+  </button>
+</div>
+
+<!-- Kanban columns -->
+<div class="row g-3">
+
+  <!-- Chờ làm -->
+  <div class="col-12 col-md-4" id="col-todo">
+    <div class="task-col">
+      <div class="task-col-header">
+        <span><i class="bi bi-circle" style="color:#64748b;"></i> Chờ làm</span>
+        <span style="background:#e2e8f0;color:#64748b;padding:2px 8px;border-radius:10px;">{{ tasks_todo | length }}</span>
+      </div>
+      {% for t in tasks_todo %}
+      <div class="task-card {{ t.priority }}" id="tc-{{ t.id }}">
+        <div class="task-title">{{ t.title }}</div>
+        {% if t.description %}
+        <div class="task-desc" style="font-size:12px;color:#475569;margin-top:6px;line-height:1.45;white-space:pre-wrap;background:#f8fafc;padding:8px 10px;border-radius:6px;border-left:3px solid #cbd5e1;">{{ t.description }}</div>
+        {% endif %}
+        <div class="task-meta">
+          <span class="prio-badge prio-{{ t.priority }}">{{ {'urgent':'🔴 Khẩn','high':'🟠 Cao','normal':'🔵 Bình thường','low':'⚪ Thấp'}.get(t.priority, t.priority) }}</span>
+          {% if t.role_type %}<span><i class="bi bi-people"></i> {{ cc_role_label_fn(t.role_type) }}</span>{% endif %}
+          {% if t.assigned_name %}<span><i class="bi bi-person"></i> {{ t.assigned_name }}</span>{% endif %}
+          {% if t.due_date %}<span><i class="bi bi-calendar"></i> {{ t.due_date }}</span>{% endif %}
+        </div>
+        <div class="task-actions">
+          <button class="btn-start" onclick="changeStatus({{ t.id }}, 'in-progress')">▶ Bắt đầu</button>
+          <button class="btn-done" onclick="changeStatus({{ t.id }}, 'done')">✓ Xong</button>
+          <button class="btn-progress" data-tid="{{ t.id }}" data-title="{{ t.title|e }}" data-desc="{{ t.description|e if t.description else '' }}" data-assigned="{{ t.assigned_name|e if t.assigned_name else '' }}" data-due="{{ t.due_date or '' }}" onclick="openProgressFromBtn(this)">
+            📝 Cập nhật{% if progress_counts.get(t.id, 0) %}<span class="cnt">{{ progress_counts.get(t.id, 0) }}</span>{% endif %}
+          </button>
+          {% if is_manager %}
+          <button class="btn-del" onclick="deleteTask({{ t.id }})">🗑</button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% if not tasks_todo %}
+      <div style="text-align:center;color:#cbd5e1;padding:20px;font-size:13px;">Không có</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Đang làm -->
+  <div class="col-12 col-md-4" id="col-inprogress">
+    <div class="task-col" style="background:#eff6ff;">
+      <div class="task-col-header" style="color:#2563eb;">
+        <span><i class="bi bi-arrow-right-circle-fill"></i> Đang làm</span>
+        <span style="background:#dbeafe;color:#2563eb;padding:2px 8px;border-radius:10px;">{{ tasks_in_progress | length }}</span>
+      </div>
+      {% for t in tasks_in_progress %}
+      <div class="task-card {{ t.priority }}" id="tc-{{ t.id }}">
+        <div class="task-title">{{ t.title }}</div>
+        {% if t.description %}
+        <div class="task-desc" style="font-size:12px;color:#475569;margin-top:6px;line-height:1.45;white-space:pre-wrap;background:#f8fafc;padding:8px 10px;border-radius:6px;border-left:3px solid #cbd5e1;">{{ t.description }}</div>
+        {% endif %}
+        <div class="task-meta">
+          <span class="prio-badge prio-{{ t.priority }}">{{ {'urgent':'🔴 Khẩn','high':'🟠 Cao','normal':'🔵 Bình thường','low':'⚪ Thấp'}.get(t.priority, t.priority) }}</span>
+          {% if t.role_type %}<span><i class="bi bi-people"></i> {{ cc_role_label_fn(t.role_type) }}</span>{% endif %}
+          {% if t.assigned_name %}<span><i class="bi bi-person"></i> {{ t.assigned_name }}</span>{% endif %}
+          {% if t.due_date %}<span><i class="bi bi-calendar"></i> {{ t.due_date }}</span>{% endif %}
+        </div>
+        <div class="task-actions">
+          <button class="btn-done" onclick="changeStatus({{ t.id }}, 'done')">✓ Hoàn thành</button>
+          <button class="btn-reopen" onclick="changeStatus({{ t.id }}, 'todo')">↩ Hoàn tác</button>
+          <button class="btn-progress" data-tid="{{ t.id }}" data-title="{{ t.title|e }}" data-desc="{{ t.description|e if t.description else '' }}" data-assigned="{{ t.assigned_name|e if t.assigned_name else '' }}" data-due="{{ t.due_date or '' }}" onclick="openProgressFromBtn(this)">
+            📝 Cập nhật{% if progress_counts.get(t.id, 0) %}<span class="cnt">{{ progress_counts.get(t.id, 0) }}</span>{% endif %}
+          </button>
+          {% if is_manager %}
+          <button class="btn-del" onclick="deleteTask({{ t.id }})">🗑</button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% if not tasks_in_progress %}
+      <div style="text-align:center;color:#bfdbfe;padding:20px;font-size:13px;">Không có</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Hoàn thành -->
+  <div class="col-12 col-md-4" id="col-done">
+    <div class="task-col" style="background:#f0fdf4;">
+      <div class="task-col-header" style="color:#059669;">
+        <span><i class="bi bi-check-circle-fill"></i> Hoàn thành</span>
+        <span style="background:#d1fae5;color:#059669;padding:2px 8px;border-radius:10px;">{{ tasks_done | length }}</span>
+      </div>
+      {% for t in tasks_done %}
+      <div class="task-card low" id="tc-{{ t.id }}" style="opacity:.75;">
+        <div class="task-title" style="text-decoration:line-through;color:#94a3b8;">{{ t.title }}</div>
+        <div class="task-meta">
+          {% if t.assigned_name %}<span><i class="bi bi-person"></i> {{ t.assigned_name }}</span>{% endif %}
+          {% if t.completed_at %}<span><i class="bi bi-clock-history"></i> {{ t.completed_at | hcm_time('%d/%m %H:%M') }}</span>{% endif %}
+        </div>
+        <div class="task-actions">
+          <button class="btn-reopen" onclick="changeStatus({{ t.id }}, 'todo')">↩ Mở lại</button>
+          <button class="btn-progress" data-tid="{{ t.id }}" data-title="{{ t.title|e }}" data-desc="{{ t.description|e if t.description else '' }}" data-assigned="{{ t.assigned_name|e if t.assigned_name else '' }}" data-due="{{ t.due_date or '' }}" onclick="openProgressFromBtn(this)">
+            📝 {% if progress_counts.get(t.id, 0) %}<span class="cnt">{{ progress_counts.get(t.id, 0) }}</span>{% else %}Cập nhật{% endif %}
+          </button>
+          {% if is_manager %}
+          <button class="btn-del" onclick="deleteTask({{ t.id }})">🗑</button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% if not tasks_done %}
+      <div style="text-align:center;color:#a7f3d0;padding:20px;font-size:13px;">Chưa có việc nào xong</div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal tạo task -->
+{% if is_manager %}
+<div class="modal fade" id="modalTask" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="border-radius:14px;">
+      <div class="modal-header" style="border-bottom:1px solid #e2e8f0;">
+        <h5 class="modal-title fw-bold"><i class="bi bi-plus-circle" style="color:var(--brand);"></i> Tạo công việc mới</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Tiêu đề <span style="color:red;">*</span></label>
+            <input type="text" id="t-title" class="form-control" placeholder="Mô tả công việc...">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Mô tả chi tiết</label>
+            <textarea id="t-desc" class="form-control" rows="2" placeholder="Hướng dẫn, mục tiêu..."></textarea>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Loại</label>
+            <select id="t-type" class="form-select">
+              <option value="one-time">Một lần</option>
+              <option value="daily">Hàng ngày</option>
+              <option value="weekly">Hàng tuần</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Độ ưu tiên</label>
+            <select id="t-priority" class="form-select">
+              <option value="normal">Bình thường</option>
+              <option value="high">Cao</option>
+              <option value="urgent">Khẩn cấp</option>
+              <option value="low">Thấp</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Hạn chót</label>
+            <input type="date" id="t-due" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Giao cho nhóm</label>
+            <select id="t-role" class="form-select">
+              <option value="">— Tất cả —</option>
+              {% for role, info in CC_ROLES.items() %}
+              <option value="{{ role }}">{{ info[0] }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Giao cho cá nhân</label>
+            <select id="t-assigned" data-cc-search class="form-select">
+              <option value="">— Không giao cụ thể —</option>
+              {% for e in all_employees %}
+              <option value="{{ e.user_id }}">{{ e.full_name }} ({{ cc_role_label_fn(e.cc_role) }})</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Huỷ</button>
+        <button class="btn btn-sm fw-bold" style="background:var(--brand);color:#fff;" onclick="submitTask()">
+          <i class="bi bi-plus-lg"></i> Tạo công việc
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Modal cập nhật tiến độ -->
+<div class="modal fade" id="modalProgress" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content" style="border-radius:14px;">
+      <div class="modal-header" style="border-bottom:1px solid #e2e8f0;">
+        <h5 class="modal-title fw-bold">
+          <i class="bi bi-journal-text" style="color:#b45309;"></i>
+          Cập nhật tiến độ
+          <div id="mp-task-title" style="font-size:13px;color:#64748b;font-weight:500;margin-top:2px;"></div>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Nội dung công việc -->
+        <div id="mp-task-info" style="background:#eff6ff;border-left:3px solid #2563eb;border-radius:8px;padding:10px 12px;margin-bottom:14px;">
+          <div style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">
+            <i class="bi bi-info-circle"></i> Nội dung công việc
+          </div>
+          <div id="mp-task-desc" style="font-size:13px;color:#1e293b;white-space:pre-wrap;line-height:1.5;"></div>
+          <div id="mp-task-meta" style="font-size:12px;color:#64748b;margin-top:6px;display:flex;gap:10px;flex-wrap:wrap;"></div>
+        </div>
+        <!-- Form nhập cập nhật mới -->
+        <div style="background:#fef3c7;border-radius:10px;padding:12px;margin-bottom:14px;">
+          <div style="font-size:12px;font-weight:700;color:#78350f;margin-bottom:6px;">
+            <i class="bi bi-pencil-square"></i> Thêm cập nhật mới
+          </div>
+          <div class="mb-2">
+            <select id="mp-type" class="form-select form-select-sm" style="max-width:200px;">
+              <option value="note">📝 Ghi chú</option>
+              <option value="done">✅ Đã hoàn thành (1 phần)</option>
+              <option value="pending">⏳ Chưa xong / còn làm</option>
+              <option value="blocker">🚫 Gặp vướng mắc</option>
+            </select>
+          </div>
+          <textarea id="mp-content" class="form-control form-control-sm" rows="3"
+                    placeholder="Hôm nay đã làm gì? Còn gì chưa xong? Có gặp khó khăn không?..."></textarea>
+          <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+            <button class="btn btn-sm fw-bold" style="background:#b45309;color:#fff;" onclick="submitProgress()">
+              <i class="bi bi-send"></i> Gửi cập nhật
+            </button>
+          </div>
+        </div>
+
+        <!-- Lịch sử -->
+        <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;">
+          <i class="bi bi-clock-history"></i> Lịch sử cập nhật
+        </div>
+        <div id="mp-list">
+          <div style="text-align:center;color:#cbd5e1;padding:14px;font-size:13px;">Đang tải...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Mobile tab switcher
+const COLS = ['todo', 'inprogress', 'done'];
+function switchTab(tab, btn) {
+  const isMobile = window.innerWidth < 768;
+  if (!isMobile) return;
+  document.querySelectorAll('.mobile-tabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  COLS.forEach(id => {
+    const el = document.getElementById('col-' + id);
+    if (el) el.classList.toggle('mobile-col-hide', id !== tab);
+  });
+}
+// Init mobile view: hide inprogress and done on load
+function initMobileTabs() {
+  if (window.innerWidth < 768) {
+    ['inprogress', 'done'].forEach(id => {
+      const el = document.getElementById('col-' + id);
+      if (el) el.classList.add('mobile-col-hide');
+    });
+    const todoBtn = document.querySelector('.mobile-tabs button');
+    if (todoBtn) todoBtn.classList.add('active');
+  }
+}
+document.addEventListener('DOMContentLoaded', initMobileTabs);
+
+async function changeStatus(id, status) {
+  const r = await ccPost(`/cham-cong/api/tasks/${id}/status`, {status});
+  if (r.ok) {
+    ccToast('✅ ' + r.msg);
+    setTimeout(() => location.reload(), 600);
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+  }
+}
+async function deleteTask(id) {
+  if (!confirm('Xoá công việc này?')) return;
+  const r = await ccDelete(`/cham-cong/api/tasks/${id}`);
+  if (r.ok) {
+    ccToast('🗑 Đã xoá');
+    document.getElementById(`tc-${id}`)?.remove();
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+  }
+}
+// ── Task progress updates ─────────────────────────────────────
+let currentProgressTaskId = null;
+const CURRENT_UID = {{ (user.id if user else '') | tojson }};
+const IS_MANAGER_JS = {{ 'true' if is_manager else 'false' }};
+
+const PTYPE_LABEL = {
+  'note':    {cls:'ptype-note',    txt:'📝 Ghi chú'},
+  'done':    {cls:'ptype-done',    txt:'✅ Đã xong'},
+  'pending': {cls:'ptype-pending', txt:'⏳ Còn làm'},
+  'blocker': {cls:'ptype-blocker', txt:'🚫 Vướng mắc'},
+};
+
+function openProgressFromBtn(btn) {
+  openProgress(
+    parseInt(btn.dataset.tid),
+    btn.dataset.title || '',
+    btn.dataset.desc || '',
+    btn.dataset.assigned || '',
+    btn.dataset.due || ''
+  );
+}
+
+async function openProgress(taskId, title, desc, assigned, due) {
+  currentProgressTaskId = taskId;
+  document.getElementById('mp-task-title').textContent = title;
+  // Hiển thị nội dung công việc
+  const descEl = document.getElementById('mp-task-desc');
+  const infoBox = document.getElementById('mp-task-info');
+  if (desc && desc.trim()) {
+    descEl.textContent = desc;
+    infoBox.style.display = '';
+  } else {
+    descEl.innerHTML = '<em style="color:#94a3b8;">(Chưa có mô tả chi tiết — liên hệ người giao việc nếu cần)</em>';
+    infoBox.style.display = '';
+  }
+  const metaParts = [];
+  if (assigned) metaParts.push(`<span><i class="bi bi-person"></i> ${assigned}</span>`);
+  if (due) metaParts.push(`<span><i class="bi bi-calendar"></i> Hạn: ${due}</span>`);
+  document.getElementById('mp-task-meta').innerHTML = metaParts.join('');
+  document.getElementById('mp-content').value = '';
+  document.getElementById('mp-type').value = 'note';
+  document.getElementById('mp-list').innerHTML =
+    '<div style="text-align:center;color:#cbd5e1;padding:14px;font-size:13px;">Đang tải...</div>';
+  const modal = new bootstrap.Modal(document.getElementById('modalProgress'));
+  modal.show();
+  await loadProgress(taskId);
+}
+
+async function loadProgress(taskId) {
+  try {
+    const r = await fetch(`/cham-cong/api/tasks/${taskId}/progress`);
+    const j = await r.json();
+    renderProgressList(j.items || []);
+  } catch(e) {
+    document.getElementById('mp-list').innerHTML =
+      '<div style="text-align:center;color:#dc2626;padding:14px;font-size:13px;">Lỗi tải dữ liệu</div>';
+  }
+}
+
+function renderProgressList(items) {
+  const el = document.getElementById('mp-list');
+  if (!items.length) {
+    el.innerHTML = '<div style="text-align:center;color:#cbd5e1;padding:14px;font-size:13px;">Chưa có cập nhật nào.</div>';
+    return;
+  }
+  el.innerHTML = items.map(it => {
+    const lbl = PTYPE_LABEL[it.progress_type] || PTYPE_LABEL['note'];
+    const canDel = IS_MANAGER_JS || String(it.user_id) === String(CURRENT_UID);
+    const delBtn = canDel
+      ? `<button onclick="deleteProgress(${it.id})" title="Xoá"
+           style="background:none;border:none;color:#dc2626;font-size:12px;cursor:pointer;">🗑</button>`
+      : '';
+    const safeContent = String(it.content || '').replace(/[&<>]/g,
+      c => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+    const timeStr = formatProgressTime(it.created_at) || it.created_at_str || '';
+    return `<div class="progress-item">
+      <div class="ph">
+        <span><span class="${lbl.cls}">${lbl.txt}</span>
+          · <i class="bi bi-person"></i> ${it.user_name || it.user_id}
+          · <i class="bi bi-clock"></i> <span title="${it.created_at || ''}">${timeStr}</span></span>
+        ${delBtn}
+      </div>
+      <div class="pc">${safeContent}</div>
+    </div>`;
+  }).join('');
+}
+
+function formatProgressTime(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const now = new Date();
+    const diffSec = Math.floor((now - d) / 1000);
+    // Tuyệt đối
+    const pad = n => String(n).padStart(2, '0');
+    const abs = `${pad(d.getHours())}:${pad(d.getMinutes())} ${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+    // Tương đối (chỉ hiện nếu trong 7 ngày)
+    if (diffSec < 60) return 'vừa xong · ' + abs;
+    if (diffSec < 3600) return Math.floor(diffSec/60) + ' phút trước · ' + abs;
+    if (diffSec < 86400) return Math.floor(diffSec/3600) + ' giờ trước · ' + abs;
+    if (diffSec < 7*86400) return Math.floor(diffSec/86400) + ' ngày trước · ' + abs;
+    return abs;
+  } catch(e) { return ''; }
+}
+
+async function submitProgress() {
+  if (!currentProgressTaskId) return;
+  const content = document.getElementById('mp-content').value.trim();
+  if (!content) { ccToast('Nhập nội dung cập nhật!', 'error'); return; }
+  const ptype = document.getElementById('mp-type').value;
+  const r = await ccPost(`/cham-cong/api/tasks/${currentProgressTaskId}/progress`, {
+    content, progress_type: ptype
+  });
+  if (r.ok) {
+    ccToast('✅ ' + r.msg);
+    document.getElementById('mp-content').value = '';
+    await loadProgress(currentProgressTaskId);
+    // Update badge count on card
+    const btns = document.querySelectorAll(`.btn-progress[data-tid="${currentProgressTaskId}"]`);
+    btns.forEach(b => {
+      let cnt = b.querySelector('.cnt');
+      if (!cnt) {
+        cnt = document.createElement('span');
+        cnt.className = 'cnt';
+        cnt.textContent = '1';
+        b.appendChild(cnt);
+      } else {
+        cnt.textContent = (parseInt(cnt.textContent) || 0) + 1;
+      }
+    });
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+  }
+}
+
+async function deleteProgress(pid) {
+  if (!confirm('Xoá cập nhật này?')) return;
+  const r = await ccDelete(`/cham-cong/api/tasks/progress/${pid}`);
+  if (r.ok) {
+    ccToast('🗑 Đã xoá');
+    await loadProgress(currentProgressTaskId);
+    // Decrement badge
+    const btns = document.querySelectorAll(`.btn-progress[data-tid="${currentProgressTaskId}"]`);
+    btns.forEach(b => {
+      const cnt = b.querySelector('.cnt');
+      if (cnt) {
+        const n = (parseInt(cnt.textContent) || 1) - 1;
+        if (n <= 0) cnt.remove(); else cnt.textContent = n;
+      }
+    });
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+  }
+}
+
+async function submitTask() {
+  const title = document.getElementById('t-title').value.trim();
+  if (!title) { ccToast('Nhập tiêu đề!', 'error'); return; }
+  const r = await ccPost('/cham-cong/api/tasks', {
+    title,
+    description: document.getElementById('t-desc').value,
+    task_type:   document.getElementById('t-type').value,
+    priority:    document.getElementById('t-priority').value,
+    due_date:    document.getElementById('t-due').value || null,
+    role_type:   document.getElementById('t-role').value,
+    assigned_to: document.getElementById('t-assigned').value,
+  });
+  if (r.ok) {
+    ccToast('✅ ' + r.msg);
+    bootstrap.Modal.getInstance(document.getElementById('modalTask')).hide();
+    setTimeout(() => location.reload(), 700);
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+  }
+}
+</script>
+{% endblock %}

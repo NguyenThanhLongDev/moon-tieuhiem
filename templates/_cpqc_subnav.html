@@ -1,0 +1,28 @@
+{# ── Thanh tab phụ DÙNG CHUNG cho cụm Chi phí QC (kiểu .cc-subnav của Chấm công) ──
+   Cách dùng: đặt ngay SAU {% include "_main_nav.html" %}:
+     {% set cpqc_active = 'bao_cao' %}{% include "_cpqc_subnav.html" %}
+   Giá trị cpqc_active: chi_phi | bao_cao | bao_cao_kt | page_test | page_account | huong_dan | ghi_chi_phi
+   Phụ thuộc: Bootstrap Icons + session (đều có sẵn). #}
+{% set _cpqc_full  = session.get('role') in ('admin','superadmin','manager','ketoan','accountant','it') %}
+{% set _cpqc_admin = session.get('role') in ('admin','superadmin','manager','it') %}
+<style>
+  /* Chuyển tab mượt, không nhấp nháy trắng (cross-document View Transitions) */
+  @view-transition { navigation: auto; }
+  .topbar { view-transition-name: app-topbar; }   /* giữ navbar đen đứng yên khi chuyển trang */
+  .cpqc-subnav { background:#fff; border-bottom:2px solid #e2e8f0; padding:0 16px; display:flex; gap:4px; overflow-x:auto; view-transition-name:pa-tabbar; }
+  .cpqc-subnav a { display:flex; align-items:center; gap:5px; padding:10px 14px; font-size:13px; font-weight:500; color:#64748b; text-decoration:none; border-bottom:3px solid transparent; margin-bottom:-2px; white-space:nowrap; transition:.15s; }
+  .cpqc-subnav a:hover { color:#F59E0B; }
+  .cpqc-subnav a.active { color:#F59E0B; border-bottom-color:#F59E0B; font-weight:600; }
+  .cpqc-subnav a .bi { font-size:15px; }
+  .cpqc-subnav::-webkit-scrollbar { height:0; }
+  @media (max-width:640px){ .cpqc-subnav { padding:0 8px; } .cpqc-subnav a { padding:9px 10px; font-size:12px; } }
+</style>
+<div class="cpqc-subnav">
+  {% if _cpqc_full %}
+  <a href="/chi-phi-qc/bao-cao" class="{% if cpqc_active=='bao_cao' %}active{% endif %}"><i class="bi bi-bar-chart"></i> Báo cáo</a>
+  <a href="/chi-phi-qc/bao-cao-kt" class="{% if cpqc_active=='bao_cao_kt' %}active{% endif %}"><i class="bi bi-receipt-cutoff"></i> Bc ads KT</a>
+  <a href="/chi-phi-qc/lai-lo" class="{% if cpqc_active=='lai_lo' %}active{% endif %}"><i class="bi bi-cash-stack"></i> Lãi/Lỗ</a>
+  {% endif %}
+  <a href="/chi-phi-qc/page-test" class="{% if cpqc_active=='page_test' %}active{% endif %}"><i class="bi bi-clipboard2-pulse"></i> Page Test</a>
+  <a href="{{ url_for('page_account.all_ad_accounts') }}" class="{% if cpqc_active=='page_account' %}active{% endif %}"><i class="bi bi-graph-up-arrow"></i> Tài khoản quảng cáo</a>
+</div>

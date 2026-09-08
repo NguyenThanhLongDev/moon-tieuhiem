@@ -1,0 +1,446 @@
+{% extends "cham_cong/base.html" %}
+{% block title %}Tổng quan — Chấm công{% endblock %}
+{% set active_page = 'dashboard' %}
+
+{% block extra_css %}
+<style>
+/* Mobile check-in hero */
+.checkin-hero {
+  text-align: center;
+  padding: 8px 0 4px;
+}
+.checkin-hero .today-label {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+.checkin-hero .time-badges {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.time-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 15px;
+}
+.checkin-hero .cc-checkin-btn {
+  width: 100%;
+  max-width: 340px;
+  justify-content: center;
+  font-size: 17px;
+  padding: 15px 24px;
+  border-radius: 16px;
+  letter-spacing: .01em;
+}
+.done-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #d1fae5;
+  color: #065f46;
+  border-radius: 14px;
+  padding: 14px 20px;
+  font-weight: 700;
+  font-size: 15px;
+}
+/* Sessions timeline */
+.sessions-timeline {
+  margin-bottom: 14px;
+}
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  margin-bottom: 5px;
+  background: #f8fafc;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.session-row.session-open {
+  background: #fef9c3;
+  border: 1px solid #fde047;
+}
+.session-num {
+  font-weight: 700;
+  font-size: 11px;
+  background: #e2e8f0;
+  padding: 2px 7px;
+  border-radius: 6px;
+  color: #475569;
+  flex-shrink: 0;
+}
+.session-ci { color: #059669; font-weight: 600; }
+.session-arrow { color: #94a3b8; }
+.session-co { color: #dc2626; font-weight: 600; }
+.session-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #d97706;
+  font-weight: 600;
+}
+.pulse-dot {
+  width: 8px; height: 8px;
+  background: #d97706;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+  display: inline-block;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+.total-hours-row {
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #6d28d9;
+  background: #ede9fe;
+  border-radius: 8px;
+  margin-top: 4px;
+}
+.btn-new-shift {
+  background: linear-gradient(135deg, #0ea5e9, #6366f1) !important;
+  color: #fff !important;
+}
+@media (min-width: 768px) {
+  .checkin-hero { text-align: left; }
+  .checkin-hero .time-badges { justify-content: flex-start; }
+  .checkin-hero .cc-checkin-btn { width: auto; max-width: none; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+
+  <!-- Chấm công hôm nay -->
+  <div class="col-12 col-md-5">
+    <div class="cc-card">
+      <div class="cc-card-title"><i class="bi bi-clock-history"></i> Chấm công hôm nay</div>
+
+      <div class="checkin-hero">
+        <div class="today-label">
+          {{ today.strftime('%A, %d/%m/%Y') | replace('Monday','Thứ 2') | replace('Tuesday','Thứ 3') | replace('Wednesday','Thứ 4') | replace('Thursday','Thứ 5') | replace('Friday','Thứ 6') | replace('Saturday','Thứ 7') | replace('Sunday','Chủ nhật') }}
+        </div>
+
+        {# ── Timeline các phiên hôm nay ── #}
+        {% if today_sessions %}
+        <div class="sessions-timeline" id="sessionsTimeline">
+          {% for s in today_sessions %}
+          <div class="session-row {% if not s.check_out %}session-open{% endif %}">
+            <span class="session-num">Ca {{ loop.index }}</span>
+            <span class="session-ci">
+              <i class="bi bi-box-arrow-in-right"></i> {{ s.check_in | hcm_time }}
+            </span>
+            {% if s.check_out %}
+            <span class="session-arrow">→</span>
+            <span class="session-co">
+              <i class="bi bi-box-arrow-right"></i> {{ s.check_out | hcm_time }}
+            </span>
+            {% else %}
+            <span class="session-running">
+              <span class="pulse-dot"></span> Đang làm
+            </span>
+            {% endif %}
+          </div>
+          {% endfor %}
+          {% if total_hours_today %}
+          <div class="total-hours-row">
+            <i class="bi bi-stopwatch"></i> Tổng hôm nay: <strong>{{ total_hours_today }}</strong>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {# ── Nút hành động ── #}
+        {% if open_session %}
+          <button class="cc-checkin-btn btn-out" onclick="doCheckOut(this)">
+            <i class="bi bi-box-arrow-right"></i> Check-out
+          </button>
+        {% else %}
+          {% if today_sessions %}
+          <button class="cc-checkin-btn btn-new-shift" onclick="doCheckIn(this)">
+            <i class="bi bi-box-arrow-in-right"></i> Check-in ca mới (Ca {{ today_sessions|length + 1 }})
+          </button>
+          {% else %}
+          <p style="color:#94a3b8;font-size:14px;margin-bottom:16px;">Bạn chưa check-in hôm nay.</p>
+          <button class="cc-checkin-btn btn-in" onclick="doCheckIn(this)">
+            <i class="bi bi-box-arrow-in-right"></i> Check-in ngay
+          </button>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Thông báo -->
+    {% if announcements %}
+    <div class="cc-card">
+      <div class="cc-card-title"><i class="bi bi-megaphone"></i> Thông báo nội bộ</div>
+      {% for ann in announcements %}
+      {% set _long = ann.content and ann.content|length > 120 %}
+      <div class="ann-item" data-id="{{ loop.index }}" style="padding:10px 0;border-bottom:1px solid #f1f5f9;">
+        {% if ann.is_pinned %}
+        <span style="background:#fef3c7;color:#d97706;font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px;margin-right:6px;">
+          <i class="bi bi-pin-fill"></i> Ghim
+        </span>
+        {% endif %}
+        <strong style="font-size:14px;">{{ ann.title }}</strong>
+        {% if ann.content %}
+        <p class="ann-short" data-id="{{ loop.index }}" style="font-size:13px;color:#64748b;margin:4px 0 0;white-space:pre-wrap;">
+          {{- ann.content[:120] -}}{%- if _long %}…{% endif -%}
+        </p>
+        {% if _long %}
+        <p class="ann-full" data-id="{{ loop.index }}" style="font-size:13px;color:#64748b;margin:4px 0 0;white-space:pre-wrap;display:none;">{{ ann.content }}</p>
+        <a href="#" class="ann-toggle" data-id="{{ loop.index }}" style="font-size:12px;color:#F59E0B;font-weight:600;text-decoration:none;">Xem thêm ▾</a>
+        {% endif %}
+        {% endif %}
+        <div style="font-size:11px;color:#94a3b8;margin-top:4px;">
+          {{ ann.author_name or 'Admin' }} · {{ ann.created_at | hcm_time('%d/%m %H:%M') if ann.created_at else '' }}
+        </div>
+      </div>
+      {% endfor %}
+      <script>
+      document.querySelectorAll('.ann-toggle').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.preventDefault();
+          const id = btn.dataset.id;
+          const sh = document.querySelector('.ann-short[data-id="'+id+'"]');
+          const fl = document.querySelector('.ann-full[data-id="'+id+'"]');
+          const isOpen = fl.style.display !== 'none';
+          if (isOpen) {
+            fl.style.display = 'none'; sh.style.display = ''; btn.innerHTML = 'Xem thêm ▾';
+          } else {
+            fl.style.display = ''; sh.style.display = 'none'; btn.innerHTML = 'Thu gọn ▴';
+          }
+        });
+      });
+      </script>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Công việc hôm nay -->
+  <div class="col-12 col-md-7">
+    <div class="cc-card">
+      <div class="cc-card-title" style="justify-content:space-between;">
+        <span><i class="bi bi-list-task"></i> Công việc của tôi</span>
+        <a href="/cham-cong/cong-viec" style="font-size:12px;color:var(--brand);text-decoration:none;">
+          Xem tất cả <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+
+      {% if my_tasks %}
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        {% for t in my_tasks %}
+        <div style="background:#f8fafc;border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;"
+             id="task-row-{{ t.id }}">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:14px;font-weight:500;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              {{ t.title }}
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+              <span class="prio-badge prio-{{ t.priority }}">{{ {'urgent':'🔴 Khẩn','high':'🟠 Cao','normal':'🔵 Bình thường','low':'⚪ Thấp'}.get(t.priority, t.priority) }}</span>
+              {% if t.due_date %}
+              <span style="font-size:11px;color:#94a3b8;">⏰ {{ t.due_date }}</span>
+              {% endif %}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            {% if t.status == 'todo' %}
+            <button class="btn btn-sm" style="background:#dbeafe;color:#2563eb;border:none;border-radius:7px;font-size:12px;"
+                    onclick="updateStatus({{ t.id }}, 'in-progress', this)">
+              <i class="bi bi-play-fill"></i> Bắt đầu
+            </button>
+            {% elif t.status == 'in-progress' %}
+            <button class="btn btn-sm" style="background:#d1fae5;color:#059669;border:none;border-radius:7px;font-size:12px;"
+                    onclick="updateStatus({{ t.id }}, 'done', this)">
+              <i class="bi bi-check2"></i> Hoàn thành
+            </button>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:20px;color:#94a3b8;">
+        <i class="bi bi-check-circle" style="font-size:28px;"></i>
+        <p style="margin-top:8px;font-size:14px;">Không có công việc nào hôm nay!</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Admin: Team attendance hôm nay -->
+  {% if is_manager and team_today is defined %}
+  <div class="col-12">
+    <div class="cc-card">
+      <div class="cc-card-title"><i class="bi bi-people"></i> Tình trạng team hôm nay</div>
+
+      <!-- Stats -->
+      {% set checked_in = team_today | selectattr('check_in') | list | length %}
+      {% set checked_out = team_today | selectattr('check_out') | list | length %}
+      <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3">
+          <div class="cc-stat">
+            <div class="cc-stat-icon" style="background:#d1fae522;color:#059669;"><i class="bi bi-person-check-fill"></i></div>
+            <div><div class="cc-stat-val">{{ checked_in }}</div><div class="cc-stat-lbl">Đã check-in</div></div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="cc-stat">
+            <div class="cc-stat-icon" style="background:#fee2e222;color:#dc2626;"><i class="bi bi-person-x-fill"></i></div>
+            <div><div class="cc-stat-val">{{ checked_out }}</div><div class="cc-stat-lbl">Đã check-out</div></div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="cc-stat">
+            <div class="cc-stat-icon" style="background:#dbeafe22;color:#2563eb;"><i class="bi bi-people-fill"></i></div>
+            <div><div class="cc-stat-val">{{ all_employees | length }}</div><div class="cc-stat-lbl">Tổng NV trong hệ thống</div></div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="cc-stat">
+            <div class="cc-stat-icon" style="background:#fef3c722;color:#d97706;"><i class="bi bi-clock"></i></div>
+            <div><div class="cc-stat-val">{{ (checked_in - checked_out) }}</div><div class="cc-stat-lbl">Đang làm việc</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      {% if team_today %}
+      <div class="table-responsive">
+        <table class="table table-sm" style="font-size:13px;">
+          <thead style="background:#f8fafc;">
+            <tr>
+              <th>Nhân viên</th>
+              <th class="d-none d-sm-table-cell">Vai trò</th>
+              <th>Check-in</th>
+              <th class="d-none d-md-table-cell">Check-out</th>
+              <th>Thời gian</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in team_today %}
+            <tr>
+              <td>
+                <strong>{{ r.full_name or r.user_id }}</strong>
+                {% if r.cc_role %}
+                <div class="d-sm-none mt-1">
+                  <span style="font-size:11px;font-weight:600;padding:2px 6px;border-radius:5px;background:#ede9fe;color:#6366f1;">
+                    {{ cc_role_label_fn(r.cc_role) }}
+                  </span>
+                </div>
+                {% endif %}
+              </td>
+              <td class="d-none d-sm-table-cell">
+                {% if r.cc_role %}
+                <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:5px;background:#ede9fe;color:#6366f1;">
+                  {{ cc_role_label_fn(r.cc_role) }}
+                </span>
+                {% else %}—{% endif %}
+              </td>
+              <td style="color:#059669;">
+                {% if r.check_in %}✅ {{ r.check_in | hcm_time }}{% else %}—{% endif %}
+              </td>
+              <td class="d-none d-md-table-cell" style="color:#dc2626;">
+                {% if r.check_out %}{{ r.check_out | hcm_time }}{% else %}—{% endif %}
+              </td>
+              <td>
+                {% if r.check_in and r.check_out %}
+                  {% set mins = ((r.check_out - r.check_in).total_seconds() / 60) | round | int %}
+                  {{ (mins // 60) | int }}g{{ '%02d' % (mins % 60) }}p
+                {% elif r.check_in %}
+                  <span style="color:#f59e0b;">Đang làm</span>
+                {% else %}
+                  <span style="color:#94a3b8;">Vắng</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p style="color:#94a3b8;text-align:center;padding:10px;">Chưa có ai check-in hôm nay.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function doCheckIn(btn) {
+  btn.disabled = true;
+  const origHtml = btn.innerHTML;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Đang xử lý...';
+
+  // adser cần GPS
+  let payload = {};
+  const isAdser = (btn.dataset && btn.dataset.role === 'adser') || {{ 'true' if cc_role == 'adser' else 'false' }};
+  if (isAdser && navigator.geolocation) {
+    try {
+      const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, {timeout:8000}));
+      payload = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    } catch(e) {
+      ccToast('Không lấy được GPS. Vui lòng bật định vị!', 'error');
+      btn.disabled = false; btn.innerHTML = origHtml; return;
+    }
+  }
+
+  const r = await ccPost('/cham-cong/api/checkin', payload);
+  if (r.ok) {
+    ccToast('✅ ' + r.msg);
+    setTimeout(() => location.reload(), 1200);
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
+  }
+}
+async function doCheckOut(btn) {
+  if (!confirm('Xác nhận check-out ca này?')) return;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Đang xử lý...';
+  const r = await ccPost('/cham-cong/api/checkout', {});
+  if (r.ok) {
+    ccToast('👋 ' + r.msg);
+    setTimeout(() => location.reload(), 1200);
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-box-arrow-right"></i> Check-out';
+  }
+}
+async function updateStatus(taskId, status, btn) {
+  const labels = {'in-progress':'Đang làm','done':'Hoàn thành','todo':'Mở lại'};
+  btn.disabled = true;
+  const r = await ccPost(`/cham-cong/api/tasks/${taskId}/status`, {status});
+  if (r.ok) {
+    ccToast('✅ ' + (labels[status] || status));
+    const row = document.getElementById(`task-row-${taskId}`);
+    if (row && status === 'done') {
+      row.style.opacity = '.4';
+      setTimeout(() => row.remove(), 600);
+    } else {
+      setTimeout(() => location.reload(), 700);
+    }
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}

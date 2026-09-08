@@ -1,0 +1,290 @@
+{% extends "hr/_base.html" %}
+{% block title %}Hồ sơ của tôi — HR{% endblock %}
+{% block content %}
+
+{% set status = profile.status or 'draft' %}
+{% set status_label = {
+  'draft': '📝 Bản nháp',
+  'submitted': '⏳ Chờ admin duyệt',
+  'approved': '✅ Đã duyệt',
+  'rejected': '⚠️ Cần bổ sung'
+}[status] %}
+
+{% if my_pending_sign_count and my_pending_sign_count > 0 %}
+<div class="alert-note" style="background:#dcfce7; border-left-color:#16a34a">
+  <div class="label" style="color:#166534">📄 Bạn có {{ my_pending_sign_count }} hợp đồng đang chờ ký:</div>
+  <div style="margin-top:8px">
+    <a href="{{ url_for('hr.employee_contracts', uid=session.get('user_id')) }}"
+       class="btn btn-success btn-sm">
+      <i class="bi bi-pen"></i> Vào trang Hợp đồng để ký ngay
+    </a>
+  </div>
+</div>
+{% endif %}
+
+<div class="hr-card">
+  <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+    <div class="hr-card-title mb-0" style="flex:1">
+      <i class="bi bi-person-vcard"></i> Hồ sơ cá nhân
+    </div>
+    <span class="status-badge status-{{ status }}">{{ status_label }}</span>
+  </div>
+  <div class="text-muted small">
+    Username: <code>{{ profile.username }}</code> ·
+    Vai trò: <strong>{{ profile.role }}</strong>
+    {% if profile.team_name %} · Team: <strong>{{ profile.team_name }}</strong>{% endif %}
+  </div>
+</div>
+
+{% if status == 'rejected' and profile.admin_note %}
+<div class="alert-note">
+  <div class="label">⚠️ Admin yêu cầu bổ sung:</div>
+  <div style="margin-top:6px">{{ profile.admin_note }}</div>
+  <div class="small text-muted mt-2">Vui lòng điền đầy đủ thông tin còn thiếu rồi bấm <strong>Gửi duyệt</strong> lại.</div>
+</div>
+{% elif status == 'submitted' %}
+<div class="alert alert-info py-2 px-3 mb-3">
+  ⏳ Hồ sơ đã gửi. Admin sẽ duyệt sớm — bạn vẫn có thể sửa thêm và gửi lại.
+</div>
+{% elif status == 'approved' %}
+<div class="alert alert-success py-2 px-3 mb-3">
+  ✓ Hồ sơ đã được admin duyệt. Nếu cần cập nhật thông tin mới, sửa rồi bấm "Lưu" — sẽ chuyển lại trạng thái bản nháp.
+</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('hr.my_profile_save') }}" id="hrForm">
+  <div class="hr-card">
+    <div class="hr-section-hdr">Thông tin cơ bản</div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label required">Họ và tên</label>
+        <input type="text" name="full_name" class="form-control" value="{{ profile.full_name or '' }}" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label required">Số điện thoại</label>
+        <input type="tel" name="phone" class="form-control" value="{{ profile.phone or '' }}" pattern="[0-9+()\- ]+" placeholder="0xxxxxxxxx">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Email cá nhân</label>
+        <input type="email" name="personal_email" class="form-control" value="{{ profile.personal_email or '' }}" placeholder="vd@gmail.com">
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label required">Ngày sinh</label>
+        <input type="date" name="dob" class="form-control" value="{{ profile.dob.isoformat() if profile.dob else '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Giới tính</label>
+        <select name="gender" class="form-select">
+          <option value="">— Chọn —</option>
+          <option value="male"   {% if profile.gender=='male' %}selected{% endif %}>Nam</option>
+          <option value="female" {% if profile.gender=='female' %}selected{% endif %}>Nữ</option>
+          <option value="other"  {% if profile.gender=='other' %}selected{% endif %}>Khác</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label required">Số CCCD/CMND</label>
+        <input type="text" name="id_card_number" class="form-control" value="{{ profile.id_card_number or '' }}" pattern="[0-9]+" maxlength="20">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Ngày vào công ty</label>
+        <input type="date" name="hire_date" class="form-control" value="{{ profile.hire_date.isoformat() if profile.hire_date else '' }}">
+      </div>
+    </div>
+
+    <div class="hr-section-hdr">Địa chỉ</div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Quê quán / địa chỉ thường trú</label>
+        <textarea name="hometown_address" class="form-control" rows="2" placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh">{{ profile.hometown_address or '' }}</textarea>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label required">Nơi ở hiện tại</label>
+        <textarea name="current_address" class="form-control" rows="2" placeholder="Địa chỉ đang ở">{{ profile.current_address or '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="hr-section-hdr">Liên hệ khẩn cấp</div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label required">Họ tên người thân</label>
+        <input type="text" name="emergency_contact_name" class="form-control" value="{{ profile.emergency_contact_name or '' }}" placeholder="vd: Mẹ - Nguyễn Thị A">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label required">SĐT người thân</label>
+        <input type="tel" name="emergency_contact_phone" class="form-control" value="{{ profile.emergency_contact_phone or '' }}" pattern="[0-9+()\- ]+">
+      </div>
+    </div>
+  </div>
+
+  <div class="hr-card">
+    <div class="hr-section-hdr">Ảnh hồ sơ</div>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label required">Ảnh chân dung (selfie)</label>
+        <div class="upload-box" onclick="openCam('photo')">
+          {% if profile.photo_path %}
+            <img src="{{ url_for('hr.serve_file', rel_path=profile.photo_path) }}" alt="Ảnh chân dung">
+            <div class="small mt-2 text-muted">📷 Click để chụp lại</div>
+          {% else %}
+            <div class="placeholder-text">
+              <i class="bi bi-camera"></i>
+              Chụp ảnh chân dung
+              <div class="small">Bật webcam / camera</div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label required">CCCD mặt trước</label>
+        <div class="upload-box" onclick="openCam('id_front')">
+          {% if profile.id_card_front_path %}
+            <img src="{{ url_for('hr.serve_file', rel_path=profile.id_card_front_path) }}" alt="CCCD mặt trước">
+            <div class="small mt-2 text-muted">Click để đổi ảnh</div>
+          {% else %}
+            <div class="placeholder-text">
+              <i class="bi bi-card-image"></i>
+              CCCD mặt trước
+              <div class="small">(kế toán có thể up thay)</div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label required">CCCD mặt sau</label>
+        <div class="upload-box" onclick="openCam('id_back')">
+          {% if profile.id_card_back_path %}
+            <img src="{{ url_for('hr.serve_file', rel_path=profile.id_card_back_path) }}" alt="CCCD mặt sau">
+            <div class="small mt-2 text-muted">Click để đổi ảnh</div>
+          {% else %}
+            <div class="placeholder-text">
+              <i class="bi bi-card-image"></i>
+              CCCD mặt sau
+              <div class="small">(kế toán có thể up thay)</div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 mb-4">
+    <button type="submit" class="btn btn-outline-secondary"><i class="bi bi-save"></i> Lưu bản nháp</button>
+    <button type="submit" formaction="{{ url_for('hr.my_profile_submit') }}" class="btn-brand btn">
+      <i class="bi bi-send-fill"></i> Gửi duyệt
+    </button>
+  </div>
+</form>
+
+{# Modal chụp ảnh qua webcam (desktop + mobile) #}
+<div id="cam-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:16px;max-width:560px;width:92%;">
+    <div style="font-weight:700;margin-bottom:10px" id="cam-title">📷 Chụp ảnh</div>
+    <video id="cam-video" autoplay playsinline style="width:100%;border-radius:8px;background:#000;max-height:60vh;"></video>
+    <canvas id="cam-canvas" style="display:none"></canvas>
+    <img id="cam-preview" style="display:none;width:100%;border-radius:8px;max-height:60vh;">
+    <div class="d-flex gap-2 mt-3" id="cam-btns-live">
+      <button type="button" class="btn btn-outline-secondary flex-fill" onclick="closeCam()">Huỷ</button>
+      <button type="button" class="btn-brand btn flex-fill" onclick="snapPhoto()"><i class="bi bi-camera-fill"></i> Chụp</button>
+    </div>
+    <div class="d-flex gap-2 mt-3" id="cam-btns-review" style="display:none">
+      <button type="button" class="btn btn-outline-secondary flex-fill" onclick="retakePhoto()"><i class="bi bi-arrow-counterclockwise"></i> Chụp lại</button>
+      <button type="button" class="btn-brand btn flex-fill" onclick="uploadPhoto()"><i class="bi bi-upload"></i> Lưu</button>
+    </div>
+    <div class="text-muted small mt-2 text-center">Hoặc <a href="#" onclick="pickFromGallery();return false;">chọn file có sẵn</a></div>
+  </div>
+</div>
+
+<script>
+let camStream = null, camKind = null, camBlob = null;
+
+async function openCam(kind) {
+  camKind = kind;
+  document.getElementById('cam-title').innerText = ({
+    photo: '📷 Chụp ảnh chân dung',
+    id_front: '🪪 Chụp CCCD mặt trước',
+    id_back: '🪪 Chụp CCCD mặt sau',
+  })[kind] || '📷 Chụp ảnh';
+  document.getElementById('cam-modal').style.display = 'flex';
+  document.getElementById('cam-video').style.display = '';
+  document.getElementById('cam-preview').style.display = 'none';
+  document.getElementById('cam-btns-live').style.display = 'flex';
+  document.getElementById('cam-btns-review').style.display = 'none';
+  try {
+    const facing = (kind === 'photo') ? 'user' : 'environment';
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 960 } }
+    });
+    document.getElementById('cam-video').srcObject = camStream;
+  } catch (e) {
+    alert('Không bật được camera: ' + e.message + '\nDùng nút "chọn file có sẵn" bên dưới.');
+  }
+}
+
+function snapPhoto() {
+  const v = document.getElementById('cam-video');
+  const c = document.getElementById('cam-canvas');
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext('2d').drawImage(v, 0, 0);
+  c.toBlob((blob) => {
+    camBlob = blob;
+    const url = URL.createObjectURL(blob);
+    document.getElementById('cam-preview').src = url;
+    document.getElementById('cam-preview').style.display = '';
+    document.getElementById('cam-video').style.display = 'none';
+    document.getElementById('cam-btns-live').style.display = 'none';
+    document.getElementById('cam-btns-review').style.display = 'flex';
+  }, 'image/jpeg', 0.92);
+}
+
+function retakePhoto() {
+  document.getElementById('cam-video').style.display = '';
+  document.getElementById('cam-preview').style.display = 'none';
+  document.getElementById('cam-btns-live').style.display = 'flex';
+  document.getElementById('cam-btns-review').style.display = 'none';
+  camBlob = null;
+}
+
+async function uploadPhoto() {
+  if (!camBlob) return;
+  const fd = new FormData();
+  fd.append('kind', camKind);
+  fd.append('file', camBlob, camKind + '.jpg');
+  try {
+    await fetch('{{ url_for("hr.my_profile_upload") }}', { method: 'POST', body: fd });
+    closeCam();
+    location.reload();
+  } catch (e) {
+    alert('Upload lỗi: ' + e.message);
+  }
+}
+
+function pickFromGallery() {
+  closeCam();
+  document.getElementById('up-' + ({photo:'photo',id_front:'idf',id_back:'idb'})[camKind]).click();
+}
+
+function closeCam() {
+  document.getElementById('cam-modal').style.display = 'none';
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  camBlob = null;
+}
+</script>
+
+{# Hidden upload forms — bấm vào upload-box trigger #}
+<form method="post" action="{{ url_for('hr.my_profile_upload') }}" enctype="multipart/form-data" id="upform-photo" style="display:none">
+  <input type="hidden" name="kind" value="photo">
+  {# capture="user" → mở camera trước (selfie) trên mobile #}
+  <input type="file" id="up-photo" name="file" accept="image/*" capture="user" onchange="document.getElementById('upform-photo').submit()">
+</form>
+<form method="post" action="{{ url_for('hr.my_profile_upload') }}" enctype="multipart/form-data" id="upform-idf" style="display:none">
+  <input type="hidden" name="kind" value="id_front">
+  {# capture="environment" → mở camera sau (chụp CCCD rõ hơn) trên mobile #}
+  <input type="file" id="up-idf" name="file" accept="image/*" capture="environment" onchange="document.getElementById('upform-idf').submit()">
+</form>
+<form method="post" action="{{ url_for('hr.my_profile_upload') }}" enctype="multipart/form-data" id="upform-idb" style="display:none">
+  <input type="hidden" name="kind" value="id_back">
+  <input type="file" id="up-idb" name="file" accept="image/*" capture="environment" onchange="document.getElementById('upform-idb').submit()">
+</form>
+
+{% endblock %}

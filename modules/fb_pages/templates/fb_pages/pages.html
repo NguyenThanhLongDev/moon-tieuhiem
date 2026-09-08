@@ -1,0 +1,847 @@
+{% extends "fb_pages/base.html" %}
+{% block title %}Facebook Pages{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-2">
+  <div>
+    <h1><i class="bi bi-facebook me-2" style="color:#0866ff"></i>Facebook Pages</h1>
+    <p class="text-muted mb-0">Nhân viên khai báo page đang chạy và chi tiêu quảng cáo</p>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addManualModal">
+      <i class="bi bi-plus-circle me-1"></i>Thêm page thủ công
+    </button>
+    <a href="/fb-pages/auth/start" class="btn btn-primary">
+      <i class="bi bi-arrow-repeat me-1"></i>Đồng bộ từ Facebook
+    </a>
+  </div>
+</div>
+
+{# ══════════════════════════════════════════════════
+   BANNER: Khai báo nhanh nếu chưa có page
+   ══════════════════════════════════════════════════ #}
+{% if not pages %}
+<div class="card mb-3 border-warning border-2">
+  <div class="card-body py-3">
+    <div class="d-flex align-items-center gap-3">
+      <i class="bi bi-question-circle-fill text-warning" style="font-size:2rem"></i>
+      <div>
+        <div class="fw-semibold">Page của bạn chưa có trong hệ thống?</div>
+        <div class="text-muted small">Nhập tên và link page để thêm thủ công, sau đó có thể khai báo chi tiêu.</div>
+      </div>
+      <button class="btn btn-warning ms-auto" data-bs-toggle="modal" data-bs-target="#addManualModal">
+        <i class="bi bi-plus me-1"></i>Thêm page ngay
+      </button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if not pages %}
+{# ── Empty state ── #}
+<div class="card">
+  <div class="card-body text-center py-5">
+    <i class="bi bi-facebook" style="font-size:3rem; color:#0866ff; opacity:.4"></i>
+    <h5 class="mt-3 text-muted">Chưa có Facebook Page nào</h5>
+    <p class="text-muted">Kết nối tài khoản Facebook để lấy danh sách Pages bạn đang quản lý.</p>
+    <a href="/fb-pages/auth/start" class="btn btn-primary mt-1">
+      <i class="bi bi-facebook me-1"></i>Kết nối Facebook ngay
+    </a>
+  </div>
+</div>
+
+{% else %}
+{# ── Stats row ── #}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="card">
+      <div class="card-body stat-card p-3 text-center">
+        <div class="num text-primary" style="font-size:1.8rem; font-weight:700">{{ pages|length }}</div>
+        <div class="label text-muted small">Tổng Pages</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card">
+      <div class="card-body stat-card p-3 text-center">
+        <div class="num text-success" style="font-size:1.8rem; font-weight:700">{{ pages|selectattr('is_active')|list|length }}</div>
+        <div class="label text-muted small">Đang hoạt động</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card">
+      <div class="card-body stat-card p-3 text-center">
+        <div class="num text-warning" style="font-size:1.8rem; font-weight:700">{{ pages|selectattr('ad_account_id')|list|length }}</div>
+        <div class="label text-muted small">Đã map TK QC</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card">
+      <div class="card-body stat-card p-3 text-center">
+        <div class="num text-info" style="font-size:1.8rem; font-weight:700">{{ ad_accounts|length }}</div>
+        <div class="label text-muted small">TK QC trong hệ thống</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Pages table ── #}
+<div class="card">
+  <div class="card-header py-2 d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-grid-3x3-gap me-2"></i>Danh sách Pages</span>
+    <span class="text-muted small">{{ pages|length }} pages</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th style="width:40px">#</th>
+          <th>Page</th>
+          <th class="d-none d-md-table-cell">Danh mục</th>
+          <th class="d-none d-sm-table-cell">Nhân viên phụ trách</th>
+          <th class="d-none d-lg-table-cell">Tài khoản quảng cáo</th>
+          <th class="text-center d-none d-md-table-cell">Chi tiêu khai báo</th>
+          <th class="text-center">Trạng thái</th>
+          <th class="text-end">Thao tác</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in pages %}
+        <tr id="page-{{ p.page_id }}">
+          {# Avatar #}
+          <td>
+            {% if p.picture_url %}
+              <img src="{{ p.picture_url }}" class="page-avatar" alt="">
+            {% else %}
+              <div class="page-avatar-placeholder"><i class="bi bi-facebook"></i></div>
+            {% endif %}
+          </td>
+
+          {# Page name & ID #}
+          <td>
+            <div class="fw-semibold">{{ p.page_name }}</div>
+            <div class="text-muted small font-monospace">{{ p.page_id }}</div>
+          </td>
+
+          {# Category #}
+          <td class="d-none d-md-table-cell">
+            <span class="text-muted small">{{ p.page_category or '—' }}</span>
+          </td>
+
+          {# Assignees #}
+          <td class="d-none d-sm-table-cell">
+            <div class="d-flex flex-wrap gap-1 align-items-center">
+              {% set assignees = p.assignees if p.assignees is string else p.assignees %}
+              {% if assignees and assignees != '[]' and assignees|string != 'None' %}
+                {% for a in (assignees if assignees is not string else []) %}
+                <span class="assignee-chip">
+                  <i class="bi bi-person-fill text-primary" style="font-size:.75rem"></i>
+                  {{ a.name or a.username }}
+                  <form method="post" action="/fb-pages/assign" class="d-inline m-0">
+                    <input type="hidden" name="page_id" value="{{ p.page_id }}">
+                    <input type="hidden" name="user_id" value="{{ a.user_id }}">
+                    <input type="hidden" name="action" value="remove">
+                    <button type="submit" class="btn btn-link p-0 ms-1" style="font-size:.7rem; line-height:1; color:#6c757d" title="Bỏ gán">
+                      <i class="bi bi-x"></i>
+                    </button>
+                  </form>
+                </span>
+                {% endfor %}
+              {% else %}
+                <span class="text-muted small">Chưa gán</span>
+              {% endif %}
+
+              {# Add assignee button #}
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                      data-bs-toggle="modal"
+                      data-bs-target="#assignModal"
+                      data-page-id="{{ p.page_id }}"
+                      data-page-name="{{ p.page_name }}"
+                      title="Thêm nhân viên">
+                <i class="bi bi-plus" style="font-size:.85rem"></i>
+              </button>
+            </div>
+          </td>
+
+          {# Ad account mapping #}
+          <td class="d-none d-lg-table-cell">
+            {% if p.ad_account_id %}
+              <div class="d-flex align-items-center gap-2">
+                <div>
+                  <div class="fw-semibold small">{{ p.ad_account_name or 'act_' + p.ad_account_id }}</div>
+                  <div class="text-muted small font-monospace">{{ p.ad_account_id }}</div>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                        data-bs-toggle="modal"
+                        data-bs-target="#mapAdModal"
+                        data-page-id="{{ p.page_id }}"
+                        data-page-name="{{ p.page_name }}"
+                        data-current-ad="{{ p.ad_account_id }}"
+                        data-current-shop="{{ p.shop_key or '' }}"
+                        title="Đổi TK QC">
+                  <i class="bi bi-pencil" style="font-size:.75rem"></i>
+                </button>
+              </div>
+            {% else %}
+              <button class="btn btn-sm btn-outline-warning py-0 px-2"
+                      data-bs-toggle="modal"
+                      data-bs-target="#mapAdModal"
+                      data-page-id="{{ p.page_id }}"
+                      data-page-name="{{ p.page_name }}"
+                      data-current-ad=""
+                      data-current-shop="">
+                <i class="bi bi-link-45deg me-1"></i>Map TK QC
+              </button>
+            {% endif %}
+          </td>
+
+          {# Khai báo chi tiêu #}
+          <td class="text-center d-none d-md-table-cell">
+            <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                    data-bs-toggle="modal"
+                    data-bs-target="#spendDeclModal"
+                    data-page-id="{{ p.page_id }}"
+                    data-page-name="{{ p.page_name }}"
+                    title="Khai báo chi tiêu QC">
+              <i class="bi bi-currency-dollar me-1"></i>Khai báo
+            </button>
+          </td>
+
+          {# Status #}
+          <td class="text-center">
+            {% if p.is_active %}
+              <span class="badge bg-success-subtle text-success">Hoạt động</span>
+            {% else %}
+              <span class="badge bg-secondary-subtle text-secondary">Tạm ẩn</span>
+            {% endif %}
+          </td>
+
+          {# Actions #}
+          <td class="text-end">
+            <form method="post" action="/fb-pages/toggle-active" class="d-inline">
+              <input type="hidden" name="page_id" value="{{ p.page_id }}">
+              <button type="submit" class="btn btn-sm btn-outline-{{ 'secondary' if p.is_active else 'success' }}"
+                      title="{{ 'Tạm ẩn' if p.is_active else 'Kích hoạt' }}">
+                <i class="bi bi-{{ 'eye-slash' if p.is_active else 'eye' }}"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ══════════════════════════════════════════════════
+   SECTION: Tài khoản QC của nhân viên (admin only)
+   ══════════════════════════════════════════════════ #}
+{% if current_role in ('admin','superadmin','manager') %}
+<div class="card border-0 shadow-sm mb-4" id="tab-user-ad">
+  <div class="card-header py-3 d-flex align-items-center gap-2" style="background:#fff">
+    <i class="bi bi-person-badge-fill text-primary fs-5"></i>
+    <span class="fw-bold fs-6">Tài khoản QC của nhân viên</span>
+    <span class="text-muted small ms-2">Gán TK quảng cáo để nhân viên tự dùng khi khai báo</span>
+    <button class="btn btn-sm btn-primary ms-auto" data-bs-toggle="modal" data-bs-target="#addUserAdModal">
+      <i class="bi bi-plus-lg me-1"></i>Gán TK QC
+    </button>
+  </div>
+  <div class="card-body p-0">
+    {% if users_with_ad_accounts %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0" style="font-size:13px">
+        <thead class="table-light">
+          <tr>
+            <th style="width:200px">Nhân viên</th>
+            <th>Tài khoản QC được gán</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users_with_ad_accounts %}
+          {% if u.ad_accounts and u.ad_accounts|length > 0 %}
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ u.full_name or u.username }}</div>
+              <div class="text-muted" style="font-size:11px">{{ u.username }} · {{ u.role }}</div>
+            </td>
+            <td>
+              {% for acc in u.ad_accounts %}
+              <div class="d-inline-flex align-items-center gap-2 me-2 mb-1 p-1 px-2 rounded"
+                   style="background:#eff6ff;border:1px solid #dbeafe">
+                <span style="font-size:12px;color:#2563eb">{{ acc.ad_account_name or acc.ad_account_id }}</span>
+                <span class="text-muted" style="font-size:10px">{{ acc.ad_account_id }}</span>
+                <form method="post" action="/fb-pages/user-ad-map/remove" class="d-inline m-0"
+                      onsubmit="return confirm('Xoá TK này?')">
+                  <input type="hidden" name="map_id" value="{{ acc.id }}">
+                  <button class="btn btn-sm p-0 text-danger" style="line-height:1;font-size:12px" title="Xoá">
+                    <i class="bi bi-x-circle"></i>
+                  </button>
+                </form>
+              </div>
+              {% endfor %}
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-muted small">Chưa có mapping nào. Bấm "Gán TK QC" để bắt đầu.</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+
+{# ══════════════════════════════════════════════════
+   MODAL: Gán TK QC cho nhân viên
+   ══════════════════════════════════════════════════ #}
+{% if current_role in ('admin','superadmin','manager') %}
+<div class="modal fade" id="addUserAdModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-person-badge me-2"></i>Gán tài khoản QC cho nhân viên</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/fb-pages/user-ad-map/add">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Nhân viên <span class="text-danger">*</span></label>
+            <select name="user_id" data-cc-search class="form-select" required>
+              <option value="">— Chọn nhân viên —</option>
+              {% for u in users %}
+              <option value="{{ u.id }}">{{ u.full_name or u.username }} ({{ u.username }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Tài khoản quảng cáo <span class="text-danger">*</span></label>
+            {% if ad_accounts %}
+            <select name="ad_account_id" data-cc-search class="form-select" id="uamAccSel"
+                    onchange="syncUamName()" required>
+              <option value="">— Chọn TK QC —</option>
+              {% for a in ad_accounts %}
+              <option value="{{ a.ad_account_id }}" data-name="{{ a.label }}">
+                {{ a.label }} ({{ a.ad_account_id }})
+              </option>
+              {% endfor %}
+              <option value="__manual__">— Nhập thủ công —</option>
+            </select>
+            <input type="text" id="uamAccIdManual" name="ad_account_id_manual"
+                   class="form-control mt-2" style="display:none"
+                   placeholder="ID tài khoản (VD: act_123456789)">
+            {% else %}
+            <input type="text" name="ad_account_id" class="form-control" required
+                   placeholder="ID tài khoản (VD: act_123456789 hoặc 923291536710244)">
+            {% endif %}
+            <input type="hidden" name="ad_account_name" id="uamAccName">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Tên hiển thị TK QC</label>
+            <input type="text" name="ad_account_name" id="uamAccNameInput"
+                   class="form-control" placeholder="VD: NamTH – Mã Win">
+            <small class="text-muted">Để trống sẽ dùng tên mặc định từ hệ thống</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Huỷ</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg me-1"></i>Lưu gán
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+function syncUamName() {
+  const sel = document.getElementById('uamAccSel');
+  const manual = document.getElementById('uamAccIdManual');
+  const opt = sel.options[sel.selectedIndex];
+  if (sel.value === '__manual__') {
+    manual.style.display = '';
+    sel.name = '';
+    manual.name = 'ad_account_id';
+  } else {
+    manual.style.display = 'none';
+    sel.name = 'ad_account_id';
+    manual.name = '_';
+    const nameInput = document.getElementById('uamAccNameInput');
+    if (!nameInput.value) nameInput.value = opt ? opt.dataset.name || '' : '';
+  }
+}
+</script>
+{% endif %}
+
+
+{# ══════════════════════════════════════════════════
+   MODAL: Thêm page thủ công
+   ══════════════════════════════════════════════════ #}
+<div class="modal fade" id="addManualModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Thêm Page thủ công</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/fb-pages/add-manual">
+        <div class="modal-body">
+          <div class="alert alert-info py-2 small mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            Dùng khi page chưa được đồng bộ từ Facebook. Nhân viên có thể nhập để khai báo chi tiêu.
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Tên Page <span class="text-danger">*</span></label>
+            <input type="text" name="page_name" class="form-control" placeholder="VD: Shop Thời Trang ABC" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Link Page Facebook</label>
+            <input type="url" name="page_url" class="form-control" placeholder="https://www.facebook.com/...">
+            <div class="form-text">Tuỳ chọn — dùng để trích xuất Page ID nếu có.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Huỷ</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-plus me-1"></i>Thêm Page</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ══════════════════════════════════════════════════
+   MODAL: Khai báo chi tiêu
+   ══════════════════════════════════════════════════ #}
+<div class="modal fade" id="spendDeclModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#fff3cd;">
+        <h5 class="modal-title"><i class="bi bi-currency-dollar me-2 text-danger"></i>Khai báo chi tiêu quảng cáo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/fb-pages/declare-spend" id="spendDeclForm">
+        <div class="modal-body">
+          <input type="hidden" name="page_id" id="spend_page_id">
+          <p class="text-muted mb-3">Page: <strong id="spend_page_name"></strong></p>
+
+          {# Danh sách khai báo trong ngày #}
+          <div id="todayDeclarations" class="mb-3" style="display:none">
+            <div class="alert alert-info py-2 mb-2 small">
+              <i class="bi bi-info-circle me-1"></i>
+              <span id="todayDeclCount">0</span> khai báo đã lưu cho page này trong ngày đã chọn
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>TK QC</th>
+                    <th>Phân loại</th>
+                    <th class="text-end">Tiền chưa VAT</th>
+                    <th class="text-end">Thành tiền</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="todayDeclBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Ngày chi tiêu <span class="text-danger">*</span></label>
+              <input type="date" name="spend_date" id="spend_date_input" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Phân loại <span class="text-danger">*</span></label>
+              <select name="phan_loai" id="spend_phan_loai" class="form-select" required>
+                <option value="ma_win">Mã Win</option>
+                <option value="ma_test">Mã Test</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-3 mt-3">
+            <label class="form-label fw-semibold">Tài khoản quảng cáo <span class="text-danger">*</span></label>
+            <select name="ad_account_id" data-cc-search id="spend_ad_account_select" class="form-select">
+              <option value="">Đang tải...</option>
+            </select>
+            <input type="hidden" name="ad_account_name" id="spend_ad_account_name_hidden">
+            <div id="spend_manual_wrap" class="mt-2" style="display:none">
+              <input type="text" id="spend_ad_account_manual"
+                     class="form-control" placeholder="Nhập tên tài khoản QC...">
+              <div class="form-text">Nhập tay tên TK QC nếu chưa có trong danh sách</div>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Tiền chưa VAT (VNĐ) <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <input type="number" name="tien_chua_thue" id="spend_tien_chua_thue"
+                       class="form-control" placeholder="0" min="0" step="1000" required>
+                <span class="input-group-text">₫</span>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Thành tiền (×1.061)</label>
+              <div class="input-group">
+                <input type="text" id="spend_thanh_tien_display"
+                       class="form-control bg-light" readonly placeholder="0">
+                <span class="input-group-text">₫</span>
+              </div>
+              <div class="form-text">Thuế VAT 6.1% — tự động tính</div>
+            </div>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Ghi chú</label>
+            <input type="text" name="note" class="form-control" placeholder="Ghi chú tuỳ chọn...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-danger"><i class="bi bi-plus-circle me-1"></i>Lưu thêm dòng</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ══════════════════════════════════════════════════
+   MODAL: Gán nhân viên
+   ══════════════════════════════════════════════════ #}
+<div class="modal fade" id="assignModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Gán nhân viên phụ trách</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/fb-pages/assign">
+        <div class="modal-body">
+          <input type="hidden" name="action" value="add">
+          <input type="hidden" name="page_id" id="assign_page_id">
+          <p class="text-muted mb-3">Page: <strong id="assign_page_name"></strong></p>
+          <label class="form-label">Chọn nhân viên</label>
+          <select name="user_id" data-cc-search class="form-select" required>
+            <option value="">— Chọn nhân viên —</option>
+            {% for u in users %}
+            <option value="{{ u.id }}">{{ u.full_name or u.username }} ({{ u.role }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Huỷ</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Gán</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ══════════════════════════════════════════════════
+   MODAL: Map TK quảng cáo
+   ══════════════════════════════════════════════════ #}
+<div class="modal fade" id="mapAdModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-link-45deg me-2"></i>Map Tài khoản Quảng cáo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/fb-pages/map-ad">
+        <div class="modal-body">
+          <input type="hidden" name="page_id" id="map_page_id">
+          <p class="text-muted mb-3">Page: <strong id="map_page_name"></strong></p>
+          <label class="form-label">Chọn tài khoản quảng cáo</label>
+          <select name="ad_account_id" data-cc-search id="map_ad_select" class="form-select">
+            <option value="">— Không map (xoá mapping hiện tại) —</option>
+            {% for a in ad_accounts %}
+            <option value="{{ a.ad_account_id }}"
+                    data-shop="{{ a.shop_key }}"
+                    data-label="{{ a.label }}">
+              {{ a.label }}{% if a.shop_key %} · {{ a.shop_key }}{% endif %} (act_{{ a.ad_account_id }})
+            </option>
+            {% endfor %}
+          </select>
+          <input type="hidden" name="shop_key" id="map_shop_key">
+          <input type="hidden" name="ad_account_name" id="map_ad_name">
+          {% if not ad_accounts %}
+          <div class="alert alert-warning mt-2 mb-0 small">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Chưa có tài khoản quảng cáo nào trong hệ thống. Cần sync token Facebook Ads trước.
+          </div>
+          {% endif %}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Huỷ</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{# ══════════════════════════════════════════════════
+   SECTION: Khai báo chi tiêu gần đây
+   ══════════════════════════════════════════════════ #}
+{% if declarations %}
+<div class="card mt-3">
+  <div class="card-header py-2 d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-clock-history me-2 text-danger"></i>Khai báo chi tiêu gần đây</span>
+    <span class="text-muted small">{{ declarations|length }} khai báo gần nhất</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Ngày</th>
+          <th>Page</th>
+          <th class="d-none d-md-table-cell">TK QC</th>
+          <th>Phân loại</th>
+          <th class="d-none d-sm-table-cell">Nhân viên</th>
+          <th class="text-end d-none d-lg-table-cell">Tiền chưa VAT</th>
+          <th class="text-end">Thành tiền</th>
+          <th class="d-none d-md-table-cell">Ghi chú</th>
+          <th class="text-end">Xoá</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in declarations %}
+        <tr>
+          <td class="small">{{ d.spend_date.strftime('%d/%m/%Y') if d.spend_date else '—' }}</td>
+          <td>
+            <span class="fw-semibold">{{ d.page_name }}</span>
+          </td>
+          <td class="small text-muted d-none d-md-table-cell">{{ d.ad_account_name or d.ad_account_id or '—' }}</td>
+          <td>
+            {% if d.phan_loai == 'ma_test' %}
+              <span class="badge bg-warning-subtle text-warning">Mã Test</span>
+            {% else %}
+              <span class="badge bg-success-subtle text-success">Mã Win</span>
+            {% endif %}
+          </td>
+          <td class="small text-muted d-none d-sm-table-cell">{{ d.user_name or d.username }}</td>
+          <td class="text-end d-none d-lg-table-cell">{{ '{:,.0f}'.format(d.tien_chua_thue or 0) }}₫</td>
+          <td class="text-end fw-semibold text-danger">{{ '{:,.0f}'.format(d.thanh_tien or d.amount or 0) }}₫</td>
+          <td class="small text-muted d-none d-md-table-cell">{{ d.note or '—' }}</td>
+          <td class="text-end">
+            {% if current_role in ('admin', 'superadmin', 'manager') or d.user_id == current_user_id %}
+            <form method="post" action="/fb-pages/delete-spend" class="d-inline">
+              <input type="hidden" name="decl_id" value="{{ d.id }}">
+              <button type="submit" class="btn btn-sm btn-link text-danger p-0"
+                      onclick="return confirm('Xoá khai báo này?')"
+                      title="Xoá">
+                <i class="bi bi-trash3" style="font-size:.8rem"></i>
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Assign modal — truyền data từ button
+document.getElementById('assignModal').addEventListener('show.bs.modal', function(e) {
+  var btn = e.relatedTarget;
+  document.getElementById('assign_page_id').value = btn.dataset.pageId;
+  document.getElementById('assign_page_name').textContent = btn.dataset.pageName;
+});
+
+// Map ad modal — truyền data từ button
+document.getElementById('mapAdModal').addEventListener('show.bs.modal', function(e) {
+  var btn = e.relatedTarget;
+  document.getElementById('map_page_id').value = btn.dataset.pageId;
+  document.getElementById('map_page_name').textContent = btn.dataset.pageName;
+  var sel = document.getElementById('map_ad_select');
+  // Pre-select current value
+  var cur = btn.dataset.currentAd || '';
+  for (var i=0; i<sel.options.length; i++) {
+    if (sel.options[i].value === cur) { sel.selectedIndex = i; break; }
+  }
+  _syncMapHidden(sel);
+});
+
+document.getElementById('map_ad_select').addEventListener('change', function() {
+  _syncMapHidden(this);
+});
+
+function _syncMapHidden(sel) {
+  var opt = sel.options[sel.selectedIndex];
+  document.getElementById('map_shop_key').value = opt ? (opt.dataset.shop || '') : '';
+  document.getElementById('map_ad_name').value  = opt ? (opt.dataset.label || '') : '';
+}
+
+// ── Spend declaration modal ──────────────────────────────────────────
+var _currentSpendPageId = '';
+
+document.getElementById('spendDeclModal').addEventListener('show.bs.modal', function(e) {
+  var btn = e.relatedTarget;
+  _currentSpendPageId = btn.dataset.pageId;
+  document.getElementById('spend_page_id').value = _currentSpendPageId;
+  document.getElementById('spend_page_name').textContent = btn.dataset.pageName;
+  var today = new Date().toISOString().split('T')[0];
+  document.getElementById('spend_date_input').value = today;
+  document.getElementById('spend_tien_chua_thue').value = '';
+  document.getElementById('spend_thanh_tien_display').value = '';
+  document.getElementById('spend_phan_loai').value = 'ma_win';
+  loadAdAccounts(_currentSpendPageId);
+  loadTodayDeclarations(_currentSpendPageId, today);
+});
+
+// Auto-calc thành tiền when tien_chua_thue changes (2 decimal precision, matching backend)
+document.getElementById('spend_tien_chua_thue').addEventListener('input', function() {
+  var v = parseFloat(this.value) || 0;
+  var thanh = Math.round(v * 1.061 * 100) / 100;
+  document.getElementById('spend_thanh_tien_display').value = thanh > 0 ? thanh.toLocaleString('vi-VN', {minimumFractionDigits:0, maximumFractionDigits:2}) : '';
+});
+
+// Reload declarations when date changes
+document.getElementById('spend_date_input').addEventListener('change', function() {
+  loadTodayDeclarations(_currentSpendPageId, this.value);
+});
+
+// Load ad accounts for selected page
+function loadAdAccounts(pageId) {
+  var sel = document.getElementById('spend_ad_account_select');
+  sel.innerHTML = '<option value="">Đang tải...</option>';
+  document.getElementById('spend_manual_wrap').style.display = 'none';
+  fetch('/fb-pages/api/page-ad-accounts?page_id=' + encodeURIComponent(pageId))
+    .then(function(r) { return r.json(); })
+    .then(function(accounts) {
+      sel.innerHTML = '';
+      if (accounts.length === 0) {
+        sel.innerHTML = '<option value="__manual__">— Nhập tay —</option>';
+        document.getElementById('spend_manual_wrap').style.display = 'block';
+      } else {
+        sel.innerHTML = '<option value="">— Chọn TK QC —</option>';
+        accounts.forEach(function(a) {
+          var label = (a.ad_account_name || a.ad_account_id);
+          var opt = document.createElement('option');
+          opt.value = a.ad_account_id;
+          opt.dataset.name = a.ad_account_name || '';
+          opt.textContent = label + (a.shop_key ? ' · ' + a.shop_key : '');
+          sel.appendChild(opt);
+        });
+        var manualOpt = document.createElement('option');
+        manualOpt.value = '__manual__';
+        manualOpt.textContent = '— Nhập tay —';
+        sel.appendChild(manualOpt);
+      }
+    })
+    .catch(function() {
+      sel.innerHTML = '<option value="__manual__">— Nhập tay —</option>';
+      document.getElementById('spend_manual_wrap').style.display = 'block';
+    });
+}
+
+document.getElementById('spend_ad_account_select').addEventListener('change', function() {
+  var manualWrap = document.getElementById('spend_manual_wrap');
+  var nameHidden = document.getElementById('spend_ad_account_name_hidden');
+  if (this.value === '__manual__') {
+    manualWrap.style.display = 'block';
+    this.value = '';
+    nameHidden.value = '';
+  } else {
+    manualWrap.style.display = 'none';
+    document.getElementById('spend_ad_account_manual').value = '';
+    var opt = this.options[this.selectedIndex];
+    nameHidden.value = opt ? (opt.dataset.name || opt.textContent.trim()) : '';
+  }
+});
+
+// Sync manual input to hidden name field
+document.getElementById('spend_ad_account_manual').addEventListener('input', function() {
+  document.getElementById('spend_ad_account_name_hidden').value = this.value;
+});
+
+// Load today's declarations for this page — safe DOM construction (no XSS)
+function loadTodayDeclarations(pageId, date) {
+  var wrap = document.getElementById('todayDeclarations');
+  var tbody = document.getElementById('todayDeclBody');
+  var countEl = document.getElementById('todayDeclCount');
+  if (!pageId || !date) { wrap.style.display = 'none'; return; }
+  fetch('/fb-pages/api/declarations?page_id=' + encodeURIComponent(pageId) + '&spend_date=' + encodeURIComponent(date))
+    .then(function(r) { return r.json(); })
+    .then(function(items) {
+      if (!items || items.length === 0) { wrap.style.display = 'none'; return; }
+      countEl.textContent = items.length;
+      tbody.innerHTML = '';
+      items.forEach(function(d) {
+        var isTest = d.phan_loai === 'ma_test';
+        var phanLoaiLabel = isTest ? 'Mã Test' : 'Mã Win';
+        var chua = d.tien_chua_thue != null ? Number(d.tien_chua_thue).toLocaleString('vi-VN') + '₫' : '—';
+        var thanh = d.thanh_tien != null ? Number(d.thanh_tien).toLocaleString('vi-VN') + '₫' : '—';
+
+        var tr = document.createElement('tr');
+
+        // TK QC cell
+        var tdTkqc = document.createElement('td');
+        tdTkqc.className = 'small';
+        tdTkqc.textContent = d.ad_account_name || d.ad_account_id || '—';
+        tr.appendChild(tdTkqc);
+
+        // Phân loại cell
+        var tdPl = document.createElement('td');
+        var badge = document.createElement('span');
+        badge.className = 'badge ' + (isTest ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success');
+        badge.textContent = phanLoaiLabel;
+        tdPl.appendChild(badge);
+        tr.appendChild(tdPl);
+
+        // Tiền chưa VAT cell
+        var tdChua = document.createElement('td');
+        tdChua.className = 'text-end small';
+        tdChua.textContent = chua;
+        tr.appendChild(tdChua);
+
+        // Thành tiền cell
+        var tdThanh = document.createElement('td');
+        tdThanh.className = 'text-end small fw-semibold';
+        tdThanh.textContent = thanh;
+        tr.appendChild(tdThanh);
+
+        // Delete action cell
+        var tdDel = document.createElement('td');
+        tdDel.className = 'text-center';
+        var form = document.createElement('form');
+        form.method = 'post';
+        form.action = '/fb-pages/delete-spend';
+        form.className = 'd-inline';
+        var inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'decl_id';
+        inp.value = String(d.id);
+        form.appendChild(inp);
+        var btn = document.createElement('button');
+        btn.type = 'submit';
+        btn.className = 'btn btn-sm btn-link text-danger p-0';
+        btn.setAttribute('onclick', "return confirm('Xoá khai báo này?')");
+        var icon = document.createElement('i');
+        icon.className = 'bi bi-trash3';
+        icon.style.fontSize = '.8rem';
+        btn.appendChild(icon);
+        form.appendChild(btn);
+        tdDel.appendChild(form);
+        tr.appendChild(tdDel);
+
+        tbody.appendChild(tr);
+      });
+      wrap.style.display = 'block';
+    })
+    .catch(function() { wrap.style.display = 'none'; });
+}
+</script>
+{% endblock %}

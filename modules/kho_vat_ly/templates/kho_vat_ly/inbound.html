@@ -1,0 +1,2270 @@
+{% extends "kho_vat_ly/base.html" %}
+{% block title %}Nhập hàng{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-2">
+  <div>
+    <h1><i class="bi bi-box-arrow-in-down me-2 text-success"></i>Nhập hàng vào kho</h1>
+    <p class="text-muted mb-0">Quét mã vạch SKU dán trên sản phẩm → tự động cộng vào kho vật lý.</p>
+  </div>
+  {% if can_write %}
+  <div class="d-flex gap-2 flex-wrap">
+    <button class="btn btn-success" onclick="new bootstrap.Modal(document.getElementById('manualModal')).show()">
+      <i class="bi bi-plus-lg me-1"></i>Nhập thủ công
+    </button>
+    <button class="btn btn-outline-success" onclick="openExcelModal()">
+      <i class="bi bi-file-earmark-excel me-1"></i>Nhập từ Excel
+    </button>
+    {% if session.get('role') == 'admin' %}
+    <button class="btn btn-outline-warning" onclick="openUndoBatchModal()"
+            title="Hoàn tác nguyên 1 lần nhập Excel / submit cart">
+      <i class="bi bi-arrow-counterclockwise me-1"></i>Hoàn tác import
+    </button>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{# ══ Modal: Hoàn tác batch nhập kho (admin only) ══ #}
+{% if session.get('role') == 'admin' %}
+<div class="modal fade" id="undoBatchModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-warning-subtle">
+        <h5 class="modal-title">
+          <i class="bi bi-arrow-counterclockwise me-2"></i>Hoàn tác batch nhập kho
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning small mb-3">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          <strong>Cẩn trọng:</strong> Hoàn tác sẽ <u>trừ lại toàn bộ số lượng</u> đã cộng vào kho
+          từ 1 lần nhập Excel / submit cart. Chỉ dùng khi import sai.
+        </div>
+        <div id="undoBatchList" class="small">
+          <div class="text-muted text-center py-3">
+            <span class="spinner-border spinner-border-sm me-2"></span>Đang tải…
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+async function openUndoBatchModal() {
+  const modal = new bootstrap.Modal(document.getElementById('undoBatchModal'));
+  modal.show();
+  const box = document.getElementById('undoBatchList');
+  box.innerHTML = '<div class="text-muted text-center py-3"><span class="spinner-border spinner-border-sm me-2"></span>Đang tải…</div>';
+  try {
+    const r = await fetch('/kho-vat-ly/inbound/batches').then(x => x.json());
+    if (!r.ok) { box.innerHTML = '<div class="alert alert-danger">'+(r.error||'Lỗi')+'</div>'; return; }
+    if (!r.batches.length) { box.innerHTML = '<div class="alert alert-info mb-0">Không có batch nào còn active để hoàn tác.</div>'; return; }
+    let html = '<table class="table table-sm table-hover mb-0"><thead><tr>'
+             + '<th>Thời gian</th><th>Nguồn</th><th class="text-end">Phiếu active</th>'
+             + '<th class="text-end">Tổng SL</th><th>NV</th><th></th></tr></thead><tbody>';
+    for (const b of r.batches) {
+      const srcBadge = b.source === 'excel'
+        ? '<span class="badge bg-success-subtle text-success">Excel</span>'
+        : '<span class="badge bg-secondary-subtle text-secondary">'+(b.source||'cart')+'</span>';
+      html += `<tr>
+        <td><code style="font-size:.78rem">${b.started_at||''}</code>
+            <div class="text-muted" style="font-size:.7rem">${b.batch_id.substring(0,8)}…</div></td>
+        <td>${srcBadge}</td>
+        <td class="text-end"><strong>${b.n_active}</strong> / ${b.n_rows}</td>
+        <td class="text-end fw-bold text-success">${(b.qty_active||0).toLocaleString('vi-VN')}</td>
+        <td class="small">${b.created_by||'—'}</td>
+        <td><button class="btn btn-sm btn-warning" onclick="undoBatch('${b.batch_id}', ${b.n_active}, ${b.qty_active||0})">
+              <i class="bi bi-arrow-counterclockwise"></i> Hoàn tác
+            </button></td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    box.innerHTML = html;
+  } catch(e) {
+    box.innerHTML = '<div class="alert alert-danger">Lỗi kết nối: '+e.message+'</div>';
+  }
+}
+
+async function undoBatch(batchId, nActive, qtyActive) {
+  if (!confirm(`Bạn chắc chắn muốn HOÀN TÁC batch này?\n\n• ${nActive} phiếu sẽ bị huỷ\n• Trừ ngược ${qtyActive.toLocaleString('vi-VN')} đơn vị khỏi kho\n\nHành động này không đảo ngược được.`)) return;
+  const reason = prompt('Lý do hoàn tác (tuỳ chọn):', 'Import sai — hoàn tác') || 'Hoàn tác batch';
+  try {
+    const r = await fetch('/kho-vat-ly/inbound/excel-undo/'+batchId, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({reason})
+    }).then(x => x.json());
+    if (r.ok) {
+      alert('✅ ' + r.msg);
+      bootstrap.Modal.getInstance(document.getElementById('undoBatchModal'))?.hide();
+      location.reload();
+    } else {
+      alert('❌ ' + (r.error || 'Lỗi'));
+    }
+  } catch(e) { alert('Lỗi kết nối: '+e.message); }
+}
+</script>
+{% endif %}
+
+{# ══ CHỌN KHO VẬT LÝ (persistent cho cả phiên) ══ #}
+<div class="card mb-3 border-2" style="border-color:#F59E0B !important; background:#fffbeb;">
+  <div class="card-body py-2 px-3">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <span class="fw-semibold text-dark" style="white-space:nowrap;">
+        <i class="bi bi-building me-1" style="color:#F59E0B;"></i>Nhập vào kho:
+      </span>
+      <div class="d-flex gap-2 flex-wrap">
+        {% for wh in warehouses %}
+        <label class="d-flex align-items-center gap-2 px-3 py-1 rounded border fw-semibold"
+               style="cursor:pointer; font-size:.9rem; background:#fff; transition:.15s;"
+               id="wh-label-{{ wh.id }}">
+          <input type="radio" name="inbound_warehouse" value="{{ wh.id }}"
+                 id="wh-radio-{{ wh.id }}"
+                 class="wh-radio"
+                 {% if loop.first %}checked{% endif %}
+                 style="accent-color:#F59E0B;">
+          {{ wh.name }}
+        </label>
+        {% endfor %}
+        <label class="d-flex align-items-center gap-2 px-3 py-1 rounded border text-muted"
+               style="cursor:pointer; font-size:.9rem; background:#fff;">
+          <input type="radio" name="inbound_warehouse" value=""
+                 id="wh-radio-none" class="wh-radio"
+                 style="accent-color:#6c757d;">
+          Không chọn kho
+        </label>
+      </div>
+      <span class="ms-auto text-muted small d-none d-md-block">Kho được chọn áp dụng cho toàn bộ phiên nhập.</span>
+    </div>
+  </div>
+</div>
+
+{# ══ QUÉT MÃ VẠCh — chỉ hiện cho người có quyền nhập ══ #}
+{% if can_write %}
+<div class="card mb-3 border-2 border-success" id="scan-card">
+  <div class="card-body py-3">
+    <div class="row g-2 align-items-center">
+      <div class="col-12 col-md">
+        <div class="input-group input-group-lg">
+          <input id="scanInput" type="text" class="form-control"
+                 placeholder="Quét mã SKU sản phẩm…"
+                 autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"
+                 style="font-family:monospace;">
+          <input id="scanQty" type="number" class="form-control text-center fw-bold flex-grow-0"
+                 style="width:72px" min="1" max="9999" value="1" title="Số lượng mỗi lần quét">
+          <button class="btn btn-outline-success" onclick="openCamera()" title="Quét bằng camera">
+            <i class="bi bi-camera-fill"></i>
+          </button>
+        </div>
+      </div>
+      <div class="col-12 col-md-auto">
+        <button class="btn btn-success btn-lg w-100" onclick="doScan()">
+          <i class="bi bi-check2-circle me-1"></i>Nhập kho
+        </button>
+      </div>
+    </div>
+    <div id="scanResult" class="mt-2 d-none"></div>
+    <div class="d-flex align-items-center gap-3 mt-2 flex-wrap">
+      <span class="text-muted small">
+        <i class="bi bi-person-fill me-1 text-success"></i>
+        Nhân viên: <strong>{{ current_username or '—' }}</strong>
+      </span>
+      <span class="text-muted small">
+        <i class="bi bi-info-circle me-1"></i>Mỗi lần quét cộng <strong id="qtyHint">1</strong> vào kho.
+        Thay đổi số lượng bằng ô số trước khi quét. Hoặc bấm 📷 để dùng camera.
+      </span>
+    </div>
+  </div>
+</div>
+
+{# ══ PHIÊN NHẬP HIỆN TẠI ══ #}
+<div class="card mb-3" id="session-card">
+  <div class="card-header d-flex align-items-center justify-content-between py-2">
+    <span><i class="bi bi-list-check me-2 text-success"></i>Phiên nhập hàng hiện tại</span>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-success" id="session-badge">0 lần quét</span>
+      <button class="btn btn-sm btn-outline-secondary" onclick="toggleSession()" id="session-toggle" title="Thu gọn">
+        <i class="bi bi-chevron-up" id="session-chevron"></i>
+      </button>
+    </div>
+  </div>
+  <div id="session-body-wrap">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0" id="session-table">
+        <thead class="table-light">
+          <tr>
+            <th>SKU</th>
+            <th>Tên sản phẩm</th>
+            <th class="text-center">SL đã nhập phiên này</th>
+            <th class="text-center">Tồn kho sau</th>
+          </tr>
+        </thead>
+        <tbody id="session-body">
+          <tr id="session-empty">
+            <td colspan="4" class="text-center text-muted py-3">
+              <i class="bi bi-upc-scan me-1"></i> Chưa quét sản phẩm nào. Quét mã ở trên để bắt đầu.
+            </td>
+          </tr>
+        </tbody>
+        <tfoot class="table-light fw-bold d-none" id="session-total-row">
+          <tr>
+            <td colspan="2" class="text-muted">Tổng cộng phiên này</td>
+            <td class="text-center text-success" id="session-total-qty">0</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}{# can_write #}
+
+{# ══ BỘ LỌC LỊCH SỬ ══ #}
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" action="/kho-vat-ly/inbound" class="row g-2 align-items-end">
+      {# Tab kho vật lý / kho POS #}
+      <div class="col-12 col-md-auto">
+        <label class="form-label small text-muted mb-1">Loại kho</label>
+        <div class="btn-group d-flex">
+          <a href="?warehouse=vat_ly{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if product_id_f %}&product_id={{ product_id_f }}{% endif %}"
+             class="btn btn-sm {% if warehouse=='vat_ly' %}btn-success{% else %}btn-outline-success{% endif %}">
+            <i class="bi bi-box me-1"></i>Kho vật lý
+          </a>
+          <a href="?warehouse=pos{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if product_id_f %}&product_id={{ product_id_f }}{% endif %}"
+             class="btn btn-sm {% if warehouse=='pos' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            <i class="bi bi-shop me-1"></i>Kho POS
+          </a>
+        </div>
+      </div>
+      <input type="hidden" name="warehouse" value="{{ warehouse }}">
+
+      {# Lọc sản phẩm #}
+      <div class="col-12 col-md-3">
+        <label class="form-label small text-muted mb-1">Sản phẩm</label>
+        <select name="product_id" data-cc-search class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">— Tất cả sản phẩm —</option>
+          {% set ns = namespace(cat='') %}
+          {% for p in products %}
+            {% if p.category != ns.cat %}
+              {% if ns.cat %}</optgroup>{% endif %}
+              <optgroup label="{{ p.category or 'Khác' }}">
+              {% set ns.cat = p.category %}
+            {% endif %}
+            <option value="{{ p.id }}" {% if product_id_f == p.id|string %}selected{% endif %}>
+              [{{ p.sku }}] {{ p.name }}
+            </option>
+          {% endfor %}
+          {% if products %}</optgroup>{% endif %}
+        </select>
+      </div>
+
+      {# Tìm theo mã SKU (text search nhanh) #}
+      <div class="col-12 col-md-auto">
+        <label class="form-label small text-muted mb-1">Tìm theo mã SKU</label>
+        <div class="input-group input-group-sm" style="width:180px">
+          <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+          <input type="text" name="sku_q" class="form-control form-control-sm"
+                 placeholder="VD: ANHHY0003"
+                 value="{{ request.args.get('sku_q','') }}"
+                 autocomplete="off">
+        </div>
+      </div>
+
+      {# Tab lọc Đẩy POS (chỉ kho vật lý) #}
+      {% if warehouse == 'vat_ly' %}
+      <div class="col-12 col-md-auto">
+        <label class="form-label small text-muted mb-1">Trạng thái POS</label>
+        <div class="btn-group d-flex">
+          <a href="?warehouse=vat_ly&push_filter=all{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if product_id_f %}&product_id={{ product_id_f }}{% endif %}"
+             class="btn btn-sm {% if push_filter=='all' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+            Tất cả
+          </a>
+          <a href="?warehouse=vat_ly&push_filter=not_pushed{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if product_id_f %}&product_id={{ product_id_f }}{% endif %}"
+             class="btn btn-sm {% if push_filter=='not_pushed' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+            <i class="bi bi-clock me-1"></i>Chưa đẩy
+            {% if count_not_pushed %}<span class="badge bg-white text-warning ms-1">{{ count_not_pushed }}</span>{% endif %}
+          </a>
+          <a href="?warehouse=vat_ly&push_filter=pushed{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if product_id_f %}&product_id={{ product_id_f }}{% endif %}"
+             class="btn btn-sm {% if push_filter=='pushed' %}btn-success{% else %}btn-outline-success{% endif %}">
+            <i class="bi bi-check2-circle me-1"></i>Đã đẩy
+            {% if count_pushed %}<span class="badge bg-white text-success ms-1">{{ count_pushed }}</span>{% endif %}
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Lọc ngày (chỉ kho vật lý) #}
+      {% if warehouse == 'vat_ly' %}
+      <div class="col-auto">
+        {% include "_date_range_picker.html" %}
+      </div>
+      {% endif %}
+
+      <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-search me-1"></i>Lọc
+        </button>
+        {% if date_from or date_to or product_id_f or request.args.get('sku_q') %}
+        <a href="?warehouse={{ warehouse }}" class="btn btn-sm btn-outline-secondary ms-1">
+          <i class="bi bi-x"></i> Xoá lọc
+        </a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ══ KẾT QUẢ LỊCH SỬ ══ #}
+<div class="card">
+  {% if warehouse == 'vat_ly' %}
+  <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <span><i class="bi bi-clock-history me-2 text-success"></i>Lịch sử nhập — Kho vật lý</span>
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-muted small">{{ total_rows }} phiếu{% if date_from or date_to or product_id_f or sku_q %} (đang lọc){% endif %}</span>
+      {% if count_cancelled > 0 or show_cancelled %}
+      <a href="?warehouse={{ warehouse }}&show_cancelled={{ '0' if show_cancelled else '1' }}&date_from={{ date_from or '' }}&date_to={{ date_to or '' }}&push_filter={{ push_filter or '' }}"
+         class="btn btn-sm {{ 'btn-danger' if show_cancelled else 'btn-outline-danger' }}"
+         style="font-size:11px;padding:2px 8px;">
+        <i class="bi bi-slash-circle me-1"></i>Phiếu huỷ ({{ count_cancelled }})
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Thời gian</th>
+          <th>SKU</th>
+          <th>Tên sản phẩm</th>
+          <th class="d-none d-md-table-cell">Kho vật lý</th>
+          <th class="d-none d-lg-table-cell">Ghi chú</th>
+          <th class="d-none d-md-table-cell">Nhân viên</th>
+          <th class="text-end">SL nhập</th>
+          <th class="d-none d-md-table-cell text-end">Tồn sau</th>
+          <th class="d-none d-md-table-cell text-end" style="color:#0d6efd;">Tồn POS</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="history-body">
+        {% for m in movements %}
+        <tr>
+          <td class="text-muted small">{{ m.created_at[:16] }}</td>
+          <td><span class="badge bg-secondary font-monospace sku-copy" title="Bấm để copy SKU">{{ m.sku }}</span></td>
+          <td class="small">
+            {{ m.product_name }}
+            {% if m.variant_name %}
+              <span class="badge bg-info text-dark ms-1" style="font-size:.7rem;font-weight:500;">{{ m.variant_name }}</span>
+            {% endif %}
+          </td>
+          <td class="d-none d-md-table-cell">
+            {% if m.warehouse_name %}
+              <span class="badge" style="background:#e8f4fd;color:#1565c0;font-size:.75rem;">
+                <i class="bi bi-building me-1"></i>{{ m.warehouse_name }}
+              </span>
+            {% else %}
+              <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+          <td class="d-none d-lg-table-cell text-muted small">{{ m.note or '—' }}</td>
+          <td class="d-none d-md-table-cell">
+            {% if m.created_by and m.created_by not in ('system','admin','') %}
+              <span class="badge" style="background:#fef3c7;color:#92400e;font-size:.75rem;">
+                <i class="bi bi-person-fill me-1"></i>{{ m.created_by }}
+              </span>
+            {% else %}
+              <span class="text-muted small">{{ m.created_by or '—' }}</span>
+            {% endif %}
+          </td>
+          <td class="text-end text-success fw-bold">+{{ fmt_qty(m.qty) }} <small class="text-muted fw-normal">{{ m.unit }}</small></td>
+          <td class="d-none d-md-table-cell text-end fw-semibold">{{ fmt_qty(m.qty_after) }}</td>
+          <td class="d-none d-md-table-cell text-end">
+            {% if m.qty_pos is not none and m.qty_pos != '' %}
+              <span style="color:{% if m.qty_pos == 0 %}#dc2626{% elif m.qty_pos < 10 %}#d97706{% else %}#0d6efd{% endif %};font-weight:600;">
+                {{ fmt_qty(m.qty_pos) }}
+              </span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-nowrap">
+            {% if m.status == 'cancelled' %}
+              <span class="badge bg-danger" style="font-size:11px;">Đã huỷ</span>
+              {% if m.cancel_reason %}
+              <div style="font-size:10px;color:#dc2626;margin-top:2px;">{{ m.cancel_reason }}</div>
+              {% endif %}
+              {% if can_write %}
+              <button class="btn btn-sm btn-outline-danger ms-1"
+                      style="font-size:11px;padding:1px 6px;"
+                      onclick="deleteInbound({{ m.id }}, '{{ m.product_name | e }}')"
+                      title="Xoá cứng khỏi DB">
+                <i class="bi bi-trash"></i>
+              </button>
+              {% endif %}
+            {% else %}
+              {% if m.warehouse_id %}
+                {% if m.pushed_at %}
+                <button class="btn btn-sm btn-outline-success push-pos-btn"
+                        data-product-id="{{ m.product_id }}"
+                        data-warehouse-id="{{ m.warehouse_id }}"
+                        data-movement-id="{{ m.id }}"
+                        data-qty="{{ m.qty }}"
+                        data-pos-variation-id="{{ m.pos_variation_id or '' }}"
+                        data-sku="{{ m.sku }}"
+                        data-product-name="{{ m.product_name }}"
+                        data-warehouse-name="{{ m.warehouse_name }}"
+                        title="Đã đẩy POS lúc {{ m.pushed_at[:16] }} — nhấn để đẩy lại"
+                        style="white-space:nowrap; font-size:.78rem;">
+                  <i class="bi bi-check2-circle me-1"></i>Đã đẩy
+                </button>
+                {% else %}
+                <button class="btn btn-sm btn-outline-warning push-pos-btn"
+                        data-product-id="{{ m.product_id }}"
+                        data-warehouse-id="{{ m.warehouse_id }}"
+                        data-movement-id="{{ m.id }}"
+                        data-qty="{{ m.qty }}"
+                        data-pos-variation-id="{{ m.pos_variation_id or '' }}"
+                        data-sku="{{ m.sku }}"
+                        data-product-name="{{ m.product_name }}"
+                        data-warehouse-name="{{ m.warehouse_name }}"
+                        title="Cộng thêm +{{ m.qty }} vào tồn POS của tất cả shop thuộc {{ m.warehouse_name }}"
+                        style="white-space:nowrap; font-size:.78rem;">
+                  <i class="bi bi-cloud-upload me-1"></i>Đẩy POS
+                </button>
+                {% endif %}
+              {% endif %}
+              {% if can_write %}
+              <div class="d-inline-flex gap-1 ms-1">
+                <button class="btn btn-sm btn-outline-primary"
+                        style="font-size:11px;padding:1px 6px;"
+                        onclick="openEditInbound({{ m.id }}, {{ m.qty }}, '{{ m.note | e }}', '{{ m.product_name | e }}', '{{ m.sku }}', '{{ m.variant_name | e if m.variant_name else '' }}')"
+                        title="Sửa số lượng / ghi chú">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary"
+                        style="font-size:11px;padding:1px 6px;color:#f59e0b;border-color:#f59e0b;"
+                        onclick="cancelInbound({{ m.id }}, '{{ m.product_name | e }}', {{ m.qty }})"
+                        title="Huỷ phiếu — trừ lại tồn kho, giữ lịch sử">
+                  <i class="bi bi-slash-circle"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger"
+                        style="font-size:11px;padding:1px 6px;"
+                        onclick="deleteInbound({{ m.id }}, '{{ m.product_name | e }}')"
+                        title="Xoá cứng — trừ tồn kho và xoá khỏi DB">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" class="text-center text-muted py-5">
+            <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+            Không có phiếu nhập nào{% if date_from or date_to or product_id_f or sku_q %} khớp bộ lọc{% endif %}.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-shop me-2 text-primary"></i>Tồn kho POS — theo cửa hàng</span>
+    <span class="text-muted small">{{ total_rows }} dòng{% if product_id_f %} (đang lọc theo sản phẩm){% endif %}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Cửa hàng</th>
+          <th class="d-none d-sm-table-cell">SKU</th>
+          <th>Tên sản phẩm</th>
+          <th class="text-center">Tồn POS</th>
+          <th class="d-none d-md-table-cell">Đồng bộ lúc</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in pos_rows %}
+        <tr>
+          <td class="small fw-semibold">{{ r.shop_name }}{% set _bt = (shop_biz_map.get(r.shop_name) or 'cty') %}<span class="tag-biz {% if _bt == 'hkd' %}tag-biz-hkd{% else %}tag-biz-cty{% endif %}">{% if _bt == 'hkd' %}HKD{% else %}CTY{% endif %}</span></td>
+          <td class="d-none d-sm-table-cell"><span class="badge bg-primary font-monospace sku-copy" title="Bấm để copy SKU">{{ r.sku }}</span></td>
+          <td class="small">
+            {{ r.product_name }}
+            <div class="d-sm-none"><span class="badge bg-primary font-monospace" style="font-size:.7rem">{{ r.sku }}</span></div>
+          </td>
+          <td class="text-center fw-bold {% if r.qty_pos == 0 %}text-danger{% elif r.qty_pos < 5 %}text-warning{% else %}text-success{% endif %}">
+            {{ fmt_qty(r.qty_pos) }}
+          </td>
+          <td class="text-muted small d-none d-md-table-cell">{{ r.synced_at[:16] if r.synced_at else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="text-center text-muted py-5">
+            <i class="bi bi-shop fs-3 d-block mb-2"></i>
+            Chưa có dữ liệu tồn kho POS{% if product_id_f %} cho sản phẩm này{% endif %}.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {# Phân trang #}
+  {% if total_pages > 1 %}
+  <div class="card-footer d-flex align-items-center justify-content-between py-2">
+    <span class="text-muted small">Trang <strong>{{ page }}</strong> / {{ total_pages }} &nbsp;·&nbsp; {{ total_rows }} dòng</span>
+    <nav><ul class="pagination pagination-sm mb-0">
+      <li class="page-item {% if page==1 %}disabled{% endif %}">
+        <a class="page-link" href="?warehouse={{ warehouse }}&page=1{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if product_id_f %}&product_id={{ product_id_f }}{% endif %}">«</a>
+      </li>
+      <li class="page-item {% if page==1 %}disabled{% endif %}">
+        <a class="page-link" href="?warehouse={{ warehouse }}&page={{ page-1 }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if product_id_f %}&product_id={{ product_id_f }}{% endif %}">‹</a>
+      </li>
+      {% for p in range([1,page-2]|max, [total_pages+1,page+3]|min) %}
+      <li class="page-item {% if p==page %}active{% endif %}">
+        <a class="page-link" href="?warehouse={{ warehouse }}&page={{ p }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if product_id_f %}&product_id={{ product_id_f }}{% endif %}">{{ p }}</a>
+      </li>
+      {% endfor %}
+      <li class="page-item {% if page==total_pages %}disabled{% endif %}">
+        <a class="page-link" href="?warehouse={{ warehouse }}&page={{ page+1 }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if product_id_f %}&product_id={{ product_id_f }}{% endif %}">›</a>
+      </li>
+      <li class="page-item {% if page==total_pages %}disabled{% endif %}">
+        <a class="page-link" href="?warehouse={{ warehouse }}&page={{ total_pages }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if product_id_f %}&product_id={{ product_id_f }}{% endif %}">»</a>
+      </li>
+    </ul></nav>
+  </div>
+  {% endif %}
+</div>
+
+{# ══ MODAL NHẬP THỦ CÔNG — GIỎ HÀNG ══ #}
+<div class="modal fade" id="manualModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <div>
+          <h5 class="modal-title mb-0"><i class="bi bi-cart-plus me-2"></i>Nhập hàng thủ công</h5>
+          <div class="small opacity-75 mt-1">Chọn nhiều sản phẩm → nhập số lượng → xác nhận 1 lần</div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="row g-0" style="min-height:460px">
+
+          {# ─ Cột trái: Tìm & chọn sản phẩm ─ #}
+          <div class="col-md-5 border-end" style="background:#f8fffe">
+            <div class="p-3 border-bottom">
+              <div class="input-group">
+                <input type="text" class="form-control" id="manual-search"
+                       placeholder="🔍 Tìm tên hoặc SKU..." autocomplete="off"
+                       oninput="filterInboundModal(this.value)">
+                <button class="btn btn-outline-secondary" type="button" onclick="openCameraSearch()" title="Quét mã SKU bằng camera">
+                  <i class="bi bi-camera-fill"></i>
+                </button>
+              </div>
+            </div>
+            <div id="product-list" style="height:400px; overflow-y:auto">
+              {% for p in products %}
+              <div class="product-item d-flex align-items-center gap-2 px-3 py-2"
+                   style="cursor:pointer; border-bottom:1px solid #eee"
+                   data-id="{{ p.id }}" data-sku="{{ p.sku }}" data-name="{{ p.name }}"
+                   data-unit="{{ p.unit }}" data-qty="{{ fmt_qty(inventory.get(p.id, 0)) }}">
+                <span class="badge bg-secondary font-monospace flex-shrink-0" style="font-size:0.7rem">{{ p.sku }}</span>
+                <span class="flex-grow-1 small">
+                  {{ p.name }}
+                  {% if p.id in products_with_variants %}
+                  <span class="badge ms-1" style="background:#e0f2fe;color:#0277bd;font-size:0.65rem;font-weight:500"
+                        title="Sản phẩm có nhiều biến thể — chọn sản phẩm để chọn biến thể">
+                    <i class="bi bi-layers-half me-1"></i>biến thể
+                  </span>
+                  {% endif %}
+                </span>
+                <span class="btn-stock-breakdown text-primary" title="Xem tồn kho theo biến thể"
+                      data-product-id="{{ p.id }}" data-product-sku="{{ p.sku }}"
+                      style="font-size:0.75rem; flex-shrink:0; cursor:pointer; text-decoration:underline dotted"
+                      onclick="event.stopPropagation(); showStockBreakdown({{ p.id }}, '{{ p.sku }}', '{{ p.name | e }}')">
+                  {{ fmt_qty(inventory.get(p.id, 0)) }}
+                </span>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          {# ─ Cột phải: Nhập qty + giỏ hàng ─ #}
+          <div class="col-md-7 d-flex flex-column">
+
+            {# Panel chọn qty — hiện khi click sản phẩm #}
+            <div id="qty-panel" class="p-3 border-bottom d-none" style="background:#f0fdf4">
+              <div class="d-flex align-items-start gap-3">
+                <div class="flex-grow-1">
+                  <div class="fw-bold" id="qp-name">—</div>
+                  <div class="small text-muted">SKU: <code id="qp-sku">—</code> &nbsp;·&nbsp; Tồn hiện tại: <strong id="qp-stock" class="text-primary">—</strong></div>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary" id="qp-cancel" title="Bỏ chọn">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+              </div>
+              {# Variant selection (hiện khi SP có nhiều biến thể) #}
+              <div id="qp-variant-wrap" class="mt-2 d-none">
+                <label class="form-label small fw-semibold mb-1">
+                  Chọn biến thể <span class="text-danger">*</span>
+                  <span id="qp-variant-loading" class="spinner-border spinner-border-sm ms-1 d-none" role="status"></span>
+                </label>
+                <select id="qp-variant" data-cc-search class="form-select form-select-sm">
+                  <option value="">— Chọn biến thể —</option>
+                </select>
+                <div id="qp-variant-unnamed-warn" class="d-none mt-1 p-2 rounded small"
+                     style="background:#fff8e1;border:1px solid #ffc107;color:#856404">
+                  <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                  Biến thể chưa được đặt tên (đang hiện BT 1, BT 2...) —
+                  <a id="qp-variant-name-link" href="#" target="_blank" class="fw-semibold">
+                    Đặt tên biến thể
+                  </a>
+                  để dễ nhận biết.
+                </div>
+              </div>
+
+              {# MULTI-VARIANT INPUT — hiện khi SP có nhiều biến thể, nhập SL từng cái cùng lúc #}
+              <div id="qp-multivariant-wrap" class="mt-2 d-none">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <label class="form-label small fw-semibold mb-0">
+                    <i class="bi bi-layers-half me-1 text-info"></i>Nhập số lượng cho từng biến thể
+                  </label>
+                  <span class="small text-muted">(để trống = không nhập)</span>
+                </div>
+                <div id="qp-multivariant-list" class="border rounded p-2" style="background:#fff;max-height:240px;overflow-y:auto">
+                  {# JS sẽ render row mỗi biến thể: tên + tồn + input qty #}
+                </div>
+              </div>
+
+              <div id="qp-single-qty-wrap" class="d-flex gap-2 mt-3 align-items-end">
+                <div style="width:120px">
+                  <label class="form-label small fw-semibold mb-1">Số lượng <span class="text-danger">*</span></label>
+                  <input type="number" id="qp-qty" class="form-control form-control-lg fw-bold text-center"
+                         min="1" max="99999" placeholder="0" style="font-size:1.5rem; height:52px">
+                </div>
+                <div class="flex-grow-1">
+                  <label class="form-label small fw-semibold mb-1">Ghi chú</label>
+                  <input type="text" id="qp-note" class="form-control" placeholder="Nhà CC, lô hàng...">
+                </div>
+                <button id="qp-add" class="btn btn-success px-4" style="height:40px">
+                  <i class="bi bi-plus-circle me-1"></i>Thêm vào giỏ
+                </button>
+              </div>
+
+              <div id="qp-multi-action" class="d-flex gap-2 mt-3 align-items-end d-none">
+                <div class="flex-grow-1">
+                  <label class="form-label small fw-semibold mb-1">Ghi chú (áp cho mọi biến thể)</label>
+                  <input type="text" id="qp-multi-note" class="form-control" placeholder="Nhà CC, lô hàng...">
+                </div>
+                <button id="qp-multi-add" class="btn btn-success px-4" style="height:40px">
+                  <i class="bi bi-plus-circle-fill me-1"></i>Thêm CẢ biến thể vào giỏ
+                </button>
+              </div>
+            </div>
+
+            {# Placeholder khi chưa chọn #}
+            <div id="no-selection" class="p-4 text-center text-muted" style="flex:1">
+              <i class="bi bi-hand-index-thumb fs-2 d-block mb-2"></i>
+              Bấm chọn sản phẩm bên trái<br>để thêm vào giỏ nhập hàng
+            </div>
+
+            {# Giỏ hàng #}
+            <div class="flex-grow-1 p-0">
+              <div id="cart-empty" class="text-center text-muted py-3 small d-none">
+                <i class="bi bi-cart me-1"></i> Giỏ hàng trống
+              </div>
+              <table class="table table-sm align-middle mb-0 d-none" id="cart-table">
+                <thead class="table-light">
+                  <tr>
+                    <th>SKU</th>
+                    <th>Sản phẩm</th>
+                    <th class="text-center" style="width:100px">SL nhập</th>
+                    <th class="text-muted" style="width:140px">Ghi chú</th>
+                    <th style="width:40px"></th>
+                  </tr>
+                </thead>
+                <tbody id="cart-body"></tbody>
+                <tfoot class="table-light fw-bold">
+                  <tr>
+                    <td colspan="2" class="text-muted small">Tổng cộng</td>
+                    <td class="text-center text-success" id="cart-total">0</td>
+                    <td colspan="2"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Huỷ</button>
+        <button id="cart-submit" class="btn btn-success btn-lg px-5" disabled>
+          <i class="bi bi-check2-all me-1"></i>Xác nhận nhập kho
+          <span class="badge bg-white text-success ms-2" id="cart-count">0 sản phẩm</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function filterInboundModal(val) {
+  var q = (val || '').toLowerCase().trim();
+  var shown = 0;
+  document.querySelectorAll('#product-list .product-item').forEach(function(el) {
+    var sku  = (el.dataset.sku  || '').toLowerCase();
+    var name = (el.dataset.name || '').toLowerCase();
+    var ok = !q || sku.indexOf(q) !== -1 || name.indexOf(q) !== -1;
+    // Dùng d-none (Bootstrap !important) thay vì style.display
+    // vì d-flex trên item có !important override style.display
+    el.classList.toggle('d-none', !ok);
+    if (ok) shown++;
+  });
+  var noRes = document.getElementById('qp-no-result');
+  if (noRes) noRes.classList.toggle('d-none', !(q && shown === 0));
+}
+</script>
+{% endblock %}
+
+{% block scripts %}
+{% if can_write %}
+<script>
+// ── Trạng thái phiên ──
+const session = {};   // sku → {name, unit, qty, qty_after}
+let scanCount = 0;
+
+const scanInput  = document.getElementById('scanInput');
+const scanQtyEl  = document.getElementById('scanQty');
+const resultEl   = document.getElementById('scanResult');
+const sessionBody = document.getElementById('session-body');
+const emptyRow   = document.getElementById('session-empty');
+const totalRow   = document.getElementById('session-total-row');
+const sessionBadge = document.getElementById('session-badge');
+const totalQtyEl = document.getElementById('session-total-qty');
+const qtyHint    = document.getElementById('qtyHint');
+
+// Guard: chỉ gắn scan-listeners khi có quyền ghi (can_write=True)
+if (scanQtyEl) {
+  scanQtyEl.addEventListener('input', () => {
+    if (qtyHint) qtyHint.textContent = scanQtyEl.value || '1';
+  });
+}
+if (scanInput) {
+  window.addEventListener('load', () => scanInput.focus());
+  document.addEventListener('click', e => {
+    if (!e.target.closest('input,select,textarea,button,a,label,.modal')) scanInput.focus();
+  });
+}
+
+function showResult(html, type, dur=4000) {
+  resultEl.className = `mt-2 alert alert-${type} py-2`;
+  resultEl.innerHTML = html;
+  resultEl.classList.remove('d-none');
+  clearTimeout(resultEl._timer);
+  resultEl._timer = setTimeout(() => resultEl.classList.add('d-none'), dur);
+}
+
+function updateSessionTable() {
+  const skus = Object.keys(session);
+  emptyRow.style.display = skus.length ? 'none' : '';
+  totalRow.classList.toggle('d-none', !skus.length);
+  // Xoá hàng cũ (trừ empty)
+  sessionBody.querySelectorAll('tr:not(#session-empty)').forEach(r => r.remove());
+  let totalQty = 0;
+  skus.forEach(sku => {
+    const d = session[sku];
+    totalQty += d.qty;
+    const tr = document.createElement('tr');
+    tr.className = 'table-success animate__animated';
+    tr.innerHTML = `
+      <td><span class="badge bg-success">${sku}</span></td>
+      <td class="small">${d.name}</td>
+      <td class="text-center"><strong class="text-success fs-5">+${d.qty}</strong> <small class="text-muted">${d.unit}</small></td>
+      <td class="text-center text-muted">${d.qty_after}</td>`;
+    sessionBody.insertBefore(tr, emptyRow);
+  });
+  totalQtyEl.textContent = '+' + totalQty;
+  scanCount = skus.reduce((s,k)=>s+session[k].scans,0);
+  sessionBadge.textContent = scanCount + ' lần quét';
+}
+
+function addHistoryRow(d) {
+  const tbody = document.getElementById('history-body');
+  if (!tbody) return;
+  const emptyHist = tbody.querySelector('td[colspan]');
+  if (emptyHist) emptyHist.closest('tr').remove();
+  const now = new Date().toLocaleString('vi-VN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const tr = document.createElement('tr');
+  tr.style.background = '#d1e7dd';
+  const whBadge = d.warehouse_name
+    ? `<span class="badge" style="background:#e8f4fd;color:#1565c0;font-size:.75rem;"><i class="bi bi-building me-1"></i>${d.warehouse_name}</span>`
+    : '<span class="text-muted small">—</span>';
+  const pushBtn = d.warehouse_id
+    ? `<button class="btn btn-sm btn-outline-warning push-pos-btn"
+               data-product-id="${d.product_id}"
+               data-warehouse-id="${d.warehouse_id}"
+               data-movement-id="${d.movement_id || ''}"
+               data-qty="${d.qty_added}"
+               data-pos-variation-id="${d.pos_variation_id || ''}"
+               data-sku="${(d.sku||'').replace(/"/g,'&quot;')}"
+               data-product-name="${(d.product_name||'').replace(/"/g,'&quot;')}"
+               data-warehouse-name="${(d.warehouse_name||'').replace(/"/g,'&quot;')}"
+               title="Cộng thêm +${d.qty_added} vào tồn POS của tất cả shop thuộc ${d.warehouse_name||''}"
+               style="white-space:nowrap;font-size:.78rem;">
+         <i class="bi bi-cloud-upload me-1"></i>Đẩy POS
+       </button>`
+    : '';
+  // Trio sửa / huỷ / xoá — giống hệt khi reload trang (can_write=true block này chỉ chạy khi user có quyền)
+  const safeName = (d.product_name || '').replace(/'/g, "\\'").replace(/"/g,'&quot;');
+  const safeNote = (d.note || '').replace(/'/g, "\\'").replace(/"/g,'&quot;');
+  const safeVar  = (d.variant_name || '').replace(/'/g, "\\'").replace(/"/g,'&quot;');
+  const movId = d.movement_id;
+  const actionBtns = movId
+    ? `<div class="d-inline-flex gap-1 ms-1">
+         <button class="btn btn-sm btn-outline-primary"
+                 style="font-size:11px;padding:1px 6px;"
+                 onclick="openEditInbound(${movId}, ${d.qty_added}, '${safeNote}', '${safeName}', '${d.sku}', '${safeVar}')"
+                 title="Sửa số lượng / ghi chú">
+           <i class="bi bi-pencil"></i>
+         </button>
+         <button class="btn btn-sm btn-outline-secondary"
+                 style="font-size:11px;padding:1px 6px;color:#f59e0b;border-color:#f59e0b;"
+                 onclick="cancelInbound(${movId}, '${safeName}', ${d.qty_added})"
+                 title="Huỷ phiếu — trừ lại tồn kho, giữ lịch sử">
+           <i class="bi bi-slash-circle"></i>
+         </button>
+         <button class="btn btn-sm btn-outline-danger"
+                 style="font-size:11px;padding:1px 6px;"
+                 onclick="deleteInbound(${movId}, '${safeName}')"
+                 title="Xoá cứng — trừ tồn kho và xoá khỏi DB">
+           <i class="bi bi-trash"></i>
+         </button>
+       </div>`
+    : '';
+  tr.innerHTML = `
+    <td class="text-muted small">${now}</td>
+    <td><span class="badge bg-secondary font-monospace">${d.sku}</span></td>
+    <td class="small">${d.product_name}</td>
+    <td>${whBadge}</td>
+    <td class="text-muted small">${d.note || 'Quét mã vạch'}</td>
+    <td class="text-end text-success fw-bold">+${d.qty_added} <small class="text-muted fw-normal">${d.unit||''}</small></td>
+    <td class="text-end fw-semibold">${d.qty_after}</td>
+    <td class="text-nowrap">${pushBtn}${actionBtns}</td>`;
+  tbody.insertBefore(tr, tbody.firstChild);
+  setTimeout(() => { tr.style.background = ''; tr.style.transition = 'background 1.5s'; }, 100);
+}
+
+// ── Thu gọn / mở phiên ──
+let sessionOpen = true;
+function toggleSession() {
+  const wrap    = document.getElementById('session-body-wrap');
+  const chevron = document.getElementById('session-chevron');
+  sessionOpen = !sessionOpen;
+  wrap.style.display    = sessionOpen ? '' : 'none';
+  chevron.className     = sessionOpen ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+}
+
+function getSelectedWarehouseId() {
+  const checked = document.querySelector('.wh-radio:checked');
+  return checked && checked.value ? parseInt(checked.value) : null;
+}
+function getSelectedWarehouseName() {
+  const checked = document.querySelector('.wh-radio:checked');
+  if (!checked || !checked.value) return '';
+  const label = document.querySelector(`label[for="${checked.id}"]`) || checked.closest('label');
+  return label ? label.textContent.trim() : '';
+}
+
+async function doScan() {
+  const code = scanInput.value.trim().toUpperCase();
+  const qty  = parseInt(scanQtyEl.value) || 1;
+  if (!code) return;
+  scanInput.value = '';
+  scanInput.focus();
+
+  const confirmed_by = (document.getElementById('staffInput')?.value || '').trim();
+  const warehouse_id = getSelectedWarehouseId();
+  let data;
+  try {
+    const res = await fetch('/kho-vat-ly/inbound/scan', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({code, qty, confirmed_by, warehouse_id})
+    });
+    data = await res.json();
+  } catch(e) {
+    beepErr();
+    showResult(`<i class="bi bi-x-circle me-2"></i>Lỗi mạng: ${e.message}`, 'danger');
+    return;
+  }
+
+  if (data.ok) {
+    beepOk();
+    const sku = data.sku;
+    if (session[sku]) {
+      session[sku].qty      += data.qty_added;
+      session[sku].qty_after = data.qty_after;
+      session[sku].scans    += 1;
+    } else {
+      session[sku] = {name:data.product_name, unit:data.unit,
+                      qty:data.qty_added, qty_after:data.qty_after, scans:1};
+    }
+    updateSessionTable();
+    addHistoryRow(data);
+    const byStaff = data.confirmed_by ? ` &nbsp;— <i class="bi bi-person me-1"></i><strong>${data.confirmed_by}</strong>` : '';
+    showResult(
+      `<i class="bi bi-check-circle-fill me-2 text-success"></i>
+       <strong>✅ ${data.product_name}</strong>
+       &nbsp;+${data.qty_added} ${data.unit} &nbsp;→ Tồn kho: <strong>${data.qty_after}</strong>${byStaff}`,
+      'success', 3000
+    );
+  } else {
+    beepErr();
+    showResult(`<i class="bi bi-x-circle me-2"></i>${data.error}`, 'danger');
+  }
+}
+
+if (scanInput) {
+  scanInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); doScan(); }
+  });
+}
+
+// ── Camera fullscreen scanner ──
+let cameraScanner = null;
+let _cameraMode = 'scan'; // 'scan' | 'search'
+let _camLastCode = null, _camLastTime = 0, _camScanCount = 0;
+
+function openCamera() {
+  _cameraMode = 'scan';
+  _openCameraOverlay('Quét mã SKU sản phẩm');
+}
+function openCameraSearch() {
+  _cameraMode = 'search';
+  _openCameraOverlay('Tìm sản phẩm bằng camera');
+}
+function _openCameraOverlay(title) {
+  document.querySelector('#cameraOverlay .cam-topbar span').innerHTML =
+    `<i class="bi bi-camera-fill me-2"></i>${title}`;
+  document.getElementById('cameraOverlay').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  _camScanCount = 0; _updateCamCount();
+  setTimeout(startCamera, 80);
+}
+function _kvlScannerFormats() {
+  if (!window.Html5QrcodeSupportedFormats) return undefined;
+  const F = Html5QrcodeSupportedFormats;
+  return [F.QR_CODE, F.CODE_128, F.CODE_39, F.CODE_93, F.EAN_13, F.EAN_8,
+          F.UPC_A, F.UPC_E, F.ITF, F.CODABAR, F.DATA_MATRIX, F.PDF_417, F.AZTEC];
+}
+function _kvlTrackTweaks(readerId) {
+  try {
+    const video = document.querySelector('#' + readerId + ' video');
+    if (!video || !video.srcObject) return;
+    const track = video.srcObject.getVideoTracks()[0];
+    if (!track) return;
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    const adv = [];
+    if (caps.focusMode && caps.focusMode.includes('continuous'))    adv.push({ focusMode: 'continuous' });
+    if (caps.exposureMode && caps.exposureMode.includes('continuous')) adv.push({ exposureMode: 'continuous' });
+    if (caps.whiteBalanceMode && caps.whiteBalanceMode.includes('continuous')) adv.push({ whiteBalanceMode: 'continuous' });
+    if (adv.length) track.applyConstraints({ advanced: adv }).catch(()=>{});
+    if (caps.torch) {
+      const bar = document.querySelector('#cameraOverlay .cam-topbar');
+      if (bar && !document.getElementById('cam-torch-btn')) {
+        const btn = document.createElement('button');
+        btn.id = 'cam-torch-btn';
+        btn.className = 'cam-close-btn';
+        btn.style.marginRight = '8px';
+        btn.innerHTML = '<i class="bi bi-lightbulb"></i>';
+        btn.title = 'Bật/tắt đèn';
+        let on = false;
+        btn.addEventListener('click', () => {
+          on = !on;
+          track.applyConstraints({ advanced: [{ torch: on }] }).catch(()=>{});
+          btn.style.background = on ? 'rgba(250,204,21,.95)' : '';
+          btn.style.color = on ? '#000' : '';
+          btn.innerHTML = on ? '<i class="bi bi-lightbulb-fill"></i>' : '<i class="bi bi-lightbulb"></i>';
+        });
+        const closeBtn = bar.querySelector('.cam-close-btn');
+        bar.insertBefore(btn, closeBtn);
+      }
+    }
+  } catch (e) { console.warn('track tweak failed', e); }
+}
+function startCamera() {
+  const errEl = document.getElementById('cam-error');
+  if (errEl) errEl.style.display = 'none';
+  cameraScanner = new Html5Qrcode('cam-reader', {
+    verbose: false,
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+    formatsToSupport: _kvlScannerFormats(),
+  });
+  cameraScanner.start(
+    { facingMode: { ideal: 'environment' } },
+    {
+      fps: 25,
+      qrbox: (w, h) => { const s = Math.round(Math.min(w, h) * 0.88); return {width: s, height: s}; },
+      aspectRatio: window.innerHeight / window.innerWidth,
+      videoConstraints: {
+        facingMode: { ideal: 'environment' },
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+    },
+    onCameraResult, () => {}
+  ).then(() => _kvlTrackTweaks('cam-reader'))
+   .catch(err => {
+    if (errEl) { errEl.textContent = 'Không mở được camera: ' + err; errEl.style.display = 'block'; }
+  });
+}
+function closeCamera() {
+  if (cameraScanner) { cameraScanner.stop().catch(() => {}); cameraScanner = null; }
+  document.getElementById('cameraOverlay').style.display = 'none';
+  document.body.style.overflow = '';
+  const torchBtn = document.getElementById('cam-torch-btn'); if (torchBtn) torchBtn.remove();
+  scanInput.focus();
+}
+async function onCameraResult(code) {
+  const now = Date.now();
+  if (code === _camLastCode && now - _camLastTime < 2500) return;
+  _camLastCode = code; _camLastTime = now;
+  _camScanCount++; _updateCamCount();
+
+  if (_cameraMode === 'search') {
+    _showCamToast(`<i class="bi bi-search me-1"></i>Tìm: <strong>${code}</strong>`, 'processing');
+    closeCamera();
+    manualSearch.value = code.trim().toUpperCase();
+    manualSearch.dispatchEvent(new Event('input'));
+    setTimeout(() => {
+      const visible = Array.from(document.querySelectorAll('#product-list .product-item:not(.d-none)'));
+      if (visible.length === 1) visible[0].click();
+    }, 200);
+  } else {
+    _showCamToast(`<i class="bi bi-upc-scan me-1"></i>${code}`, 'processing');
+    const qty = parseInt(scanQtyEl?.value) || 1;
+    const warehouse_id = getSelectedWarehouseId();
+    const confirmed_by = (document.getElementById('staffInput')?.value || '').trim();
+    const res = await fetch('/kho-vat-ly/inbound/scan', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({code: code.toUpperCase(), qty, confirmed_by, warehouse_id})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      beepOk();
+      _showCamToast(`<i class="bi bi-check-circle-fill me-1"></i><strong>${data.product_name||code}</strong> ×${data.qty_added} → Tồn: ${data.qty_after} ✓`, 'ok');
+      const sku = data.sku;
+      if (session[sku]) { session[sku].qty += data.qty_added; session[sku].qty_after = data.qty_after; session[sku].scans += 1; }
+      else { session[sku] = {name:data.product_name, unit:data.unit, qty:data.qty_added, qty_after:data.qty_after, scans:1}; }
+      updateSessionTable(); addHistoryRow(data);
+    } else {
+      beepErr();
+      _showCamToast(`<i class="bi bi-exclamation-triangle-fill me-1"></i><strong>${code}</strong> — ${data.error||'Không tìm thấy'}`, 'err');
+    }
+  }
+}
+function _showCamToast(html, type) {
+  const el = document.getElementById('cam-toast');
+  el.innerHTML = html; el.className = 'cam-toast cam-toast-' + type; el.style.opacity = '1';
+  clearTimeout(el._t); el._t = setTimeout(() => { el.style.opacity = '0'; }, 3200);
+}
+function _updateCamCount() {
+  document.getElementById('cam-scan-count').textContent = _camScanCount + ' mã đã quét';
+}
+
+// ── Modal giỏ hàng nhập thủ công ──
+const manualModal  = document.getElementById('manualModal');
+const manualSearch = document.getElementById('manual-search');
+const productList  = document.getElementById('product-list');
+const allItems     = Array.from(productList.querySelectorAll('.product-item'));
+const qtyPanel     = document.getElementById('qty-panel');
+const noSelection  = document.getElementById('no-selection');
+const cartTable    = document.getElementById('cart-table');
+const cartEmpty    = document.getElementById('cart-empty');
+const cartBody     = document.getElementById('cart-body');
+const cartTotal    = document.getElementById('cart-total');
+const cartCount    = document.getElementById('cart-count');
+const cartSubmit   = document.getElementById('cart-submit');
+
+// Giỏ hàng: {cartKey → {id, sku, name, variantId, variantName, unit, stock, qty, note}}
+// cartKey = product_id nếu không có variant, hoặc product_id+"__"+variation_id nếu có variant
+const cart = {};
+let selectedItem = null;
+
+function updateCartUI() {
+  const keys = Object.keys(cart);
+  const empty = keys.length === 0;
+  cartTable.classList.toggle('d-none', empty);
+  cartEmpty.classList.toggle('d-none', !empty);
+  cartSubmit.disabled = empty;
+  cartBody.innerHTML = '';
+  let totalQty = 0;
+  keys.forEach(key => {
+    const c = cart[key];
+    totalQty += c.qty;
+    const varBadge = c.variantName
+      ? `<span class="badge bg-info text-dark ms-1" style="font-size:10px">${c.variantName}</span>`
+      : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="badge bg-secondary font-monospace">${c.sku}</span></td>
+      <td class="small">${c.name}${varBadge}</td>
+      <td class="text-center">
+        <input type="number" class="form-control form-control-sm text-center fw-bold cart-qty-input"
+               value="${c.qty}" min="1" max="99999" data-key="${key}"
+               style="width:70px; display:inline-block">
+      </td>
+      <td class="small text-muted">${c.note||'—'}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-danger cart-remove" data-key="${key}" title="Xoá">
+          <i class="bi bi-trash3"></i>
+        </button>
+      </td>`;
+    cartBody.appendChild(tr);
+  });
+  cartTotal.textContent = totalQty;
+  cartCount.textContent = keys.length + ' mặt hàng';
+  cartBody.querySelectorAll('.cart-qty-input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const key = inp.dataset.key;
+      const v   = parseInt(inp.value) || 1;
+      if (cart[key]) { cart[key].qty = v; updateCartUI(); }
+    });
+  });
+  cartBody.querySelectorAll('.cart-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      delete cart[btn.dataset.key];
+      updateCartUI();
+    });
+  });
+}
+
+function clearSelection() {
+  selectedItem = null;
+  qtyPanel.classList.add('d-none');
+  noSelection.classList.remove('d-none');
+  allItems.forEach(el => el.style.fontWeight = '');
+  document.getElementById('qp-qty').value = '';
+  document.getElementById('qp-note').value = '';
+  document.getElementById('qp-variant-wrap').classList.add('d-none');
+  document.getElementById('qp-variant').innerHTML = '<option value="">— Chọn biến thể —</option>';
+}
+
+async function selectProduct(d) {
+  selectedItem = d;
+  allItems.forEach(el => {
+    el.style.fontWeight = el.dataset.id === d.id ? 'bold' : '';
+    el.style.background = el.dataset.id === d.id ? '#e8f5e9' : '';
+  });
+  document.getElementById('qp-name').textContent  = d.name;
+  document.getElementById('qp-sku').textContent   = d.sku;
+  document.getElementById('qp-stock').textContent = d.qty + ' ' + (d.unit||'');
+  document.getElementById('qp-qty').value = '';
+  document.getElementById('qp-note').value = '';
+  qtyPanel.classList.remove('d-none');
+  noSelection.classList.add('d-none');
+
+  // Load variants
+  const varWrap = document.getElementById('qp-variant-wrap');
+  const varSel  = document.getElementById('qp-variant');
+  const varLoad = document.getElementById('qp-variant-loading');
+  const varWarn = document.getElementById('qp-variant-unnamed-warn');
+  const varNameLink = document.getElementById('qp-variant-name-link');
+  // Reset cả single-input lẫn multi-variant UI
+  const multiWrap = document.getElementById('qp-multivariant-wrap');
+  const multiList = document.getElementById('qp-multivariant-list');
+  const multiAct  = document.getElementById('qp-multi-action');
+  const singleWrap = document.getElementById('qp-single-qty-wrap');
+  varWrap.classList.add('d-none');
+  varWarn.classList.add('d-none');
+  multiWrap.classList.add('d-none');
+  multiAct.classList.add('d-none');
+  singleWrap.classList.remove('d-none');
+  multiList.innerHTML = '';
+  varSel.innerHTML = '<option value="">— Chọn biến thể —</option>';
+  varLoad.classList.remove('d-none');
+  // Đọc warehouse_id đang chọn (nếu có)
+  const whSel = document.getElementById('warehouse-select') || document.querySelector('select[name="warehouse_id"]');
+  const whId  = whSel ? (whSel.value || '') : '';
+  try {
+    const whParam = whId ? `?warehouse_id=${whId}` : '';
+    const res  = await fetch(`/kho-vat-ly/api/product/${d.id}/variants${whParam}`);
+    const data = await res.json();
+    varLoad.classList.add('d-none');
+    if (data.ok && data.count > 1) {
+      // ── MULTI-VARIANT MODE: hiện input qty cho TỪNG biến thể ──
+      // Ẩn UI single qty + dropdown variant cũ
+      singleWrap.classList.add('d-none');
+      varWrap.classList.add('d-none');
+      multiWrap.classList.remove('d-none');
+      multiAct.classList.remove('d-none');
+      data.variants.forEach((v, idx) => {
+        const row = document.createElement('div');
+        row.className = 'd-flex align-items-center gap-2 mb-1 p-1 rounded';
+        row.style.background = (idx % 2 === 0) ? '#f8f9fa' : '#fff';
+        row.innerHTML = `
+          <span class="flex-grow-1 small">
+            <strong>${v.variant_name}</strong>
+            <span class="text-muted ms-1">— tồn: <span class="badge bg-secondary">${v.qty}</span></span>
+          </span>
+          <input type="number" class="form-control form-control-sm qp-mv-qty"
+                 min="0" max="99999" placeholder="0"
+                 data-variant-id="${v.pos_variation_id}"
+                 data-variant-name="${v.variant_name.replace(/"/g, '&quot;')}"
+                 data-current-qty="${v.qty}"
+                 style="width:90px; text-align:center; font-weight:600">
+        `;
+        multiList.appendChild(row);
+      });
+      // Cảnh báo biến thể chưa đặt tên (giữ logic cũ)
+      if (!data.all_named) {
+        const warn = document.createElement('div');
+        warn.className = 'mt-1 p-2 rounded small';
+        warn.style.cssText = 'background:#fff8e1;border:1px solid #ffc107;color:#856404';
+        warn.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-1"></i>
+          Có biến thể chưa đặt tên (BT 1, BT 2...) —
+          <a href="/kho-vat-ly/san-pham/${d.id}/nhap-bien-the" target="_blank" class="fw-semibold">Đặt tên biến thể</a>
+          để dễ phân biệt.`;
+        multiList.appendChild(warn);
+      }
+      setTimeout(() => {
+        const firstInput = multiList.querySelector('.qp-mv-qty');
+        if (firstInput) firstInput.focus();
+      }, 50);
+    } else {
+      // ── SINGLE / NO VARIANT: dùng input single qty như cũ ──
+      varLoad.classList.add('d-none');
+      setTimeout(() => document.getElementById('qp-qty').focus(), 50);
+    }
+  } catch(e) {
+    varLoad.classList.add('d-none');
+    setTimeout(() => document.getElementById('qp-qty').focus(), 50);
+  }
+}
+
+// Add nhiều biến thể cùng lúc vào cart
+function addMultiVariantToCart() {
+  if (!selectedItem) return;
+  const note = document.getElementById('qp-multi-note').value.trim();
+  const inputs = document.querySelectorAll('.qp-mv-qty');
+  let added = 0;
+  inputs.forEach(inp => {
+    const qty = parseInt(inp.value) || 0;
+    if (qty <= 0) return;
+    const varId   = inp.dataset.variantId || '';
+    const varName = inp.dataset.variantName || '';
+    const stock   = parseInt(inp.dataset.currentQty) || 0;
+    const cartKey = varId ? `${selectedItem.id}__${varId}` : selectedItem.id;
+    cart[cartKey] = {
+      id: selectedItem.id, sku: selectedItem.sku,
+      name: selectedItem.name, unit: selectedItem.unit,
+      variantId: varId, variantName: varName,
+      stock: stock, qty: qty, note: note
+    };
+    added++;
+    inp.value = ''; // reset
+  });
+  if (added === 0) {
+    alert('Vui lòng nhập số lượng cho ít nhất 1 biến thể');
+    return;
+  }
+  updateCartUI();
+  const el = allItems.find(e => e.dataset.id === selectedItem.id);
+  if (el) { el.style.background='#c8e6c9'; setTimeout(()=>el.style.background='#e8f5e9',500); }
+  setTimeout(() => manualSearch.focus(), 100);
+}
+
+function addToCart() {
+  if (!selectedItem) return;
+  const qty     = parseInt(document.getElementById('qp-qty').value) || 0;
+  const note    = document.getElementById('qp-note').value.trim();
+  const varSel  = document.getElementById('qp-variant');
+  const varWrap = document.getElementById('qp-variant-wrap');
+  const varId   = varWrap.classList.contains('d-none') ? '' : varSel.value;
+  // Dùng dataset.variantName để tránh lấy phần "— tồn: X" trong option text
+  const selectedOpt = varId ? varSel.options[varSel.selectedIndex] : null;
+  const varName = selectedOpt ? (selectedOpt.dataset.variantName || selectedOpt.textContent.split('  —')[0].trim()) : '';
+
+  // Validate variant nếu có
+  if (!varWrap.classList.contains('d-none') && !varId) {
+    varSel.classList.add('is-invalid');
+    varSel.focus();
+    return;
+  }
+  varSel.classList.remove('is-invalid');
+  if (qty <= 0) {
+    document.getElementById('qp-qty').classList.add('is-invalid');
+    document.getElementById('qp-qty').focus();
+    return;
+  }
+  document.getElementById('qp-qty').classList.remove('is-invalid');
+
+  const cartKey = varId ? `${selectedItem.id}__${varId}` : selectedItem.id;
+  cart[cartKey] = {
+    id: selectedItem.id, sku: selectedItem.sku,
+    name: selectedItem.name, unit: selectedItem.unit,
+    variantId: varId, variantName: varName,
+    stock: selectedItem.qty, qty, note
+  };
+  updateCartUI();
+  const el = allItems.find(e => e.dataset.id === selectedItem.id);
+  if (el) { el.style.background='#c8e6c9'; setTimeout(()=>el.style.background='#e8f5e9',500); }
+  document.getElementById('qp-qty').value = '';
+  setTimeout(() => manualSearch.focus(), 100);
+}
+
+// Sự kiện
+productList.addEventListener('click', e => {
+  const item = e.target.closest('.product-item');
+  if (item) selectProduct(item.dataset);
+});
+productList.addEventListener('mouseover', e => {
+  const item = e.target.closest('.product-item');
+  if (item && item.dataset.id !== (selectedItem?.id)) item.style.background = '#f0fdf4';
+});
+productList.addEventListener('mouseout', e => {
+  const item = e.target.closest('.product-item');
+  if (item && item.dataset.id !== (selectedItem?.id)) item.style.background = '';
+});
+document.getElementById('qp-add').addEventListener('click', addToCart);
+document.getElementById('qp-multi-add').addEventListener('click', addMultiVariantToCart);
+// Enter trong bất kỳ ô qty của multi-variant → submit
+document.getElementById('qp-multivariant-list').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.classList.contains('qp-mv-qty')) {
+    e.preventDefault();
+    addMultiVariantToCart();
+  }
+});
+document.getElementById('qp-cancel').addEventListener('click', clearSelection);
+document.getElementById('qp-qty').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); addToCart(); }
+});
+
+// ── Tìm kiếm sản phẩm trong modal ──
+function _filterProducts(q) {
+  // q đã được trim + lowercase từ nơi gọi
+  let shown = 0;
+  let exactMatch = null;
+  // Dùng querySelectorAll mỗi lần để không bị stale
+  // Dùng d-none thay vì style.display vì item có d-flex !important
+  document.querySelectorAll('#product-list .product-item').forEach(function(el) {
+    var sku  = (el.dataset.sku  || '').toLowerCase();
+    var name = (el.dataset.name || '').toLowerCase();
+    var ok   = !q || sku.indexOf(q) !== -1 || name.indexOf(q) !== -1;
+    el.classList.toggle('d-none', !ok);
+    if (ok) {
+      shown++;
+      if (sku === q) exactMatch = el;
+    }
+  });
+  var noResult = document.getElementById('qp-no-result');
+  if (!noResult) {
+    noResult = document.createElement('div');
+    noResult.id = 'qp-no-result';
+    noResult.className = 'text-center text-muted py-4 small d-none';
+    noResult.innerHTML = '<i class="bi bi-search me-1"></i>Không tìm thấy sản phẩm nào khớp';
+    if (productList) productList.appendChild(noResult);
+  }
+  if (noResult) noResult.classList.toggle('d-none', !(q && shown === 0));
+  return { shown: shown, exactMatch: exactMatch };
+}
+
+// Gõ → lọc real-time
+manualSearch.addEventListener('input', function() {
+  var q = manualSearch.value.toLowerCase().trim();
+  _filterProducts(q);
+});
+
+// Bấm Space hoặc Enter → tự động chọn sản phẩm khớp SKU
+manualSearch.addEventListener('keydown', function(e) {
+  if (e.key !== ' ' && e.key !== 'Enter') return;
+  var q = manualSearch.value.replace(/\s/g, '').toLowerCase(); // loại bỏ khoảng trắng
+  if (!q) return;
+  var result = _filterProducts(q);
+  // Ưu tiên: khớp chính xác SKU → chọn luôn
+  if (result.exactMatch) {
+    e.preventDefault();
+    result.exactMatch.click();
+    manualSearch.value = '';
+    _filterProducts('');
+    return;
+  }
+  // Nếu chỉ còn 1 kết quả → chọn luôn
+  if (result.shown === 1) {
+    e.preventDefault();
+    var visible = Array.from(document.querySelectorAll('#product-list .product-item:not(.d-none)'));
+    if (visible.length === 1) {
+      visible[0].click();
+      manualSearch.value = '';
+      _filterProducts('');
+    }
+    return;
+  }
+  // Nhiều kết quả → chỉ filter, không chọn (giữ space trong input)
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    // Filter không dấu cách
+    _filterProducts(q);
+  }
+});
+
+// Submit giỏ hàng → batch API
+cartSubmit.addEventListener('click', async () => {
+  const keys = Object.keys(cart);
+  if (!keys.length) return;
+  cartSubmit.disabled = true;
+  cartSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang nhập...';
+  const warehouse_id = getSelectedWarehouseId();
+  const payload = keys.map(key => ({
+    product_id: cart[key].id,
+    qty: cart[key].qty,
+    note: cart[key].note,
+    warehouse_id,
+    pos_variation_id: cart[key].variantId || null
+  }));
+  let data;
+  try {
+    const res = await fetch('/kho-vat-ly/inbound/batch', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    data = await res.json();
+  } catch(e) {
+    alert('Lỗi mạng: ' + e.message);
+    cartSubmit.disabled = false;
+    cartSubmit.innerHTML = '<i class="bi bi-check2-all me-1"></i>Xác nhận nhập kho';
+    return;
+  }
+  // Cập nhật session + history
+  if (data.results) {
+    data.results.forEach(r => {
+      const sku = r.sku;
+      if (session[sku]) {
+        session[sku].qty      += r.qty_added;
+        session[sku].qty_after = r.qty_after;
+        session[sku].scans    += 1;
+      } else {
+        session[sku] = {name:r.product_name, unit:r.unit,
+                        qty:r.qty_added, qty_after:r.qty_after, scans:1};
+      }
+      addHistoryRow(r);
+    });
+    updateSessionTable();
+    beepOk();
+  }
+  // Đóng modal
+  bootstrap.Modal.getInstance(manualModal).hide();
+  // Reset
+  Object.keys(cart).forEach(k => delete cart[k]);
+  updateCartUI();
+  clearSelection();
+  // Flash message
+  showResult(
+    `<i class="bi bi-check-circle-fill me-2 text-success"></i>
+     <strong>✅ Đã nhập ${data.inserted} sản phẩm vào kho.</strong>
+     ${data.errors.length ? ' Lỗi: '+data.errors.join('; ') : ''}`,
+    data.errors.length ? 'warning' : 'success', 5000
+  );
+  cartSubmit.disabled = false;
+  cartSubmit.innerHTML = '<i class="bi bi-check2-all me-1"></i>Xác nhận nhập kho <span class="badge bg-white text-success ms-2" id="cart-count">0 sản phẩm</span>';
+});
+
+// Reset khi mở modal
+manualModal.addEventListener('show.bs.modal', () => {
+  manualSearch.value = '';
+  allItems.forEach(el => { el.style.display=''; el.style.background=''; el.style.fontWeight=''; });
+  setTimeout(() => manualSearch.focus(), 300);
+});
+
+// ── Modal chọn shop khi Đẩy POS ──
+let _pushPosBtn = null;
+
+// Cache per product_id
+const _shopCache = {};
+
+async function _loadShopsForProduct(productId) {
+  if (_shopCache[productId]) return _shopCache[productId];
+  const r = await fetch(`/kho-vat-ly/inbound/shops-with-api?product_id=${productId}`);
+  const data = await r.json();
+  const result = {shops: data.shops || [], warning: data.warning || null};
+  _shopCache[productId] = result;
+  return result;
+}
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.push-pos-btn');
+  if (!btn) return;
+  e.preventDefault();
+  _pushPosBtn = btn;
+
+  const productId = btn.dataset.productId;
+
+  // Điền thông tin sản phẩm
+  document.getElementById('pushPosProductName').textContent = btn.dataset.productName || '';
+  document.getElementById('pushPosQty').textContent = '+' + (btn.dataset.qty || '0');
+  // Điền ghi chú mặc định
+  const skuVal = btn.dataset.sku || '';
+  const whName = btn.dataset.warehouseName || 'kho Tiểu Hiềm';
+  const noteEl = document.getElementById('pushPosNote');
+  if (noteEl) noteEl.value = skuVal ? `Nhập từ ${whName} — SKU: ${skuVal}` : `Nhập từ ${whName}`;
+
+  // Mở modal trước, load shop song song
+  const shopSelect = document.getElementById('pushPosShopSelect');
+  const shopWarning = document.getElementById('pushPosWarning');
+  shopSelect.innerHTML = '<option value="">⏳ Đang kiểm tra shop trên POS...</option>';
+  if (window.CCMultiSelect && CCMultiSelect.refresh) CCMultiSelect.refresh(shopSelect);
+  shopSelect.disabled = true;
+  document.getElementById('pushPosConfirmBtn').disabled = true;
+  if (shopWarning) shopWarning.classList.add('d-none');
+  const modal = new bootstrap.Modal(document.getElementById('pushPosModal'));
+  modal.show();
+
+  const {shops, warning} = await _loadShopsForProduct(productId);
+  shopSelect.disabled = false;
+  document.getElementById('pushPosConfirmBtn').disabled = false;
+
+  if (warning && shopWarning) {
+    shopWarning.textContent = '⚠️ ' + warning;
+    shopWarning.classList.remove('d-none');
+  }
+
+  if (shops.length === 0) {
+    shopSelect.innerHTML = '<option value="">— Không tìm thấy shop phù hợp —</option>';
+  } else {
+    shopSelect.innerHTML = `<option value="">— Chọn shop (${shops.length} shop có sản phẩm này) —</option>` +
+      shops.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  }
+  // Bắt buộc refresh wrapper cc-multiselect vì nó cache options lúc init.
+  if (window.CCMultiSelect && CCMultiSelect.refresh) CCMultiSelect.refresh(shopSelect);
+});
+
+document.addEventListener('click', async (e) => {
+  if (!e.target.closest('#pushPosConfirmBtn')) return;
+  const btn = _pushPosBtn;
+  if (!btn) return;
+  const shopSelect = document.getElementById('pushPosShopSelect');
+  const shopId = shopSelect.value;
+  const shopName = shopSelect.options[shopSelect.selectedIndex]?.text || '';
+  if (!shopId) { alert('Vui lòng chọn shop!'); return; }
+
+  bootstrap.Modal.getInstance(document.getElementById('pushPosModal')).hide();
+
+  const origHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang tạo phiếu...';
+
+  try {
+    const fd = new FormData();
+    fd.append('product_id', btn.dataset.productId);
+    fd.append('warehouse_id', btn.dataset.warehouseId);
+    fd.append('movement_id', btn.dataset.movementId || '');
+    fd.append('qty', btn.dataset.qty || '0');
+    fd.append('shop_id', shopId);
+    fd.append('pos_variation_id', btn.dataset.posVariationId || '');
+    fd.append('note', (document.getElementById('pushPosNote')?.value || '').trim());
+    const res = await fetch('/kho-vat-ly/inbound/push-to-pos', {method:'POST', body: fd});
+    const data = await res.json();
+    if (data.ok) {
+      const results = data.results || [];
+      const okCount  = results.filter(r => r.ok).length;
+      const total    = results.length;
+      const allOk    = okCount === total && total > 0;
+      const lines = results.map(r => `${r.ok ? '✅' : '❌'} ${r.shop}: ${r.msg}`).join('\n');
+      alert(`${data.summary || ''}\n\n${lines}`);
+      if (allOk) {
+        btn.classList.remove('btn-outline-warning','btn-outline-primary','btn-outline-danger');
+        btn.classList.add('btn-outline-success');
+        btn.innerHTML = `<i class="bi bi-check2-circle me-1"></i>${shopName}`;
+        btn.disabled = false;
+        btn.title = `Đã đẩy POS → ${shopName} thành công`;
+      } else {
+        btn.classList.remove('btn-outline-success','btn-outline-primary','btn-outline-danger');
+        btn.classList.add('btn-outline-warning');
+        btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Đẩy lại';
+        btn.disabled = false;
+        btn.title = `${okCount}/${total} shop thành công`;
+      }
+    } else {
+      alert('Lỗi: ' + (data.error || 'Không xác định'));
+      btn.disabled = false;
+      btn.innerHTML = origHTML;
+    }
+  } catch(ex) {
+    alert('Lỗi mạng: ' + ex.message);
+    btn.disabled = false;
+    btn.innerHTML = origHTML;
+  }
+});
+
+// Highlight kho đang chọn
+document.querySelectorAll('.wh-radio').forEach(r => {
+  r.addEventListener('change', () => {
+    document.querySelectorAll('label').forEach(l => {
+      if (l.querySelector('.wh-radio')) l.style.borderColor = '';
+    });
+    if (r.checked && r.value) {
+      r.closest('label').style.borderColor = '#F59E0B';
+      r.closest('label').style.fontWeight  = '700';
+    }
+  });
+  if (r.checked && r.value) {
+    r.closest('label').style.borderColor = '#F59E0B';
+    r.closest('label').style.fontWeight  = '700';
+  }
+});
+
+// ── T006: Hiển thị tồn kho theo biến thể ──
+async function showStockBreakdown(productId, sku, name) {
+  const modal = new bootstrap.Modal(document.getElementById('stockBreakdownModal'));
+  document.getElementById('sbm-sku').textContent = sku;
+  document.getElementById('sbm-loading').classList.remove('d-none');
+  document.getElementById('sbm-content').classList.add('d-none');
+  document.getElementById('sbm-opening-link').href = `/kho-vat-ly/san-pham/${productId}/nhap-bien-the`;
+  modal.show();
+  try {
+    const res = await fetch(`/kho-vat-ly/api/product/${productId}/stock-by-variant`);
+    const data = await res.json();
+    document.getElementById('sbm-loading').classList.add('d-none');
+    document.getElementById('sbm-content').classList.remove('d-none');
+    const varTable = document.getElementById('sbm-variant-table');
+    const noVar    = document.getElementById('sbm-no-variants');
+    if (data.by_variant && data.by_variant.length > 0) {
+      noVar.classList.add('d-none');
+      let html = `<table class="table table-sm table-hover mb-0 align-middle">
+        <thead class="table-light"><tr>
+          <th>Biến thể</th><th class="text-center">Kho</th><th class="text-end">Tồn</th>
+        </tr></thead><tbody>`;
+      data.by_variant.forEach(v => {
+        const warehousesText = v.warehouses.map(w => `${w.warehouse_name}: <strong>${w.qty}</strong>`).join(', ');
+        html += `<tr>
+          <td><span class="badge bg-info text-dark">${v.variant_name}</span></td>
+          <td class="small text-muted">${warehousesText}</td>
+          <td class="text-end fw-bold text-success">${v.total}</td>
+        </tr>`;
+      });
+      html += `</tbody><tfoot class="table-light"><tr>
+        <td colspan="2" class="text-muted fw-semibold">Tổng cộng</td>
+        <td class="text-end fw-bold text-primary">${data.by_variant.reduce((s,v)=>s+v.total,0)}</td>
+      </tr></tfoot></table>`;
+      varTable.innerHTML = html;
+    } else if (data.product_level && data.product_level.length > 0) {
+      varTable.innerHTML = '';
+      noVar.classList.remove('d-none');
+      noVar.innerHTML = `<div class="py-2 text-muted small">Tồn kho gộp: ${
+        data.product_level.map(r=>`<strong>${r.qty}</strong> (${r.warehouse_name})`).join(', ')
+      }</div><div class="text-muted small">Chưa có tồn theo biến thể. Nhấn nút bên dưới để nhập đầu kỳ.</div>`;
+    } else {
+      varTable.innerHTML = '';
+      noVar.classList.remove('d-none');
+      noVar.textContent = 'Chưa có tồn kho. Nhấn nút bên dưới để nhập đầu kỳ theo biến thể.';
+    }
+  } catch(e) {
+    document.getElementById('sbm-loading').classList.add('d-none');
+    document.getElementById('sbm-content').classList.remove('d-none');
+    document.getElementById('sbm-variant-table').innerHTML = `<div class="p-3 text-danger">Lỗi tải dữ liệu: ${e.message}</div>`;
+  }
+}
+
+</script>
+
+<style>
+#cameraOverlay {
+  display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+  z-index:9999; background:#000; flex-direction:column;
+}
+#cam-reader { flex:1; position:relative; overflow:hidden; }
+#cam-reader video { width:100% !important; height:100% !important; object-fit:cover !important; position:absolute; top:0; left:0; }
+#cam-reader > div:first-child { display:none !important; }
+.cam-topbar {
+  position:absolute; top:0; left:0; right:0; z-index:10;
+  padding: max(env(safe-area-inset-top,0px),12px) 16px 12px;
+  background: linear-gradient(to bottom,rgba(0,0,0,.75),transparent);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.cam-topbar span { color:#fff; font-weight:700; font-size:17px; }
+.cam-close-btn {
+  background:rgba(255,255,255,.15); border:none; color:#fff;
+  width:38px; height:38px; border-radius:50%; font-size:18px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+.cam-bottom {
+  position:absolute; bottom:0; left:0; right:0; z-index:10;
+  padding: 12px 20px max(env(safe-area-inset-bottom,0px),16px);
+  background: linear-gradient(to top,rgba(0,0,0,.8),transparent);
+  text-align:center;
+}
+.cam-hint { color:rgba(255,255,255,.8); font-size:13px; margin-bottom:6px; }
+#cam-scan-count { color:rgba(255,255,255,.6); font-size:12px; }
+.cam-toast {
+  position:absolute; left:12px; right:12px; bottom:90px; z-index:20;
+  padding:12px 16px; border-radius:12px; font-size:14px; color:#fff;
+  text-align:center; opacity:0; transition:opacity .25s ease;
+  backdrop-filter:blur(8px); box-shadow:0 4px 20px rgba(0,0,0,.4);
+}
+.cam-toast-processing { background:rgba(33,150,243,.85); }
+.cam-toast-ok  { background:rgba(56,142,60,.9); }
+.cam-toast-err { background:rgba(198,40,40,.85); }
+#cam-error { color:#ff5252; background:rgba(0,0,0,.7); padding:10px 16px; border-radius:8px; font-size:13px; display:none; position:absolute; top:70px; left:12px; right:12px; z-index:20; }
+</style>
+
+{# ══ FULLSCREEN CAMERA OVERLAY ══ #}
+<div id="cameraOverlay">
+  <div class="cam-topbar">
+    <span><i class="bi bi-camera-fill me-2"></i>Quét mã SKU</span>
+    <button class="cam-close-btn" onclick="closeCamera()"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <div id="cam-reader"></div>
+  <div id="cam-error"></div>
+  <div id="cam-toast" class="cam-toast"></div>
+  <div class="cam-bottom">
+    <div class="cam-hint"><i class="bi bi-upc-scan me-1"></i>Hướng camera vào mã vạch — tự động nhận diện</div>
+    <div id="cam-scan-count">0 mã đã quét</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+{# ══ MODAL TỒN KHO THEO BIẾN THỂ (T006) ══ #}
+<div class="modal fade" id="stockBreakdownModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:520px;">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white py-2">
+        <h6 class="modal-title fw-bold mb-0">
+          <i class="bi bi-layers me-2"></i>Tồn kho theo biến thể
+          — <span id="sbm-sku" class="font-monospace"></span>
+        </h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div id="sbm-loading" class="text-center py-4">
+          <span class="spinner-border text-primary"></span>
+        </div>
+        <div id="sbm-content" class="d-none">
+          <div id="sbm-variant-table"></div>
+          <div id="sbm-no-variants" class="d-none text-center text-muted py-3 small">
+            Sản phẩm này chưa có tồn kho theo biến thể. Nhấn nút bên dưới để nhập đầu kỳ.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        {# link nhập tồn đầu kỳ theo biến thể đã ẩn #}
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ══ MODAL CHỌN SHOP KHI ĐẨY POS ══ #}
+<div class="modal fade" id="pushPosModal" tabindex="-1" aria-labelledby="pushPosModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+    <div class="modal-content">
+      <div class="modal-header py-2" style="background:#fffbeb; border-bottom:2px solid #F59E0B;">
+        <h6 class="modal-title fw-bold" id="pushPosModalLabel">
+          <i class="bi bi-cloud-upload me-2" style="color:#F59E0B;"></i>Đẩy lên Pancake POS
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3 p-2 rounded" style="background:#f8f9fa; border-left:3px solid #F59E0B;">
+          <div class="small text-muted mb-1">Sản phẩm</div>
+          <div class="fw-semibold" id="pushPosProductName">—</div>
+          <div class="mt-1">
+            <span class="badge bg-success" id="pushPosQty">+0</span>
+            <span class="text-muted small ms-1">sẽ được cộng vào tồn kho POS</span>
+          </div>
+        </div>
+        <label class="form-label fw-semibold mb-1">
+          <i class="bi bi-shop me-1" style="color:#F59E0B;"></i>Chọn shop nhận hàng
+        </label>
+        <select class="form-select" data-cc-search id="pushPosShopSelect">
+          <option value="">— Đang tải danh sách shop... —</option>
+        </select>
+        <div id="pushPosWarning" class="alert alert-warning py-2 px-3 small mt-2 d-none"></div>
+        <div class="text-muted small mt-2">
+          <i class="bi bi-info-circle me-1"></i>Chỉ hiển thị shop có sản phẩm này trong danh mục POS.
+        </div>
+        <label class="form-label fw-semibold mb-1 mt-3">
+          <i class="bi bi-pencil-square me-1" style="color:#6c757d;"></i>Ghi chú phiếu nhập POS
+        </label>
+        <textarea class="form-control form-control-sm" id="pushPosNote" rows="2"
+                  placeholder="Ghi chú kèm theo phiếu nhập..."></textarea>
+        <div class="text-muted small mt-1">
+          <i class="bi bi-info-circle me-1"></i>Ghi chú sẽ hiển thị trong phiếu nhập trên Pancake POS.
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Hủy</button>
+        <button type="button" class="btn btn-warning btn-sm fw-semibold" id="pushPosConfirmBtn">
+          <i class="bi bi-cloud-upload me-1"></i>Đẩy POS
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Modal: Nhập hàng từ Excel -->
+<div class="modal fade" id="excelImportModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal-content" style="border-radius:12px;">
+      <div class="modal-header py-2" style="background:#f0fdf4;">
+        <h6 class="modal-title fw-bold" style="color:#16a34a;">
+          <i class="bi bi-file-earmark-excel me-2"></i>Nhập hàng từ Excel
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="resetExcelModal()"></button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Bước 1: Upload -->
+        <div id="excelStep1">
+          <div class="alert alert-info py-2 mb-3" style="font-size:13px;">
+            <i class="bi bi-info-circle me-1"></i>
+            Hỗ trợ định dạng Excel với 3 cột: <strong>MÃ HÀNG</strong> (cột A) · <strong>TÊN SẢN PHẨM</strong> (cột B) · <strong>TỒN</strong> (cột C).<br>
+            Khớp ưu tiên theo <strong>MÃ HÀNG</strong> (chính xác 100%), fallback khớp <strong>Tên</strong> gần giống. Sản phẩm không tìm thấy sẽ báo lại và bỏ qua.
+          </div>
+          <div class="row g-3 align-items-end">
+            <div class="col-md-7">
+              <label class="form-label fw-semibold mb-1" style="font-size:13px;">Chọn file Excel (.xlsx)</label>
+              <input type="file" id="excelFile" class="form-control" accept=".xlsx,.xls">
+            </div>
+            <div class="col-md-5">
+              <label class="form-label fw-semibold mb-1" style="font-size:13px;">Kho nhập hàng</label>
+              <select id="excelWarehouse" data-cc-search class="form-select">
+                <option value="">— Không chọn kho —</option>
+                {% for wh in warehouses %}
+                <option value="{{ wh.id }}">{{ wh.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="mt-3 d-flex gap-2">
+            <button class="btn btn-success" onclick="previewExcel()">
+              <i class="bi bi-search me-1"></i>Xem trước & kiểm tra khớp
+            </button>
+            <a href="#" onclick="downloadTemplate(event)" class="btn btn-outline-secondary">
+              <i class="bi bi-download me-1"></i>Tải mẫu Excel
+            </a>
+          </div>
+          <div id="excelStep1Error" class="alert alert-danger mt-2 d-none"></div>
+        </div>
+
+        <!-- Bước 2: Preview kết quả -->
+        <div id="excelStep2" class="d-none">
+          <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+            <button class="btn btn-sm btn-outline-secondary" onclick="backToStep1()">
+              <i class="bi bi-arrow-left me-1"></i>Chọn file khác
+            </button>
+            <span id="excelSummaryBadge" class="badge bg-success fs-6"></span>
+            <span id="excelUnmatchedBadge" class="badge bg-danger fs-6 d-none"></span>
+          </div>
+
+          <!-- Bảng KHỚP -->
+          <div id="excelMatchedSection">
+            <h6 class="fw-bold mb-2 text-success"><i class="bi bi-check-circle me-1"></i>Sản phẩm khớp — sẽ được nhập kho</h6>
+            <div class="table-responsive" style="max-height:320px;overflow-y:auto;">
+              <table class="table table-sm table-bordered align-middle mb-0" style="font-size:12px;">
+                <thead class="table-success sticky-top">
+                  <tr>
+                    <th><input type="checkbox" id="chkAll" checked onchange="toggleAllRows(this)"></th>
+                    <th>SKU</th><th>Tên sản phẩm (kho)</th><th>Biến thể</th>
+                    <th style="width:80px;">SL nhập</th>
+                    <th>Ghi chú</th><th>Khớp theo</th>
+                  </tr>
+                </thead>
+                <tbody id="excelMatchedBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Bảng KHÔNG KHỚP -->
+          <div id="excelUnmatchedSection" class="mt-3 d-none">
+            <h6 class="fw-bold mb-2 text-danger"><i class="bi bi-x-circle me-1"></i>Không khớp — bỏ qua</h6>
+            <div class="table-responsive" style="max-height:200px;overflow-y:auto;">
+              <table class="table table-sm table-bordered align-middle mb-0" style="font-size:12px;">
+                <thead class="table-danger sticky-top">
+                  <tr><th>SKU (file)</th><th>Tên (file)</th><th>Biến thể</th><th>SL</th><th>Lý do</th></tr>
+                </thead>
+                <tbody id="excelUnmatchedBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" onclick="resetExcelModal()">Đóng</button>
+        <button type="button" class="btn btn-success btn-sm fw-semibold d-none" id="excelConfirmBtn" onclick="confirmExcelImport()">
+          <i class="bi bi-box-arrow-in-down me-1"></i>Nhập kho <span id="excelConfirmCount"></span> sản phẩm
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Sửa phiếu nhập -->
+<div class="modal fade" id="editInboundModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+    <div class="modal-content" style="border-radius:12px;">
+      <div class="modal-header py-2" style="background:#eff6ff;">
+        <h6 class="modal-title fw-bold" style="color:#2563eb;">
+          <i class="bi bi-pencil-square me-2"></i>Sửa phiếu nhập
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3 p-2 rounded" style="background:#f8fafc;border-left:3px solid #2563eb;">
+          <div class="small text-muted mb-1">Sản phẩm</div>
+          <div class="fw-semibold" id="editInboundProductName">—</div>
+          <div class="small text-muted" id="editInboundSku"></div>
+          <div class="mt-1" id="editInboundVariantWrap" style="display:none;">
+            <span class="badge bg-info text-dark" id="editInboundVariant"></span>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold mb-1" style="font-size:13px;">
+            Số lượng nhập <span class="text-danger">*</span>
+          </label>
+          <input type="number" id="editInboundQty" class="form-control" min="1" step="1">
+          <div class="form-text">Tồn kho sẽ được tự động điều chỉnh theo thay đổi này.</div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-semibold mb-1" style="font-size:13px;">Ghi chú</label>
+          <input type="text" id="editInboundNote" class="form-control" placeholder="Ghi chú phiếu nhập…">
+        </div>
+        <input type="hidden" id="editInboundId">
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Huỷ</button>
+        <button type="button" class="btn btn-primary btn-sm fw-semibold" onclick="submitEditInbound()">
+          <i class="bi bi-floppy-fill me-1"></i>Lưu thay đổi
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endif %}{# can_write — wrap toàn bộ script + modal #}
+
+<script>
+// ══════════════════════════════════════════════
+// NHẬP TỪ EXCEL
+// ══════════════════════════════════════════════
+let _excelMatchedData = [];
+
+function openExcelModal() {
+  resetExcelModal();
+  // Sync kho đang chọn vào dropdown
+  const whRadio = document.querySelector('input[name="inbound_warehouse"]:checked');
+  if (whRadio && whRadio.value) {
+    const sel = document.getElementById('excelWarehouse');
+    if (sel) sel.value = whRadio.value;
+  }
+  new bootstrap.Modal(document.getElementById('excelImportModal')).show();
+}
+
+function resetExcelModal() {
+  _excelMatchedData = [];
+  document.getElementById('excelStep1').classList.remove('d-none');
+  document.getElementById('excelStep2').classList.add('d-none');
+  document.getElementById('excelConfirmBtn').classList.add('d-none');
+  document.getElementById('excelStep1Error').classList.add('d-none');
+  document.getElementById('excelFile').value = '';
+}
+
+function backToStep1() {
+  document.getElementById('excelStep1').classList.remove('d-none');
+  document.getElementById('excelStep2').classList.add('d-none');
+  document.getElementById('excelConfirmBtn').classList.add('d-none');
+}
+
+async function previewExcel() {
+  const fileInput = document.getElementById('excelFile');
+  const errBox = document.getElementById('excelStep1Error');
+  errBox.classList.add('d-none');
+  if (!fileInput.files.length) {
+    errBox.textContent = 'Vui lòng chọn file Excel trước!';
+    errBox.classList.remove('d-none'); return;
+  }
+  const btn = document.querySelector('#excelStep1 .btn-success');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang xử lý…';
+  try {
+    const fd = new FormData();
+    fd.append('file', fileInput.files[0]);
+    fd.append('warehouse_id', document.getElementById('excelWarehouse').value || '');
+    const r = await fetch('/kho-vat-ly/inbound/excel-preview', {
+      method: 'POST', body: fd, credentials: 'same-origin',
+      headers: {'X-Requested-With': 'XMLHttpRequest'}
+    }).then(x=>x.json());
+    if (!r.ok) {
+      errBox.textContent = r.error || 'Lỗi xử lý file';
+      errBox.classList.remove('d-none');
+      btn.disabled = false; btn.innerHTML = '<i class="bi bi-search me-1"></i>Xem trước & kiểm tra khớp';
+      return;
+    }
+    renderExcelPreview(r);
+  } catch(e) {
+    errBox.textContent = 'Lỗi kết nối: ' + e.message;
+    errBox.classList.remove('d-none');
+  }
+  btn.disabled = false; btn.innerHTML = '<i class="bi bi-search me-1"></i>Xem trước & kiểm tra khớp';
+}
+
+function renderExcelPreview(data) {
+  _excelMatchedData = data.matched || [];
+  const unmatched = data.unmatched || [];
+
+  // Bảng KHỚP
+  const tbody = document.getElementById('excelMatchedBody');
+  tbody.innerHTML = '';
+  _excelMatchedData.forEach((row, i) => {
+    const mbColor = row.match_by === 'SKU+Biến' ? 'bg-primary' :
+                    row.match_by === 'SKU' ? 'bg-success' : 'bg-warning text-dark';
+    // BT cell: nếu SP có nhiều biến thể → hiện dropdown cho user sửa
+    const avail = row.available_variants || [];
+    let varCell = '<span class="text-muted" style="font-size:10px;">—</span>';
+    if (avail.length > 1) {
+      const current = row.pos_variation_id || '';
+      const opts = avail.map(v =>
+        `<option value="${v.pos_variation_id}" ${v.pos_variation_id===current?'selected':''}>${v.variant_name || '(chưa đặt tên)'}</option>`
+      ).join('');
+      const hint = row.input_variant
+        ? `<div style="font-size:10px;color:#6b7280;margin-top:2px;" title="BT trong Excel">Excel: ${row.input_variant}</div>`
+        : '';
+      const warn = (!current && row.input_variant)
+        ? `<div style="font-size:10px;color:#dc2626;" title="Không khớp tự động">⚠ Chọn lại BT</div>` : '';
+      varCell = `<select class="form-select form-select-sm excel-variant-select" data-idx="${i}" style="font-size:11px;min-width:140px;">
+                   <option value="">— Chọn biến thể —</option>${opts}
+                 </select>${hint}${warn}`;
+    } else if (avail.length === 1) {
+      varCell = `<span class="badge bg-secondary" style="font-size:10px;">${avail[0].variant_name || '(chỉ 1 BT)'}</span>`;
+    } else if (row.matched_variant) {
+      varCell = `<span class="badge bg-secondary" style="font-size:10px;">${row.matched_variant}</span>`;
+    }
+    tbody.innerHTML += `
+      <tr id="excel-row-${i}">
+        <td class="text-center"><input type="checkbox" class="excel-row-chk" data-idx="${i}" checked></td>
+        <td><code style="font-size:11px;">${row.sku}</code></td>
+        <td>${row.name}</td>
+        <td>${varCell}</td>
+        <td><input type="number" class="form-control form-control-sm text-center excel-qty-input"
+                   data-idx="${i}" value="${row.qty}" min="1" style="width:70px;"></td>
+        <td><input type="text" class="form-control form-control-sm excel-note-input"
+                   data-idx="${i}" value="${row.note || ''}" placeholder="Ghi chú…"></td>
+        <td><span class="badge ${mbColor}" style="font-size:10px;">${row.match_by}</span></td>
+      </tr>`;
+  });
+
+  // Bảng KHÔNG KHỚP
+  const tbodyU = document.getElementById('excelUnmatchedBody');
+  tbodyU.innerHTML = '';
+  unmatched.forEach(row => {
+    tbodyU.innerHTML += `<tr>
+      <td><code style="font-size:11px;">${row.sku||'—'}</code></td>
+      <td>${row.name||'—'}</td>
+      <td>${row.variant ? `<span class="badge bg-secondary" style="font-size:10px;">${row.variant}</span>` : '—'}</td>
+      <td>${row.qty}</td>
+      <td class="text-danger" style="font-size:11px;">${row.reason}</td>
+    </tr>`;
+  });
+
+  // Badges
+  document.getElementById('excelSummaryBadge').textContent = `✅ ${_excelMatchedData.length} sản phẩm khớp`;
+  const ub = document.getElementById('excelUnmatchedBadge');
+  if (unmatched.length) {
+    ub.textContent = `⚠️ ${unmatched.length} không khớp`;
+    ub.classList.remove('d-none');
+    document.getElementById('excelUnmatchedSection').classList.remove('d-none');
+  } else {
+    ub.classList.add('d-none');
+    document.getElementById('excelUnmatchedSection').classList.add('d-none');
+  }
+
+  // Chuyển sang step 2
+  document.getElementById('excelStep1').classList.add('d-none');
+  document.getElementById('excelStep2').classList.remove('d-none');
+  updateConfirmBtn();
+}
+
+function toggleAllRows(chk) {
+  document.querySelectorAll('.excel-row-chk').forEach(c => c.checked = chk.checked);
+  updateConfirmBtn();
+}
+
+function updateConfirmBtn() {
+  const checked = document.querySelectorAll('.excel-row-chk:checked').length;
+  const btn = document.getElementById('excelConfirmBtn');
+  document.getElementById('excelConfirmCount').textContent = checked;
+  if (checked > 0) btn.classList.remove('d-none');
+  else btn.classList.add('d-none');
+}
+document.addEventListener('change', e => {
+  if (e.target.classList.contains('excel-row-chk')) updateConfirmBtn();
+});
+
+async function confirmExcelImport() {
+  // Thu thập các row được check + qty/note đã sửa
+  const items = [];
+  document.querySelectorAll('.excel-row-chk:checked').forEach(chk => {
+    const i = parseInt(chk.dataset.idx);
+    const row = _excelMatchedData[i];
+    const qtyEl = document.querySelector(`.excel-qty-input[data-idx="${i}"]`);
+    const noteEl = document.querySelector(`.excel-note-input[data-idx="${i}"]`);
+    const qty = parseInt(qtyEl?.value || row.qty);
+    const varSel = document.querySelector(`.excel-variant-select[data-idx="${i}"]`);
+    const posVarId = varSel ? (varSel.value || null) : (row.pos_variation_id || null);
+    if (qty > 0) items.push({
+      product_id: row.product_id,
+      qty: qty,
+      note: noteEl?.value || row.note || 'Nhập từ Excel',
+      warehouse_id: row.warehouse_id,
+      pos_variation_id: posVarId,
+    });
+  });
+  if (!items.length) { showToast('Không có sản phẩm nào được chọn', 'warning'); return; }
+
+  const btn = document.getElementById('excelConfirmBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang nhập…';
+
+  try {
+    const r = await fetch('/kho-vat-ly/inbound/batch', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({source: 'excel', items: items})
+    }).then(x => x.json());
+
+    if (r.ok) {
+      const errMsg = r.errors?.length ? ` (${r.errors.length} lỗi)` : '';
+      showToast(`✅ Đã nhập kho ${r.inserted} sản phẩm${errMsg}`, 'success');
+      bootstrap.Modal.getInstance(document.getElementById('excelImportModal'))?.hide();
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      showToast(r.error || 'Lỗi nhập kho', 'danger');
+      btn.disabled = false; btn.innerHTML = '<i class="bi bi-box-arrow-in-down me-1"></i>Nhập kho';
+    }
+  } catch(e) {
+    showToast('Lỗi kết nối', 'danger');
+    btn.disabled = false; btn.innerHTML = '<i class="bi bi-box-arrow-in-down me-1"></i>Nhập kho';
+  }
+}
+
+function downloadTemplate(e) {
+  e.preventDefault();
+  window.location.href = '/kho-vat-ly/inbound/excel-template';
+}
+
+// ── Sửa phiếu nhập ──
+function openEditInbound(id, qty, note, productName, sku, variantName) {
+  document.getElementById('editInboundId').value          = id;
+  document.getElementById('editInboundQty').value         = qty;
+  document.getElementById('editInboundNote').value        = note;
+  document.getElementById('editInboundProductName').textContent = productName;
+  document.getElementById('editInboundSku').textContent   = sku ? `SKU: ${sku}` : '';
+  const vWrap = document.getElementById('editInboundVariantWrap');
+  const vEl   = document.getElementById('editInboundVariant');
+  if (variantName && variantName.trim()) {
+    vEl.textContent = 'Biến thể: ' + variantName;
+    vWrap.style.display = '';
+  } else {
+    vWrap.style.display = 'none';
+  }
+  new bootstrap.Modal(document.getElementById('editInboundModal')).show();
+}
+
+async function submitEditInbound() {
+  const id  = document.getElementById('editInboundId').value;
+  const qty = parseInt(document.getElementById('editInboundQty').value);
+  const note = document.getElementById('editInboundNote').value.trim();
+  if (!qty || qty <= 0) { showToast('Số lượng phải > 0', 'danger'); return; }
+  const btn = document.querySelector('#editInboundModal .btn-primary');
+  btn.disabled = true; btn.textContent = 'Đang lưu…';
+  try {
+    const r = await fetch(`/kho-vat-ly/inbound/${id}/edit`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ qty, note })
+    }).then(x => x.json());
+    if (r.ok) {
+      showToast(r.msg || '✅ Đã cập nhật!', 'success');
+      bootstrap.Modal.getInstance(document.getElementById('editInboundModal'))?.hide();
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      showToast(r.error || 'Lỗi', 'danger');
+      btn.disabled = false; btn.innerHTML = '<i class="bi bi-floppy-fill me-1"></i>Lưu thay đổi';
+    }
+  } catch(e) {
+    showToast('Lỗi kết nối', 'danger');
+    btn.disabled = false; btn.innerHTML = '<i class="bi bi-floppy-fill me-1"></i>Lưu thay đổi';
+  }
+}
+
+// ── Huỷ phiếu nhập (soft cancel — giữ lịch sử, trừ tồn kho) ──
+async function cancelInbound(id, productName, qty) {
+  const reason = prompt(`Huỷ phiếu #${id} — ${productName} (+${qty})?\nNhập lý do huỷ (hoặc để trống rồi OK):`, '');
+  if (reason === null) return; // Bấm Cancel
+  try {
+    const r = await fetch(`/kho-vat-ly/inbound/${id}/cancel`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ reason: reason || 'Huỷ thủ công' })
+    }).then(x => x.json());
+    if (r.ok) {
+      showToast(r.msg || '✅ Đã huỷ!', 'success');
+      // Nếu phiếu đã đẩy POS → hiện cảnh báo yêu cầu huỷ thủ công
+      if (r.pos_warn && r.pos_warn.length > 0) {
+        const lines = r.pos_warn.map(p =>
+          `• ${p.shop}: Phiếu nhập POS #${p.display_id || p.purchase_id.substring(0,8)}`
+        ).join('\n');
+        setTimeout(() => {
+          alert(`⚠️ PHIẾU NÀY ĐÃ ĐƯỢC ĐẨY LÊN POS!\n\nVui lòng vào Pancake POS và huỷ thủ công các phiếu nhập hàng sau:\n${lines}`);
+        }, 500);
+      }
+      setTimeout(() => location.reload(), r.pos_warn?.length ? 3000 : 1200);
+    } else {
+      showToast(r.error || 'Lỗi', 'danger');
+    }
+  } catch(e) {
+    showToast('Lỗi kết nối', 'danger');
+  }
+}
+
+// ── Xoá cứng phiếu nhập (reverse tồn kho + xoá DB) ──
+async function deleteInbound(id, productName) {
+  if (!confirm(`⚠️ Xoá cứng phiếu #${id} — ${productName}?\nTồn kho sẽ bị trừ lại và bản ghi bị xoá hoàn toàn.`)) return;
+  try {
+    const r = await fetch(`/kho-vat-ly/inbound/${id}/delete`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'}
+    }).then(x => x.json());
+    if (r.ok) {
+      showToast(r.msg || '✅ Đã xoá!', 'success');
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      showToast(r.error || 'Lỗi', 'danger');
+    }
+  } catch(e) {
+    showToast('Lỗi kết nối', 'danger');
+  }
+}
+
+function showToast(msg, type='info') {
+  const existing = document.getElementById('_inbound_toast');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = '_inbound_toast';
+  el.className = `alert alert-${type} position-fixed`;
+  el.style.cssText = 'bottom:20px;right:20px;z-index:9999;min-width:240px;max-width:380px;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+</script>
+{% endblock %}

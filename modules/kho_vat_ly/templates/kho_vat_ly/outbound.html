@@ -1,0 +1,1298 @@
+{% extends "kho_vat_ly/base.html" %}
+{% block title %}Xuất hàng{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-2">
+  <div>
+    <h1><i class="bi bi-box-arrow-up me-2 text-primary"></i>Xuất hàng</h1>
+    <p class="text-muted mb-0">Đơn xuất hàng từ Pancake POS — chuẩn bị hàng khi chờ ĐVVC, xác nhận xuất khi ĐVVC đã lấy</p>
+  </div>
+  {% if can_write and session.get('role') == 'admin' %}
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <form method="post" action="/kho-vat-ly/outbound/sync" class="d-flex align-items-center gap-2">
+      <select name="days_back" class="form-select form-select-sm" style="width:auto">
+        <option value="1">Hôm nay</option>
+        <option value="3" selected>3 ngày</option>
+        <option value="7">7 ngày</option>
+        <option value="14">14 ngày</option>
+        <option value="30">30 ngày</option>
+        <option value="60">60 ngày</option>
+        <option value="90">90 ngày</option>
+        <option value="200">200 ngày</option>
+      </select>
+      <button type="submit" class="btn btn-warning btn-sm">
+        <i class="bi bi-cloud-download me-1"></i>Sync từ POS
+      </button>
+    </form>
+    <button type="button" id="btnScanUUID" class="btn btn-outline-info btn-sm" onclick="scanVariationUUIDs()" title="Quét & map lại biến thể UUID từ Pancake">
+      <i class="bi bi-upc-scan me-1"></i>Quét biến thể
+      <span id="unknownUUIDBadge" class="badge bg-danger ms-1" style="display:none">0</span>
+    </button>
+    <button type="button" class="btn btn-danger btn-sm" onclick="showAdminBulkConfirmModal()">
+      <i class="bi bi-lightning-fill me-1"></i>Tự động xuất kho (Admin)
+    </button>
+  </div>
+  {% endif %}
+  <div id="uuidScanToast" style="display:none;margin:6px 0;padding:8px 14px;border-radius:8px;font-size:13px;border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1"></div>
+
+  {# Modal xác nhận admin bulk xuất kho #}
+  <div class="modal fade" id="adminBulkOutboundModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-danger">
+        <div class="modal-header bg-danger text-white">
+          <h5 class="modal-title"><i class="bi bi-lightning-fill me-2"></i>Xác nhận Bulk Xuất Kho (Admin)</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Thao tác này sẽ:</p>
+          <ul>
+            <li>Tự động xác nhận <strong>toàn bộ</strong> đơn đang <span class="badge bg-warning text-dark">Chờ xuất kho</span></li>
+            <li>Hàng thiếu trong kho vật lý sẽ <strong>được tự động bù tồn</strong> để đủ xuất</li>
+            <li>Ghi log <code>admin_auto_adjust</code> cho mỗi lần bù tồn</li>
+          </ul>
+          <div class="alert alert-warning mb-0">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            <strong>Không thể hoàn tác!</strong> Chỉ dùng khi cần xử lý nhanh hàng loạt.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Huỷ</button>
+          <button type="button" id="btnAdminBulkStart" class="btn btn-danger" onclick="adminBulkStart()">
+            <i class="bi bi-lightning-fill me-1"></i>Xác nhận — Tự động xuất hết
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Banner progress cho admin bulk confirm — chạy nền, poll qua JSON #}
+  <div id="adminBulkBanner" class="alert alert-danger d-none mb-3 py-2 px-3" role="alert" style="border-left:4px solid #dc3545;">
+    <div class="d-flex align-items-center gap-2">
+      <span id="adminBulkSpinner" class="spinner-border spinner-border-sm text-danger" role="status"></span>
+      <span id="adminBulkText" class="small fw-semibold">Đang chuẩn bị...</span>
+      <span class="ms-auto text-muted small" id="adminBulkTime"></span>
+    </div>
+    <div class="progress mt-2" style="height:6px;">
+      <div id="adminBulkBar" class="progress-bar progress-bar-striped progress-bar-animated bg-danger"
+           role="progressbar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <script>
+  function showAdminBulkConfirmModal() {
+    new bootstrap.Modal(document.getElementById('adminBulkOutboundModal')).show();
+  }
+
+  let _adminBulkPoll = null;
+  async function adminBulkStart() {
+    const btn = document.getElementById('btnAdminBulkStart');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang khởi tạo...';
+    try {
+      const res = await fetch('/kho-vat-ly/outbound/admin-bulk-confirm', {
+        method: 'POST',
+        headers: {'X-Requested-With': 'XMLHttpRequest'},
+      });
+      // Đóng modal + bắt đầu poll
+      const modalEl = document.getElementById('adminBulkOutboundModal');
+      bootstrap.Modal.getInstance(modalEl)?.hide();
+      document.getElementById('adminBulkBanner').classList.remove('d-none');
+      adminBulkPollStart();
+    } catch (e) {
+      alert('Lỗi khởi tạo: ' + e);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-lightning-fill me-1"></i>Xác nhận — Tự động xuất hết';
+    }
+  }
+
+  async function adminBulkPollTick() {
+    try {
+      const r = await fetch('/kho-vat-ly/outbound/admin-bulk-confirm/progress');
+      const p = await r.json();
+      const banner = document.getElementById('adminBulkBanner');
+      const bar = document.getElementById('adminBulkBar');
+      const txt = document.getElementById('adminBulkText');
+      const tm  = document.getElementById('adminBulkTime');
+      const sp  = document.getElementById('adminBulkSpinner');
+
+      const total = p.total || 0;
+      const done = p.done || 0;
+      const pct = total > 0 ? Math.floor(done * 100 / total) : (p.running ? 5 : 100);
+      bar.style.width = pct + '%';
+      txt.textContent = (p.message || '') + (total > 0 ? ` — ${pct}%` : '');
+      tm.textContent = p.started_at ? `Bắt đầu ${p.started_at}${p.done_at ? ' · Xong ' + p.done_at : ''}` : '';
+
+      if (!p.running) {
+        // Dừng poll, đổi banner sang xanh thành công (nếu không lỗi)
+        clearInterval(_adminBulkPoll); _adminBulkPoll = null;
+        sp.classList.add('d-none');
+        if ((p.errors_count || 0) === 0) {
+          banner.classList.remove('alert-danger');
+          banner.classList.add('alert-success');
+          banner.style.borderLeftColor = '#198754';
+          bar.classList.remove('bg-danger', 'progress-bar-animated', 'progress-bar-striped');
+          bar.classList.add('bg-success');
+          bar.style.width = '100%';
+        }
+        // Refresh sau 2s để cập nhật số badge
+        setTimeout(() => { window.location.reload(); }, 2500);
+      }
+    } catch (e) {
+      console.warn('poll admin bulk err', e);
+    }
+  }
+  function adminBulkPollStart() {
+    if (_adminBulkPoll) return;
+    adminBulkPollTick();
+    _adminBulkPoll = setInterval(adminBulkPollTick, 1500);
+  }
+  // Nếu reload trang mà job đang chạy thì tự bắt đầu poll
+  document.addEventListener('DOMContentLoaded', () => {
+    fetch('/kho-vat-ly/outbound/admin-bulk-confirm/progress')
+      .then(r => r.ok ? r.json() : null)
+      .then(p => {
+        if (p && p.running) {
+          document.getElementById('adminBulkBanner').classList.remove('d-none');
+          adminBulkPollStart();
+        }
+      })
+      .catch(() => {});
+  });
+  </script>
+</div>
+
+{# ══ PROGRESS BANNER SYNC XUẤT HÀNG ══ #}
+<div id="syncProgressBanner" class="alert alert-warning d-none mb-3 py-2 px-3" role="alert" style="border-left:4px solid #F59E0B;">
+  <div class="d-flex align-items-center gap-2">
+    <span class="spinner-border spinner-border-sm text-warning" role="status"></span>
+    <span id="syncProgressText" class="small">Đang sync...</span>
+    <span class="ms-auto text-muted small" id="syncProgressTime"></span>
+  </div>
+  <div class="progress mt-2" style="height:6px;">
+    <div id="syncProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
+         role="progressbar" style="width:100%"></div>
+  </div>
+</div>
+<div id="syncDoneBanner" class="alert alert-success d-none mb-3 py-2 px-3" role="alert" style="border-left:4px solid #198754;">
+  <span id="syncDoneText" class="small"></span>
+  <button type="button" class="btn-close btn-sm float-end" onclick="this.closest('.alert').classList.add('d-none')"></button>
+</div>
+
+
+{# ══════════════════════════════════════════════════════════
+   QUÉT MÃ — khu vực nổi bật nhất trang
+   ══════════════════════════════════════════════════════════ #}
+{% if can_write %}
+<div class="card mb-3 border-2" id="scan-card" style="border-color:#0d6efd">
+  <div class="card-body py-3">
+    <div class="row g-2 align-items-center">
+      <div class="col-12 col-md">
+        <div class="input-group input-group-lg">
+          <input id="scanInput" type="text" class="form-control"
+                 placeholder="Quét mã đơn hoặc mã vận đơn…"
+                 autocomplete="off" autocorrect="off" spellcheck="false"
+                 style="font-family:monospace; letter-spacing:.5px">
+          <button class="btn btn-outline-secondary" onclick="openCamera()" title="Quét bằng camera">
+            <i class="bi bi-camera-fill"></i>
+          </button>
+        </div>
+      </div>
+      <div class="col-12 col-md-auto">
+        <div class="d-flex flex-column flex-md-row gap-2 align-items-stretch">
+          <button type="button" id="btnSyncQuick" class="btn btn-outline-info"
+                  onclick="outboundSyncQuick()"
+                  title="Lấy đơn Chờ chuyển hàng + ĐVVC từ Pancake (7 ngày) — bấm trước khi quét mã vận đơn nếu POS chưa kịp đẩy">
+            <i class="bi bi-cloud-arrow-down me-1"></i>Đồng bộ POS
+          </button>
+          <button id="scanBtn" class="btn btn-primary btn-lg flex-grow-1" onclick="doScan()">
+            <i class="bi bi-check2-circle me-1"></i><span id="scanBtnLabel">Xác nhận xuất kho</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div id="scanResult" class="mt-2 d-none"></div>
+    <div class="d-flex align-items-center gap-3 mt-2 flex-wrap">
+      <span class="text-muted small">
+        <i class="bi bi-person-fill me-1 text-primary"></i>
+        Nhân viên: <strong>{{ current_username or '—' }}</strong>
+      </span>
+      <span class="text-muted small">
+        <i class="bi bi-info-circle me-1"></i>Dùng máy quét mã vạch, gõ tay, hoặc bấm 📷 — nhấn <kbd>Enter</kbd> để xác nhận.
+      </span>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+
+{# ══════════════════════════════════════════════════════════
+   CARD SO SÁNH KHO VL vs POS
+   ══════════════════════════════════════════════════════════ #}
+{% if count_confirmed > 0 or count_lech_pos > 0 %}
+<div class="card mb-3 border-0" style="background:linear-gradient(135deg,#f0fdf4 0%,#fefce8 100%)">
+  <div class="card-body py-2 px-3">
+    <div class="d-flex flex-wrap gap-3 align-items-center">
+      <span class="fw-semibold small text-muted me-1">
+        <i class="bi bi-bar-chart-line me-1"></i>So sánh ĐVVC lấy hàng
+        {% if date_from == date_to %}<span class="ms-1 text-muted">({{ date_from }})</span>{% endif %}
+      </span>
+      <div class="d-flex align-items-center gap-1">
+        <span class="badge bg-success px-2 py-1" style="font-size:.85em">
+          <i class="bi bi-building me-1"></i>Kho VL xác nhận: <strong>{{ count_confirmed }}</strong>
+        </span>
+        <span class="text-muted small">vs</span>
+        <span class="badge px-2 py-1" style="background:#0ea5e9;font-size:.85em">
+          <i class="bi bi-cloud me-1"></i>POS đã giao ĐVVC: <strong>{{ count_pos_shipped }}</strong>
+        </span>
+      </div>
+      {% if count_lech_pos > 0 %}
+      <a href="?status=lech_pos{% if shop_filter %}&shop={{ shop_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+         class="badge bg-danger text-decoration-none px-2 py-1" style="font-size:.85em"
+         title="ĐVVC đã lấy nhưng NV kho chưa quét bao giờ — cần điều tra">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i>Lệch POS: <strong>{{ count_lech_pos }}</strong> đơn
+      </a>
+      {% else %}
+      <span class="badge bg-success-subtle text-success px-2 py-1" style="font-size:.85em">
+        <i class="bi bi-check-circle-fill me-1"></i>Khớp hoàn toàn
+      </span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ══════════════════════════════════════════════════════════
+   BỘ LỌC
+   ══════════════════════════════════════════════════════════ #}
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" action="/kho-vat-ly/outbound" id="filterForm">
+      <input type="hidden" name="status" value="{{ status_filter }}">
+
+      {# ── 1 dòng duy nhất: tabs + filter + search ── #}
+      <div style="overflow-x:auto;overflow-y:visible;padding-bottom:2px">
+      <div class="d-flex flex-nowrap gap-1 align-items-center" id="statusBtnGroup" style="min-width:max-content">
+
+        {# Status tabs #}
+        <a href="?status=waiting{% if shop_filter %}&shop={{ shop_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+           class="btn btn-sm {% if status_filter=='waiting' %}btn-info{% else %}btn-outline-info{% endif %}">
+          <i class="bi bi-clock-history"></i><span class="d-none d-sm-inline ms-1">Chờ chuyển hàng</span>
+          <span class="badge {% if status_filter=='waiting' %}bg-white text-info{% else %}bg-info{% endif %} ms-1" id="badge-waiting">{{ count_waiting }}</span>
+        </a>
+        <a href="?status=pre_confirmed{% if shop_filter %}&shop={{ shop_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+           class="btn btn-sm {% if status_filter=='pre_confirmed' %}btn-purple{% else %}btn-outline-secondary{% endif %}"
+           style="{% if status_filter=='pre_confirmed' %}background:#7c3aed;border-color:#7c3aed;color:#fff{% elif count_pre_confirmed > 0 %}color:#7c3aed;border-color:#7c3aed{% endif %}">
+          <i class="bi bi-box-seam"></i><span class="d-none d-sm-inline ms-1">Đã chuẩn bị</span>
+          <span class="badge ms-1" id="badge-pre-confirmed"
+                style="{% if status_filter=='pre_confirmed' %}background:#fff;color:#7c3aed{% else %}background:#7c3aed;color:#fff{% endif %}">{{ count_pre_confirmed }}</span>
+        </a>
+        {% if status_filter == 'pre_confirmed' and count_pre_confirmed > 0 %}
+        <a href="/kho-vat-ly/outbound/phieu-xuat-kho?all=1{% if shop_filter %}&shop={{ shop_filter | urlencode }}{% endif %}"
+           target="_blank" class="btn btn-sm btn-warning fw-semibold"
+           title="In phiếu xuất kho cho tất cả {{ count_pre_confirmed }} đơn đã chuẩn bị">
+          <i class="bi bi-printer-fill me-1"></i><span class="d-none d-sm-inline">In tất cả</span>
+          <span class="badge bg-dark ms-1">{{ count_pre_confirmed }}</span>
+        </a>
+        <button type="button" id="btnPrintSelected" class="btn btn-sm btn-outline-warning fw-semibold"
+                onclick="printSelectedOrders()" title="In phiếu cho các đơn đang chọn" disabled>
+          <i class="bi bi-printer me-1"></i><span class="d-none d-sm-inline">In chọn</span>
+          <span class="badge bg-secondary ms-1" id="selectedCount">0</span>
+        </button>
+        {% endif %}
+        <a href="?status=confirmed{% if shop_filter %}&shop={{ shop_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+           class="btn btn-sm {% if status_filter=='confirmed' %}btn-success{% else %}btn-outline-success{% endif %}">
+          <i class="bi bi-check-circle"></i><span class="d-none d-sm-inline ms-1">Đã xuất kho</span>
+          <span class="badge {% if status_filter=='confirmed' %}bg-white text-success{% else %}bg-success{% endif %} ms-1" id="badge-confirmed">{{ count_confirmed }}</span>
+        </a>
+        {% if count_lech_pos > 0 %}
+        <a href="?status=lech_pos{% if shop_filter %}&shop={{ shop_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+           class="btn btn-sm {% if status_filter=='lech_pos' %}btn-danger{% else %}btn-outline-danger{% endif %}"
+           title="POS đã giao ĐVVC nhưng NV chưa quét — cần kiểm tra">
+          <i class="bi bi-exclamation-triangle"></i><span class="d-none d-sm-inline ms-1">Lệch POS</span>
+          <span class="badge {% if status_filter=='lech_pos' %}bg-white text-danger{% else %}bg-danger{% endif %} ms-1">{{ count_lech_pos }}</span>
+        </a>
+        {% endif %}
+        <a href="?status=all{% if shop_filter %}&shop={{ shop_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+           class="btn btn-sm {% if status_filter=='all' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+          <span class="d-none d-sm-inline">Tất cả</span><span class="d-sm-none">All</span>
+        </a>
+
+        {# Ngăn cách #}
+        <span class="vr opacity-25 mx-1 d-none d-md-inline align-self-stretch"></span>
+
+        {# Cụm filter — ẩn trên mobile, hiện qua funnel toggle #}
+        <div id="advancedFiltersMobile" class="d-flex flex-nowrap gap-1 align-items-center {% if not (shop_filter or date_from or date_to or tracking_search) %}d-none d-md-flex{% endif %}">
+          <select name="shop" data-cc-search class="form-select form-select-sm" style="min-width:140px;max-width:180px" onchange="this.form.submit()">
+            <option value="">— Tất cả shop —</option>
+            {% for s in shops %}
+            <option value="{{ s.shop_name }}" {% if s.shop_name == shop_filter %}selected{% endif %}>{{ s.shop_name }}{% set _bt = (shop_biz_map.get(s.shop_name) or shop_biz_map.get(s.shop_key) or 'cty') %} [{% if _bt == 'hkd' %}HKD{% else %}CTY{% endif %}]</option>
+            {% endfor %}
+          </select>
+          <input type="date" name="date_from" class="form-control form-control-sm" style="width:130px" value="{{ date_from }}" title="Từ ngày">
+          <input type="date" name="date_to"   class="form-control form-control-sm" style="width:130px" value="{{ date_to }}"   title="Đến ngày">
+          {% if staff_list %}
+          <select name="staff" data-cc-search class="form-select form-select-sm" style="min-width:140px;max-width:180px" onchange="this.form.submit()" title="Lọc theo nhân viên đã quét">
+            <option value="">— NV đã quét —</option>
+            {% for s in staff_list %}
+            <option value="{{ s }}" {% if s == staff_filter %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+          {% if staff_filter %}
+          <a href="/kho-vat-ly/outbound/report-by-staff?staff={{ staff_filter | urlencode }}&status={{ status_filter }}{% if shop_filter %}&shop={{ shop_filter | urlencode }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+             target="_blank"
+             class="btn btn-sm btn-outline-danger" title="In báo cáo của nhân viên này">
+            <i class="bi bi-printer"></i> In NV
+          </a>
+          {% endif %}
+          {% endif %}
+          <button type="submit" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-search me-1"></i>Lọc
+          </button>
+          {% if date_from or date_to or shop_filter or staff_filter %}
+          <a href="?status={{ status_filter }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-x"></i>
+          </a>
+          {% endif %}
+        </div>
+
+        {# Search box — luôn hiện #}
+        <div class="input-group input-group-sm flex-nowrap" style="min-width:160px;max-width:260px">
+          <input type="text" name="tracking_search" class="form-control"
+                 placeholder="Tìm mã VĐ / mã đơn / SKU…"
+                 value="{{ tracking_search or '' }}"
+                 autocomplete="off" spellcheck="false" style="font-family:monospace">
+          <button type="submit" class="btn btn-outline-secondary"><i class="bi bi-search"></i></button>
+          {% if tracking_search %}
+          <a href="?status={{ status_filter }}{% if shop_filter %}&shop={{ shop_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+             class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+          {% endif %}
+        </div>
+
+        {# Mobile: toggle filter #}
+        <button type="button" class="btn btn-sm btn-outline-secondary d-md-none"
+                onclick="document.getElementById('advancedFiltersMobile').classList.toggle('d-none')"
+                title="Lọc nâng cao">
+          <i class="bi bi-funnel{% if shop_filter or date_from or date_to %}-fill{% endif %}"></i>
+        </button>
+
+      </div>
+      </div>{# /overflow wrapper #}
+    </form>
+  </div>
+</div>
+
+{% if shop_filter or date_from or date_to %}
+<div class="alert alert-info py-2 small mb-3">
+  <i class="bi bi-funnel me-1"></i>
+  Đang lọc:
+  {% if shop_filter %}<strong>Shop: {{ shop_filter }}</strong>{% endif %}
+  {% if date_from %} &nbsp;·&nbsp; Từ <strong>{{ date_from }}</strong>{% endif %}
+  {% if date_to %} → <strong>{{ date_to }}</strong>{% endif %}
+  &nbsp;—&nbsp; {{ total_orders }} đơn.
+</div>
+{% endif %}
+
+{# ══════════════════════════════════════════════════════════
+   KẾT QUẢ TÌM KIẾM MÃ VẬN ĐƠN
+   ══════════════════════════════════════════════════════════ #}
+{% if tracking_results %}
+<div class="card mb-3 border-2 border-dark">
+  <div class="card-header py-2 bg-dark text-white d-flex align-items-center justify-content-between">
+    <span>
+      <i class="bi bi-search me-2"></i>
+      Kết quả tìm: <strong class="font-monospace">{{ tracking_results.query }}</strong>
+    </span>
+    <small class="text-white-50">
+      {{ tracking_results.outbound|length }} xuất kho &nbsp;·&nbsp; {{ tracking_results.returns|length }} hoàn hàng
+    </small>
+  </div>
+  <div class="card-body p-0">
+
+    {# -- Đơn xuất kho -- #}
+    {% if tracking_results.outbound %}
+    <div class="px-3 pt-3 pb-1">
+      <h6 class="text-primary mb-2"><i class="bi bi-box-arrow-up me-1"></i>Xuất kho ({{ tracking_results.outbound|length }})</h6>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Mã đơn hàng</th>
+            <th>Mã vận đơn</th>
+            <th>ĐVVC</th>
+            <th>Cửa hàng</th>
+            <th>ĐVVC lấy lúc</th>
+            <th class="text-center">Trạng thái</th>
+            <th class="text-end">SL</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for r in tracking_results.outbound %}
+          <tr>
+            <td class="font-monospace small">{{ r.order_code }}</td>
+            <td class="font-monospace small text-primary">{{ r.tracking_code or '—' }}</td>
+            <td class="small">{{ r.carrier_name or '—' }}</td>
+            <td class="small">{{ r.shop_name }}{% set _bt = (shop_biz_map.get(r.shop_name) or 'cty') %}<span class="tag-biz {% if _bt == 'hkd' %}tag-biz-hkd{% else %}tag-biz-cty{% endif %}">{% if _bt == 'hkd' %}HKD{% else %}CTY{% endif %}</span></td>
+            <td class="small text-muted">{{ (r.carrier_picked_up_at or '')[:16] or '—' }}</td>
+            <td class="text-center">
+              {% if r.pancake_status == 'waiting' %}
+                <span class="badge bg-info text-dark">Chờ chuyển hàng</span>
+              {% elif r.pancake_status in ('cancelled','returned') %}
+                <span class="badge bg-danger">{{ 'Đã huỷ' if r.pancake_status == 'cancelled' else 'Đã hoàn' }}</span>
+              {% elif r.pending_cnt > 0 %}
+                <span class="badge bg-warning text-dark">Chờ xuất kho</span>
+              {% else %}
+                <span class="badge bg-success">Đã xuất kho</span>
+              {% endif %}
+            </td>
+            <td class="text-end small">
+              {{ r.total_qty }}
+              {% if r.matched_skus %}
+                <div class="small text-success" style="font-size:10px"><i class="bi bi-tag"></i> {{ r.matched_skus }}</div>
+              {% endif %}
+            </td>
+            <td><a href="/kho-vat-ly/outbound/order/{{ r.order_code }}?shop={{ r.shop_name | urlencode }}" class="btn btn-xs btn-outline-primary py-0 px-2 small">Chi tiết</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="px-3 py-2 text-muted small"><i class="bi bi-box-arrow-up me-1"></i>Không có đơn xuất kho.</div>
+    {% endif %}
+
+    {# -- Đơn hoàn -- #}
+    {% if tracking_results.returns %}
+    <div class="px-3 pt-3 pb-1 border-top mt-2">
+      <h6 class="text-danger mb-2"><i class="bi bi-arrow-return-left me-1"></i>Hoàn hàng ({{ tracking_results.returns|length }})</h6>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Mã đơn hàng</th>
+            <th>Mã vận đơn</th>
+            <th>ĐVVC</th>
+            <th>Cửa hàng</th>
+            <th>Ngày hoàn</th>
+            <th class="text-center">Trạng thái</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for r in tracking_results.returns %}
+          <tr>
+            <td class="font-monospace small">{{ r.order_code }}</td>
+            <td class="font-monospace small text-danger">{{ r.tracking_code or '—' }}</td>
+            <td class="small">{{ r.carrier_name or '—' }}</td>
+            <td class="small">{{ r.shop_name }}{% set _bt = (shop_biz_map.get(r.shop_name) or 'cty') %}<span class="tag-biz {% if _bt == 'hkd' %}tag-biz-hkd{% else %}tag-biz-cty{% endif %}">{% if _bt == 'hkd' %}HKD{% else %}CTY{% endif %}</span></td>
+            <td class="small text-muted">{{ (r.created_at or '')[:16] or '—' }}</td>
+            <td class="text-center">
+              {% if r.pending_cnt > 0 %}
+                <span class="badge bg-warning text-dark">Chờ nhận hoàn</span>
+              {% else %}
+                <span class="badge bg-secondary">Đã nhận hoàn</span>
+              {% endif %}
+            </td>
+            <td>
+              <a href="/kho-vat-ly/returns/order/{{ r.order_code }}" class="btn btn-xs btn-outline-danger py-0 px-2 small">Chi tiết</a>
+              {% if r.matched_skus %}
+                <div class="small text-success mt-1" style="font-size:10px"><i class="bi bi-tag"></i> {{ r.matched_skus }}</div>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="px-3 py-2 text-muted small border-top"><i class="bi bi-arrow-return-left me-1"></i>Không có đơn hoàn.</div>
+    {% endif %}
+
+  </div>
+</div>
+{% endif %}
+
+{# ══════════════════════════════════════════════════════════
+   BẢNG ĐƠN HÀNG
+   ══════════════════════════════════════════════════════════ #}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th style="width:38px" {% if status_filter != 'pre_confirmed' %}class="d-none"{% endif %}>
+            <input type="checkbox" id="checkAll" title="Chọn tất cả" onchange="toggleCheckAll(this)">
+          </th>
+          <th>Mã vận đơn</th>
+          <th class="d-none d-md-table-cell">Cửa hàng</th>
+          <th class="d-none d-md-table-cell">Thời gian</th>
+          <th class="d-none d-md-table-cell">ĐVVC</th>
+          <th class="d-none d-lg-table-cell">Mã đơn</th>
+          <th class="d-none d-md-table-cell text-center">Mặt hàng</th>
+          <th class="d-none d-md-table-cell text-end">Tổng SL</th>
+          <th class="d-none d-lg-table-cell text-center">Kho xuất hàng</th>
+          <th class="text-center">Trạng thái</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+        {% set is_waiting      = (o.pancake_status == 'waiting' and (o.pre_confirmed_cnt or 0) == 0) %}
+        {% set is_pre_confirmed = ((o.pre_confirmed_cnt or 0) > 0 and o.pancake_status in ('waiting','confirmed')) %}
+        {% set all_confirmed   = (o.pending_cnt == 0 and not is_waiting and not is_pre_confirmed) %}
+        <tr class="{% if all_confirmed %}table-success{% elif is_pre_confirmed %}{% elif is_waiting %}table-info bg-opacity-25{% endif %}"
+            style="{% if is_pre_confirmed %}background:#f3e8ff{% endif %}"
+            id="row-{{ o.order_code }}">
+          <td {% if status_filter != 'pre_confirmed' %}class="d-none"{% endif %}>
+            {% if is_pre_confirmed %}
+            <input type="checkbox" class="row-check"
+                   data-order="{{ o.order_code }}"
+                   onchange="onRowCheckChange(this)">
+            {% endif %}
+          </td>
+          <td>
+            <a href="/kho-vat-ly/outbound/order/{{ o.order_code }}" class="fw-semibold text-decoration-none font-monospace" style="word-break:break-all;font-size:.85em">
+              {{ o.tracking_code if o.tracking_code else '—' }}
+            </a>
+            {# Mobile-only: hiện shop name dưới mã vận đơn #}
+            <div class="d-md-none text-muted small mt-1">{{ o.shop_name }}</div>
+          </td>
+          <td class="d-none d-md-table-cell small text-muted">{{ o.shop_name }}{% set _bt = (shop_biz_map.get(o.shop_name) or 'cty') %}<span class="tag-biz {% if _bt == 'hkd' %}tag-biz-hkd{% else %}tag-biz-cty{% endif %}">{% if _bt == 'hkd' %}HKD{% else %}CTY{% endif %}</span></td>
+          <td class="d-none d-md-table-cell small text-muted">
+            {% if o.carrier_picked_up_at %}
+              <span title="ĐVVC lấy lúc">{{ o.carrier_picked_up_at }}</span>
+            {% elif is_pre_confirmed and o.pre_confirmed_at %}
+              <span class="text-muted fst-italic" title="Đã quét chuẩn bị lúc {{ o.pre_confirmed_at }}">
+                Đã chuẩn bị {{ (o.pre_confirmed_at or '')[:16] }}
+              </span>
+            {% else %}
+              <span class="text-muted fst-italic">Chờ ĐVVC lấy</span>
+            {% endif %}
+          </td>
+          <td class="d-none d-md-table-cell">
+            {% if o.carrier_name and o.carrier_name != 'Không rõ ĐVVC' %}
+              <span class="badge bg-info text-dark">{{ o.carrier_name }}</span>
+            {% else %}
+              <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+          <td class="d-none d-lg-table-cell small font-monospace text-muted">
+            <code>{{ o.order_code }}</code>
+          </td>
+          <td class="d-none d-md-table-cell text-center">
+            <span class="badge bg-secondary">{{ o.item_count }} món</span>
+          </td>
+          <td class="d-none d-md-table-cell text-end fw-bold">{{ fmt_qty(o.total_qty) }}</td>
+          <td class="d-none d-lg-table-cell text-center">
+            {% set wh_name = wh_map.get(o.warehouse_id) if o.warehouse_id else None %}
+            {% if wh_name %}
+              <span class="badge" style="background:#dbeafe;color:#1e40af;font-weight:600;">
+                <i class="bi bi-building me-1"></i>{{ wh_name }}
+              </span>
+            {% elif o.get('can_fulfill_wh1') is not none or o.get('can_fulfill_wh6') is not none %}
+              {# Gợi ý kho có tồn cho đơn chưa xác nhận #}
+              {% set ok1 = o.get('can_fulfill_wh1') %}
+              {% set ok6 = o.get('can_fulfill_wh6') %}
+              {% set ok_total = o.get('can_fulfill_total') %}
+              {% if ok1 and ok6 %}
+                <span class="badge" style="background:#d1fae5;color:#065f46;font-size:0.72em;" title="Cả 2 kho đều đủ tồn">
+                  <i class="bi bi-buildings me-1"></i>Cả 2 kho
+                </span>
+              {% elif ok1 %}
+                <span class="badge" style="background:#dbeafe;color:#1e40af;font-size:0.72em;opacity:.8" title="Gợi ý: đủ tồn ở Kho Vĩnh Xá">
+                  <i class="bi bi-building me-1"></i>Vĩnh Xá
+                </span>
+              {% elif ok6 %}
+                <span class="badge" style="background:#ede9fe;color:#5b21b6;font-size:0.72em;opacity:.8" title="Gợi ý: đủ tồn ở Kho Tiên Cầu">
+                  <i class="bi bi-building me-1"></i>Tiên Cầu
+                </span>
+              {% elif ok_total %}
+                <span class="badge" style="background:#fef3c7;color:#92400e;font-size:0.72em;" title="Tồn đủ nhưng nằm ở nhiều kho — cần lấy từ cả 2 kho">
+                  <i class="bi bi-arrow-left-right me-1"></i>Tách kho
+                </span>
+              {% else %}
+                <span class="badge bg-danger bg-opacity-75" style="font-size:0.72em;" title="Tổng tồn không đủ để xuất đơn này">
+                  <i class="bi bi-exclamation-triangle me-1"></i>Thiếu tồn
+                </span>
+              {% endif %}
+            {% else %}
+              <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if is_pre_confirmed %}
+              <span class="badge" style="background:#7c3aed;color:#fff"><i class="bi bi-box-seam me-1"></i><span class="d-none d-sm-inline">Đã chuẩn bị</span></span>
+            {% elif is_waiting %}
+              <span class="badge bg-info text-dark"><i class="bi bi-clock-history me-1"></i><span class="d-none d-sm-inline">Chờ ĐVVC</span></span>
+            {% elif all_confirmed %}
+              <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i><span class="d-none d-sm-inline">Đã xuất</span></span>
+            {% else %}
+              <span class="badge bg-warning text-dark"><i class="bi bi-box-arrow-up me-1"></i><span class="d-none d-sm-inline">Chờ xuất</span></span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <div class="d-flex gap-1 justify-content-end">
+              {% if can_write and is_pre_confirmed %}
+              <button class="btn btn-sm btn-outline-danger cancel-preconf-btn"
+                      data-code="{{ o.order_code }}"
+                      title="Huỷ chuẩn bị — trả về Chờ chuyển hàng">
+                <i class="bi bi-arrow-counterclockwise"></i>
+              </button>
+              {% endif %}
+              {% if can_write and is_waiting %}
+              <button class="btn btn-sm quick-confirm-btn"
+                      style="background:#7c3aed;border-color:#7c3aed;color:#fff"
+                      data-code="{{ o.order_code }}"
+                      data-shop="{{ o.shop_name }}"
+                      title="Đánh dấu đã chuẩn bị — chờ ĐVVC lấy">
+                <i class="bi bi-box-seam"></i>
+              </button>
+              {% elif can_write and not all_confirmed and not is_pre_confirmed %}
+              <button class="btn btn-sm btn-success quick-confirm-btn"
+                      data-code="{{ o.order_code }}"
+                      data-shop="{{ o.shop_name }}"
+                      title="Xác nhận xuất kho toàn bộ đơn này">
+                <i class="bi bi-check2-all"></i>
+              </button>
+              {% endif %}
+              {% if is_pre_confirmed %}
+              <a href="/kho-vat-ly/outbound/phieu-xuat-kho?orders={{ o.order_code }}"
+                 target="_blank"
+                 class="btn btn-sm btn-outline-warning"
+                 title="In phiếu xuất kho đơn này">
+                <i class="bi bi-printer"></i>
+              </a>
+              {% endif %}
+              <a href="/kho-vat-ly/outbound/order/{{ o.order_code }}?shop={{ o.shop_name | urlencode }}"
+                 class="btn btn-sm {% if all_confirmed %}btn-outline-success{% elif is_pre_confirmed %}btn-outline-secondary{% elif is_waiting %}btn-outline-info{% else %}btn-outline-primary{% endif %}">
+                <i class="bi bi-eye"></i><span class="d-none d-sm-inline ms-1">Chi tiết</span>
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="10" class="text-center py-5">
+            <i class="bi bi-inbox fs-3 d-block mb-2 text-muted"></i>
+            <p class="text-muted mb-3">
+              {% if status_filter == 'waiting' %}Không có đơn nào đang chờ ĐVVC lấy.
+              {% elif status_filter == 'pre_confirmed' %}Chưa có đơn nào được đánh dấu chuẩn bị.
+              {% elif status_filter == 'confirmed' %}Chưa có đơn nào đã xuất kho.
+              {% elif status_filter == 'lech_pos' %}Không có đơn lệch POS nào.
+              {% else %}Chưa có dữ liệu. Bấm Sync từ POS để tải đơn về.{% endif %}
+            </p>
+            {% if session.get('role') == 'admin' %}
+            <form method="post" action="/kho-vat-ly/outbound/sync" class="d-inline">
+              <input type="hidden" name="days_back" value="3">
+              <button type="submit" class="btn btn-warning">
+                <i class="bi bi-cloud-download me-1"></i>Sync từ POS (3 ngày)
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer d-flex align-items-center justify-content-between py-2">
+    <span class="text-muted small">
+      Tổng <strong>{{ total_orders }}</strong> đơn &nbsp;·&nbsp;
+      Trang <strong>{{ page }}</strong> / {{ total_pages }}
+      &nbsp;·&nbsp; {{ per_page }} đơn/trang
+    </span>
+    {% if total_pages > 1 %}
+    <nav>
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+          <a class="page-link" href="?status={{ status_filter }}&page=1{% if shop_filter %}&shop={{ shop_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">«</a>
+        </li>
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+          <a class="page-link" href="?status={{ status_filter }}&page={{ page - 1 }}{% if shop_filter %}&shop={{ shop_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">‹</a>
+        </li>
+        {% for p in range([1, page - 2]|max, [total_pages + 1, page + 3]|min) %}
+        <li class="page-item {% if p == page %}active{% endif %}">
+          <a class="page-link" href="?status={{ status_filter }}&page={{ p }}{% if shop_filter %}&shop={{ shop_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">{{ p }}</a>
+        </li>
+        {% endfor %}
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+          <a class="page-link" href="?status={{ status_filter }}&page={{ page + 1 }}{% if shop_filter %}&shop={{ shop_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">›</a>
+        </li>
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+          <a class="page-link" href="?status={{ status_filter }}&page={{ total_pages }}{% if shop_filter %}&shop={{ shop_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">»</a>
+        </li>
+      </ul>
+    </nav>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const OUTBOUND_SYNC_QUICK_URL = {{ url_for('api_kho_outbound_sync_quick') | tojson }};
+const CURRENT_SHOP_FILTER = {{ (shop_filter or '') | tojson }};
+// ── Auto-focus scan input ──
+const scanInput = document.getElementById('scanInput');
+window.addEventListener('load', () => {
+  if(scanInput) scanInput.focus();
+});
+document.addEventListener('click', (e) => {
+  if(!e.target.closest('input,select,textarea,button,a,label'))
+    if(scanInput) scanInput.focus();
+});
+
+// ── Hiển thị kết quả quét ──
+function showScanResult(html, type) {
+  const el = document.getElementById('scanResult');
+  el.className = `mt-2 alert alert-${type} py-2`;
+  el.innerHTML = html;
+  el.classList.remove('d-none');
+  setTimeout(() => el.classList.add('d-none'), 5000);
+}
+
+// ── Gọi API xác nhận ──
+async function confirmCode(code, shop_name) {
+  const confirmed_by = (document.getElementById('staffInput')?.value || '').trim();
+  try {
+    const res = await fetch('/kho-vat-ly/outbound/scan-confirm', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({code, confirmed_by, shop_name: shop_name || ''})
+    });
+    const ct = res.headers.get('Content-Type') || '';
+    if (!ct.includes('application/json')) {
+      // Server trả HTML (502/503/restart) — không phải lỗi code
+      return {ok: false, error: `Server đang khởi động lại (HTTP ${res.status}) — thử lại sau vài giây`};
+    }
+    return await res.json();
+  } catch(e) {
+    return {ok: false, error: 'Mất kết nối — kiểm tra mạng rồi thử lại'};
+  }
+}
+
+
+// ── Xử lý kết quả ──
+function handleResult(data, code) {
+  if (data.ok) {
+    beepOk();
+    if (data.pre_confirmed) {
+      const bw  = document.getElementById('badge-waiting');
+      const bpc = document.getElementById('badge-pre-confirmed');
+      if (bw)  bw.textContent  = Math.max(0, parseInt(bw.textContent)  - 1);
+      if (bpc) bpc.textContent = parseInt(bpc.textContent) + 1;
+      const byStaff = data.confirmed_by ? `<br><small class="text-light"><i class="bi bi-person me-1"></i>NV: <strong>${data.confirmed_by}</strong></small>` : '';
+      showScanResult(
+        `<i class="bi bi-box-seam me-2"></i>
+         <strong>${data.shop_name}</strong> — Đã đánh dấu chuẩn bị (${data.items_confirmed} sp)${byStaff}<br>
+         <small class="opacity-75">Chờ ĐVVC lấy → tự động xuất kho</small>`,
+        'pre_confirmed'
+      );
+      const row = document.getElementById('row-' + data.order_code);
+      if (row) { row.style.transition='opacity .4s'; row.style.opacity='0.4'; setTimeout(()=>{row.style.opacity='1';row.style.background='#f3e8ff';},500); }
+    } else {
+      if (data.order_fully_confirmed) {
+        const bp = document.getElementById('badge-pending');
+        const bc = document.getElementById('badge-confirmed');
+        if (bp) bp.textContent = Math.max(0, parseInt(bp.textContent) - 1);
+        if (bc) bc.textContent = parseInt(bc.textContent) + 1;
+      }
+      const byStaff = data.confirmed_by ? `<br><small class="text-info"><i class="bi bi-person me-1"></i>NV: <strong>${data.confirmed_by}</strong></small>` : '';
+      const products = (data.products||[]).map(p => {
+        const vBadge = p.variant_name ? ` <span style="background:#fbbf24;color:#1f2937;padding:1px 5px;border-radius:3px;font-size:.8em">${p.variant_name}</span>` : '';
+        return `${p.qty}× ${p.product_name}${vBadge}`;
+      }).join(', ');
+      const warn = data.errors&&data.errors.length ? `<br><small class="text-warning">⚠️ Thiếu tồn: ${data.errors.join('; ')}</small>` : '';
+      showScanResult(
+        `<i class="bi bi-check-circle-fill me-2"></i>
+         <strong>✅ ${data.shop_name}</strong> — Đã xuất kho ${data.items_confirmed} mặt hàng<br>
+         <small class="text-muted">${products}</small>${warn}${byStaff}`,
+        'success'
+      );
+      const row = document.getElementById('row-' + data.order_code);
+      if (row) { row.style.transition='opacity .4s'; row.style.opacity='0.4'; setTimeout(()=>{row.style.opacity='1';row.className='table-success';},500); }
+    }
+  } else if (data.already) {
+    beepErr();
+    showScanResult(`<i class="bi bi-info-circle me-2"></i>${data.error}`, 'info');
+  } else {
+    beepErr();
+    showScanResult(`<i class="bi bi-x-circle me-2"></i>${data.error}`, 'danger');
+  }
+}
+
+async function outboundSyncQuick() {
+  const btn = document.getElementById('btnSyncQuick');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  const oldHtml = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang sync...';
+  try {
+    const res = await fetch(OUTBOUND_SYNC_QUICK_URL, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json'},
+    });
+    let data = {};
+    try { data = await res.json(); } catch (_) {}
+    if (res.ok && data.ok) {
+      let msg = `Đã đồng bộ POS (${data.date_from} → ${data.date_to}): +${data.inserted || 0} mới, ${data.updated || 0} cập nhật.`;
+      if (data.errors && data.errors.length) {
+        msg += ` <small class="d-block mt-1">Lưu ý: ${data.errors.slice(0, 3).join('; ')}</small>`;
+      }
+      showScanResult(`<i class="bi bi-cloud-check me-2"></i>${msg}`, 'success');
+    } else {
+      const msg404 = res.status === 404
+        ? 'HTTP 404 — server chưa có API đồng bộ nhanh (cần deploy/restart bản code có <code>outbound_sync_quick</code>).'
+        : (data.error || ('HTTP ' + res.status));
+      showScanResult(`<i class="bi bi-x-circle me-2"></i>${msg404}`, 'danger');
+    }
+  } catch (e) {
+    showScanResult(`<i class="bi bi-x-circle me-2"></i>Lỗi: ${e.message || e}`, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = oldHtml;
+  }
+}
+
+// ── Nút Xác nhận / Enter ──
+async function doScan() {
+  const code = scanInput.value.trim();
+  if (!code) return;
+  scanInput.value = '';
+  scanInput.focus();
+  const data = await confirmCode(code, CURRENT_SHOP_FILTER);
+  handleResult(data, code);
+}
+
+if (scanInput) {
+  scanInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); doScan(); }
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// CAMERA SCANNER — fullscreen kiểu Shopee/J&T
+// ══════════════════════════════════════════════════════
+let html5QrScanner = null;
+let _camLastCode = null;
+let _camLastTime = 0;
+let _camScanCount = 0;
+
+function openCamera() {
+  document.getElementById('cameraOverlay').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  _camScanCount = 0;
+  _updateCamCount();
+  setTimeout(startCamera, 80);
+}
+
+function _kvlScannerFormats() {
+  if (!window.Html5QrcodeSupportedFormats) return undefined;
+  const F = Html5QrcodeSupportedFormats;
+  return [F.QR_CODE, F.CODE_128, F.CODE_39, F.CODE_93, F.EAN_13, F.EAN_8,
+          F.UPC_A, F.UPC_E, F.ITF, F.CODABAR, F.DATA_MATRIX, F.PDF_417, F.AZTEC];
+}
+function _kvlTrackTweaks(readerId) {
+  try {
+    const video = document.querySelector('#' + readerId + ' video');
+    if (!video || !video.srcObject) return;
+    const track = video.srcObject.getVideoTracks()[0];
+    if (!track) return;
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    const adv = [];
+    if (caps.focusMode && caps.focusMode.includes('continuous'))    adv.push({ focusMode: 'continuous' });
+    if (caps.exposureMode && caps.exposureMode.includes('continuous')) adv.push({ exposureMode: 'continuous' });
+    if (caps.whiteBalanceMode && caps.whiteBalanceMode.includes('continuous')) adv.push({ whiteBalanceMode: 'continuous' });
+    if (adv.length) track.applyConstraints({ advanced: adv }).catch(()=>{});
+    // Torch button
+    if (caps.torch) {
+      const bar = document.querySelector('#cameraOverlay .cam-topbar');
+      if (bar && !document.getElementById('cam-torch-btn')) {
+        const btn = document.createElement('button');
+        btn.id = 'cam-torch-btn';
+        btn.className = 'cam-close-btn';
+        btn.style.marginRight = '8px';
+        btn.innerHTML = '<i class="bi bi-lightbulb"></i>';
+        btn.title = 'Bật/tắt đèn';
+        let on = false;
+        btn.addEventListener('click', () => {
+          on = !on;
+          track.applyConstraints({ advanced: [{ torch: on }] }).catch(()=>{});
+          btn.style.background = on ? 'rgba(250,204,21,.95)' : '';
+          btn.style.color = on ? '#000' : '';
+          btn.innerHTML = on ? '<i class="bi bi-lightbulb-fill"></i>' : '<i class="bi bi-lightbulb"></i>';
+        });
+        const closeBtn = bar.querySelector('.cam-close-btn');
+        bar.insertBefore(btn, closeBtn);
+      }
+    }
+  } catch (e) { console.warn('track tweak failed', e); }
+}
+
+function startCamera() {
+  const errEl = document.getElementById('cam-error');
+  if (errEl) errEl.style.display = 'none';
+  html5QrScanner = new Html5Qrcode('cam-reader', {
+    verbose: false,
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+    formatsToSupport: _kvlScannerFormats(),
+  });
+  html5QrScanner.start(
+    { facingMode: { ideal: 'environment' } },
+    {
+      fps: 25,
+      qrbox: (w, h) => { const s = Math.round(Math.min(w, h) * 0.88); return {width: s, height: s}; },
+      aspectRatio: window.innerHeight / window.innerWidth,
+      videoConstraints: {
+        facingMode: { ideal: 'environment' },
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+    },
+    onCameraResult,
+    () => {}
+  ).then(() => _kvlTrackTweaks('cam-reader'))
+   .catch(err => {
+    if (errEl) { errEl.textContent = 'Không mở được camera: ' + err; errEl.style.display = 'block'; }
+  });
+}
+
+function closeCamera() {
+  if (html5QrScanner) { html5QrScanner.stop().catch(() => {}); html5QrScanner = null; }
+  document.getElementById('cameraOverlay').style.display = 'none';
+  document.body.style.overflow = '';
+  const torchBtn = document.getElementById('cam-torch-btn'); if (torchBtn) torchBtn.remove();
+  scanInput.focus();
+}
+
+async function onCameraResult(code) {
+  const now = Date.now();
+  if (code === _camLastCode && now - _camLastTime < 2500) return;
+  _camLastCode = code; _camLastTime = now;
+  _camScanCount++;
+  _updateCamCount();
+  _showCamToast(`<i class="bi bi-upc-scan me-1"></i>${code}`, 'processing');
+
+  const data = await confirmCode(code);
+  if (data.ok) {
+    if (data.pre_confirmed) {
+      _showCamToast(`<i class="bi bi-box-seam me-1"></i><strong>${code}</strong> — Đã chuẩn bị, chờ ĐVVC lấy`, 'pre_confirmed');
+    } else {
+      _showCamToast(`<i class="bi bi-check-circle-fill me-1"></i><strong>${code}</strong> — Đã xuất kho ✓`, 'ok');
+    }
+    handleResult(data, code);
+  } else {
+    const msg = data.error || 'Không tìm thấy';
+    _showCamToast(`<i class="bi bi-exclamation-triangle-fill me-1 text-warning"></i><strong>${code}</strong> — ${msg}`, 'err');
+  }
+}
+
+function _showCamToast(html, type) {
+  const el = document.getElementById('cam-toast');
+  el.innerHTML = html;
+  el.className = 'cam-toast cam-toast-' + type;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = '0'; }, 3000);
+}
+
+function _updateCamCount() {
+  document.getElementById('cam-scan-count').textContent = _camScanCount + ' mã đã quét';
+}
+
+// ── Nút xác nhận nhanh trên từng dòng ──
+document.querySelectorAll('.quick-confirm-btn').forEach(btn => {
+  const origIcon = btn.innerHTML;
+  btn.addEventListener('click', async () => {
+    const code = btn.dataset.code;
+    const shop = btn.dataset.shop || '';
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    const data = await confirmCode(code, shop);
+    handleResult(data, code);
+    if (data.ok) {
+      btn.style.display = 'none';
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = origIcon;
+    }
+  });
+});
+
+// ══ POLLING SYNC PROGRESS (xuất hàng) ══
+(function() {
+  const SESS_KEY = 'outbound_sync_pending';
+  const banner     = document.getElementById('syncProgressBanner');
+  const doneBanner = document.getElementById('syncDoneBanner');
+  const textEl     = document.getElementById('syncProgressText');
+  const timeEl     = document.getElementById('syncProgressTime');
+  const doneTextEl = document.getElementById('syncDoneText');
+  let _interval    = null;
+  let _wasRunning  = false;
+  let _waitTicks   = 0;
+
+  function startPolling() { if (!_interval) _interval = setInterval(poll, 2000); }
+  function stopPolling()  { if (_interval)  { clearInterval(_interval); _interval = null; } }
+
+  function showBanner(text, time) {
+    banner.classList.remove('d-none');
+    doneBanner.classList.add('d-none');
+    textEl.innerHTML = text || 'Đang sync...';
+    timeEl.textContent = time ? ('Bắt đầu ' + time) : '';
+  }
+  function showDone(text) {
+    banner.classList.add('d-none');
+    doneBanner.classList.remove('d-none');
+    doneTextEl.innerHTML = text;
+  }
+
+  function poll() {
+    fetch('/kho-vat-ly/api/outbound-sync-progress')
+      .then(r => r.json())
+      .then(p => {
+        if (p.running) {
+          _wasRunning = true;
+          _waitTicks  = 0;
+          sessionStorage.setItem(SESS_KEY, '1');
+          showBanner(p.status_text, p.started_at);
+        } else {
+          if (_wasRunning && p.done_at) {
+            sessionStorage.removeItem(SESS_KEY);
+            showDone(p.status_text || ('✅ Sync xong — +' + (p.inserted||0) + ' đơn mới'));
+            _wasRunning = false;
+            stopPolling();
+            setTimeout(() => location.reload(), 2000);
+            return;
+          }
+          if (sessionStorage.getItem(SESS_KEY)) {
+            _waitTicks++;
+            showBanner('Đang khởi động sync…');
+            if (_waitTicks > 10) {
+              sessionStorage.removeItem(SESS_KEY);
+              banner.classList.add('d-none');
+              stopPolling();
+            }
+            return;
+          }
+          banner.classList.add('d-none');
+          stopPolling();
+        }
+      })
+      .catch(() => {});
+  }
+
+  // Ghi flag trước khi trang redirect (submit form bất kỳ trong #syncModal)
+  document.querySelectorAll('#syncModal form, form[action*="outbound/sync"]').forEach(f => {
+    f.addEventListener('submit', () => sessionStorage.setItem(SESS_KEY, '1'));
+  });
+
+  // Khi trang load: nếu có flag → hiện banner ngay + bật polling
+  if (sessionStorage.getItem(SESS_KEY)) {
+    showBanner('Đang khởi động sync…');
+    startPolling();
+  } else {
+    poll();
+    fetch('/kho-vat-ly/api/outbound-sync-progress')
+      .then(r => r.json())
+      .then(p => { if (p.running) { _wasRunning = true; startPolling(); } })
+      .catch(() => {});
+  }
+})();
+
+// ══════════════════════════════
+// CHECKBOX — chọn đơn để in
+// ══════════════════════════════
+function _getCheckedOrders() {
+  return [...document.querySelectorAll('.row-check:checked')].map(cb => cb.dataset.order).filter(Boolean);
+}
+function _updateSelectedCount() {
+  const cnt = _getCheckedOrders().length;
+  const badge = document.getElementById('selectedCount');
+  const btn   = document.getElementById('btnPrintSelected');
+  if (badge) badge.textContent = cnt;
+  if (btn)   { btn.disabled = cnt === 0; btn.classList.toggle('btn-warning', cnt > 0); btn.classList.toggle('btn-outline-warning', cnt === 0); }
+}
+function onRowCheckChange(cb) { _updateSelectedCount(); }
+function toggleCheckAll(master) {
+  document.querySelectorAll('.row-check').forEach(cb => { cb.checked = master.checked; });
+  _updateSelectedCount();
+}
+function printSelectedOrders() {
+  const codes = _getCheckedOrders();
+  if (!codes.length) return;
+  window.open('/kho-vat-ly/outbound/phieu-xuat-kho?orders=' + codes.join(','), '_blank');
+}
+
+// ══════════════════════════════
+// CANCEL PRE_CONFIRMED
+// ══════════════════════════════
+document.addEventListener('click', async function(e) {
+  const btn = e.target.closest('.cancel-preconf-btn');
+  if (!btn) return;
+  const code = btn.dataset.code;
+  if (!code) return;
+  if (!confirm(`Huỷ chuẩn bị đơn "${code}"?\nĐơn sẽ quay về trạng thái Chờ chuyển hàng.`)) return;
+  btn.disabled = true;
+  try {
+    const res = await fetch('/kho-vat-ly/outbound/cancel-pre-confirmed', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({order_code: code})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const row = document.getElementById('row-' + code);
+      if (row) { row.style.transition = 'opacity .3s'; row.style.opacity = '0'; setTimeout(() => row.remove(), 350); }
+      const bpc = document.getElementById('badge-pre-confirmed');
+      const bw  = document.getElementById('badge-waiting');
+      if (bpc) bpc.textContent = Math.max(0, parseInt(bpc.textContent || '0') - 1);
+      if (bw)  bw.textContent  = parseInt(bw.textContent  || '0') + 1;
+    } else {
+      alert('Lỗi: ' + (data.error || 'Không xác định'));
+      btn.disabled = false;
+    }
+  } catch(err) {
+    alert('Lỗi mạng: ' + err.message);
+    btn.disabled = false;
+  }
+});
+
+// ─── QUÉT UUID BIẾN THỂ ───
+async function scanVariationUUIDs() {
+  const btn   = document.getElementById('btnScanUUID');
+  const toast = document.getElementById('uuidScanToast');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Đang quét...';
+  toast.style.display = 'block';
+  toast.innerHTML = '⏳ Đang quét biến thể UUID từ Pancake, vui lòng đợi...';
+
+  try {
+    const r = await fetch('/kho-vat-ly/api/scan-variation-uuids', { method: 'POST' });
+    const d = await r.json();
+    if (!d.ok) {
+      toast.innerHTML = '✗ ' + (d.error || 'Lỗi không xác định');
+      toast.style.background = '#fff1f2'; toast.style.color = '#b91c1c'; toast.style.borderColor = '#fca5a5';
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-upc-scan me-1"></i>Quét biến thể';
+      return;
+    }
+    // Poll progress
+    const poll = setInterval(async () => {
+      try {
+        const rs = await fetch('/kho-vat-ly/api/scan-variation-uuids/status');
+        const ps = await rs.json();
+        // Cập nhật badge số đơn chưa map
+        const badge = document.getElementById('unknownUUIDBadge');
+        if (badge) {
+          const unk = ps.unknown_orders || 0;
+          badge.textContent = unk;
+          badge.style.display = unk > 0 ? '' : 'none';
+        }
+        if (!ps.running) {
+          clearInterval(poll);
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-upc-scan me-1"></i>Quét biến thể' + (ps.unknown_orders > 0 ? ' <span class="badge bg-danger ms-1">' + ps.unknown_orders + '</span>' : '');
+          const errs = (ps.errors || []).length;
+          if (ps.done) {
+            toast.style.background = '#f0fdf4'; toast.style.color = '#15803d'; toast.style.borderColor = '#bbf7d0';
+            toast.innerHTML = '✓ Xong lúc ' + (ps.done_at||'') +
+              ' — Mới: <strong>' + (ps.new||0) + '</strong>' +
+              ' cập nhật: <strong>' + (ps.updated||0) + '</strong>' +
+              ' backfill đơn: <strong>' + (ps.backfilled||0) + '</strong>' +
+              (errs ? ' — ⚠️ ' + errs + ' lỗi' : '') +
+              (ps.unknown_orders > 0 ? ' — <span style="color:#b45309">còn ' + ps.unknown_orders + ' đơn chưa nhận dạng được biến thể</span>' : '');
+          }
+        }
+      } catch(e) {}
+    }, 2000);
+  } catch(err) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-upc-scan me-1"></i>Quét biến thể';
+    toast.innerHTML = '✗ Lỗi kết nối: ' + err;
+    toast.style.background = '#fff1f2'; toast.style.color = '#b91c1c';
+  }
+}
+
+// Tự động load số đơn chưa map khi vào trang
+(async function() {
+  try {
+    const rs = await fetch('/kho-vat-ly/api/scan-variation-uuids/status');
+    const ps = await rs.json();
+    const badge = document.getElementById('unknownUUIDBadge');
+    if (badge && ps.unknown_orders > 0) {
+      badge.textContent = ps.unknown_orders;
+      badge.style.display = '';
+    }
+  } catch(e) {}
+})();
+</script>
+
+<style>
+#cameraOverlay {
+  display: none; position: fixed; top:0; left:0; width:100%; height:100%;
+  z-index: 9999; background:#000; flex-direction: column;
+}
+#cam-reader { flex: 1; position: relative; overflow: hidden; }
+#cam-reader video {
+  width: 100% !important; height: 100% !important;
+  object-fit: cover !important; position: absolute; top:0; left:0;
+}
+#cam-reader > div:first-child { display:none !important; }
+.cam-topbar {
+  position: absolute; top:0; left:0; right:0; z-index:10;
+  padding: env(safe-area-inset-top, 12px) 16px 12px;
+  padding-top: max(env(safe-area-inset-top, 0px), 12px);
+  background: linear-gradient(to bottom, rgba(0,0,0,.75) 0%, transparent 100%);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.cam-topbar span { color:#fff; font-weight:700; font-size:17px; }
+.cam-close-btn {
+  background: rgba(255,255,255,.15); border: none; color:#fff;
+  width:38px; height:38px; border-radius:50%; font-size:18px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  backdrop-filter: blur(4px);
+}
+.cam-bottom {
+  position: absolute; bottom:0; left:0; right:0; z-index:10;
+  padding: 12px 20px max(env(safe-area-inset-bottom,0px),16px);
+  background: linear-gradient(to top, rgba(0,0,0,.8) 0%, transparent 100%);
+  text-align:center;
+}
+.cam-hint { color: rgba(255,255,255,.8); font-size:13px; margin-bottom:8px; }
+#cam-scan-count { color: rgba(255,255,255,.6); font-size:12px; }
+.cam-toast {
+  position: absolute; left:12px; right:12px; bottom:90px; z-index:20;
+  padding: 12px 16px; border-radius: 12px; font-size:14px; color:#fff;
+  text-align:center; opacity:0; transition: opacity .25s ease;
+  backdrop-filter: blur(8px); box-shadow: 0 4px 20px rgba(0,0,0,.4);
+}
+.cam-toast-processing   { background: rgba(33,150,243,.85); }
+.cam-toast-ok           { background: rgba(56,142,60,.9); }
+.cam-toast-err          { background: rgba(198,40,40,.85); }
+.cam-toast-pre_confirmed{ background: rgba(124,58,237,.9); }
+#cam-error { color:#ff5252; background:rgba(0,0,0,.7); padding:10px 16px; border-radius:8px; font-size:13px; display:none; position:absolute; top:70px; left:12px; right:12px; z-index:20; }
+</style>
+
+{# ══ FULLSCREEN CAMERA OVERLAY ══ #}
+<div id="cameraOverlay">
+  <div class="cam-topbar">
+    <span><i class="bi bi-camera-fill me-2"></i>Quét mã đơn / vận đơn</span>
+    <button class="cam-close-btn" onclick="closeCamera()"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <div id="cam-reader"></div>
+  <div id="cam-error"></div>
+  <div id="cam-toast" class="cam-toast"></div>
+  <div class="cam-bottom">
+    <div class="cam-hint"><i class="bi bi-upc-scan me-1"></i>Hướng camera vào mã vạch — tự động nhận diện</div>
+    <div id="cam-scan-count">0 mã đã quét</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+{% endblock %}

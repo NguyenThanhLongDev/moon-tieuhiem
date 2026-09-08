@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page → Shop binding</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="/static/cc-multiselect.css">
+<script src="/static/cc-multiselect.js" defer></script>
+<style>
+@view-transition { navigation: auto; }
+html { background:#f5f6fa; }
+body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; }
+.topbar { background:#1a1a1a; padding:10px 20px; color:#F59E0B; font-weight:700; }
+.topbar a { color:rgba(255,255,255,.85); text-decoration:none; margin-left:14px; font-weight:400; font-size:13px; }
+.topbar a:hover { color:#fff; }
+/* Thanh phụ sáng (đồng bộ các trang khác) */
+.pa-subbar { background:#fff; border-bottom:2px solid #e2e8f0; padding:9px 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+.pa-subbar-title { font-weight:700; color:#1e293b; display:inline-flex; align-items:center; gap:6px; }
+.pa-subbar-title .bi { color:#F59E0B; }
+.pa-subbar a { color:#64748b; text-decoration:none; font-size:13px; font-weight:500; display:inline-flex; align-items:center; }
+.pa-subbar a:hover { color:#F59E0B; }
+.container-wide { max-width: 1400px; margin: 20px auto; padding: 0 16px; }
+.stat-card { background:#fff; padding:12px 16px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+.stat-num { font-size:22px; font-weight:700; }
+.muted { color:#9ca3af; font-size:11px; }
+.badge-test { background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:6px; font-size:11px; }
+.badge-bound { background:#d1fae5; color:#065f46; padding:2px 6px; border-radius:6px; font-size:11px; }
+.badge-unbound { background:#fee2e2; color:#991b1b; padding:2px 6px; border-radius:6px; font-size:11px; }
+.filter-btn { padding:4px 12px; font-size:12px; }
+
+.group-card {
+  background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.05);
+  margin-bottom:14px; overflow:hidden; border:1px solid #e5e7eb;
+}
+.group-header {
+  display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+  padding:12px 16px; background:#fff7ed; border-bottom:1px solid #fed7aa;
+}
+.group-title { font-weight:700; color:#9a3412; font-size:14px; flex:1 1 280px; }
+.group-meta  { font-size:12px; color:#64748b; }
+.group-actions { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.group-actions .cc-ms { min-width:220px; }
+.group-actions input[type=date] { font-size:12px; padding:4px 8px; }
+
+.pg-table { width:100%; font-size:13px; }
+.pg-table thead th {
+  font-size:11px; text-transform:uppercase; color:#64748b; letter-spacing:.5px;
+  background:#f8fafc; padding:6px 12px; border-bottom:1px solid #e5e7eb; font-weight:600;
+}
+.pg-table tbody td { padding:8px 12px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.pg-table tbody tr:last-child td { border-bottom:none; }
+.pg-table tbody tr:hover { background:#fffbeb; }
+.pg-row.bound { background:#f0fdf4; }
+.pg-row.disabled { opacity:.5; }
+.bulk-summary { font-size:12px; color:#64748b; padding:6px 14px; background:#f8fafc; border-top:1px solid #e5e7eb; }
+.bulk-summary strong { color:#9a3412; }
+
+.date-shortcut {
+  background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;
+  padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; text-decoration:none;
+}
+.date-shortcut:hover { background:#fef3c7; color:#92400e; border-color:#fcd34d; }
+.date-shortcut.active { background:#F59E0B; color:#fff; border-color:#F59E0B; }
+</style>
+</head>
+<body>
+{% include "_main_nav.html" %}
+{% set pa_active = 'page_binding' %}
+{% set bm_count = bm_count|default(0) %}
+{% set mapping_count = mapping_count|default(0) %}
+{% include "page_account/_pa_tabbar.html" %}
+
+<div class="container-wide">
+  {% set page_ads_view = 'pageshop' %}{% include "page_account/_page_ads_pills.html" %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for cat, msg in messages %}
+      <div class="alert alert-{{ cat if cat in ['success','danger','warning','info'] else 'secondary' }} py-2 px-3 mb-2" style="font-size:13px">{{ msg }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="mobile-hide alert alert-info py-2 px-3 mb-3" style="font-size:13px;border-left:4px solid #0d6efd">
+    <strong>Cách dùng:</strong> Page được gom theo <strong>TK QC chính</strong> (TK QC chạy nhiều spend nhất cho page trong khoảng thời gian đã chọn).
+    Chọn shop ở <strong>header nhóm</strong> → tick các page muốn gán → bấm <strong>"Gán cả nhóm"</strong>.
+    Page nào không thuộc shop đó thì bỏ tick. Spend của page chưa gán sẽ rơi vào bucket "⚠ Chưa gán shop" ở Chi phí hôm nay.
+  </div>
+
+  <div class="mobile-hide alert alert-danger py-2 px-3 mb-3" style="font-size:13px;border-left:4px solid #dc2626">
+    <i class="bi bi-exclamation-octagon-fill me-1"></i>
+    <strong>KHÔNG đổi tên TK QC trên Facebook.</strong>
+    Đổi tên xong, hệ thống sẽ hiển thị tên cũ ở trang gán → không tìm thấy để gán shop/NV.
+    Tìm bằng <strong>ID TK</strong> (vd <code>1254377349408799</code>) là cách tin cậy nhất.
+  </div>
+
+  {# Filter: date range + shortcuts + filter mode #}
+  <form method="get" action="{{ url_for('page_account.page_binding') }}" class="card p-3 mb-3" style="border:none;box-shadow:0 1px 4px rgba(0,0,0,.06);" data-mfilter>
+    <div class="d-flex gap-2 align-items-center flex-wrap mb-2">
+      {% include "_date_range_picker.html" %}
+      <input type="hidden" name="filter" value="{{ filter_mode }}">
+      <span class="text-muted small ms-2">({{ days }} ngày)</span>
+    </div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      <span class="text-muted small">Trạng thái:</span>
+      {% for f, lbl in [('all','Tất cả'),('unbound','⚠ Chưa gán'),('test','Page test')] %}
+      <a href="?date_from={{ date_from }}&date_to={{ date_to }}&filter={{ f }}"
+         class="btn btn-sm filter-btn {% if filter_mode==f %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ lbl }}</a>
+      {% endfor %}
+      <button type="button" id="btnMultiTk" class="btn btn-sm filter-btn btn-outline-warning"
+              title="Chỉ hiện page chạy từ 2 TK QC trở lên">
+        <i class="bi bi-diagram-3"></i> Nhiều TK <span id="multiTkCount" class="text-muted"></span>
+      </button>
+      <input type="search" id="searchPageAcc"
+             placeholder="🔎 Tìm page / TK QC / page_id / account_id…"
+             class="form-control form-control-sm ms-auto"
+             style="max-width:340px;font-size:13px"
+             autocomplete="off">
+      <span id="searchCount" class="text-muted small"></span>
+    </div>
+  </form>
+
+  <script>
+    function fmt(d) { return d.toISOString().slice(0,10); }
+    function setRange(daysBack) {
+      const to = new Date();
+      const from = new Date();
+      if (daysBack === 0) { /* hôm nay */ }
+      else if (daysBack === 1) { from.setDate(from.getDate()-1); to.setDate(to.getDate()-1); }
+      else { from.setDate(from.getDate()-daysBack+1); }
+      document.querySelector('input[name=date_from]').value = fmt(from);
+      document.querySelector('input[name=date_to]').value = fmt(to);
+      document.querySelector('form').submit();
+    }
+    function setRangeMonth() {
+      const now = new Date();
+      const from = new Date(now.getFullYear(), now.getMonth(), 1);
+      document.querySelector('input[name=date_from]').value = fmt(from);
+      document.querySelector('input[name=date_to]').value = fmt(now);
+      document.querySelector('form').submit();
+    }
+  </script>
+
+  {# Stats #}
+  <div class="row g-2 mb-3">
+    <div class="col"><div class="stat-card">
+      <div class="muted">Tổng spend</div>
+      <div class="stat-num text-primary">{{ '{:,.0f}'.format(total_spend) }}đ</div>
+      <div class="muted">{{ pages|length }} pages / {{ groups|length }} nhóm</div>
+    </div></div>
+    <div class="col"><div class="stat-card">
+      <div class="muted">Đã gán shop</div>
+      <div class="stat-num text-success">{{ bound_count }}</div>
+    </div></div>
+    <div class="col"><div class="stat-card">
+      <div class="muted">⚠ Chưa gán</div>
+      <div class="stat-num text-danger">{{ unbound_count }}</div>
+      <div class="muted">{{ '{:,.0f}'.format(unbound_spend) }}đ</div>
+    </div></div>
+    <div class="col"><div class="stat-card">
+      <div class="muted">Page test</div>
+      <div class="stat-num text-warning">{{ test_count }}</div>
+    </div></div>
+  </div>
+
+  {% if not groups %}
+    <div class="alert alert-warning">Không có dữ liệu trong khoảng thời gian đã chọn.</div>
+  {% endif %}
+
+  {% for g in groups %}
+  <form method="post" action="{{ url_for('page_account.page_binding_bulk_set') }}"
+        class="group-card"
+        data-group="{{ g.account_id }}"
+        data-search="{{ (g.account_name ~ ' ' ~ g.account_id)|lower }}">
+    <input type="hidden" name="date_from" value="{{ date_from }}">
+    <input type="hidden" name="date_to" value="{{ date_to }}">
+    <input type="hidden" name="filter" value="{{ filter_mode }}">
+
+    <div class="group-header">
+      <div class="group-title">
+        <i class="bi bi-bullseye"></i> {{ g.account_name }}
+        <div class="group-meta">
+          <code>{{ g.account_id }}</code> · {{ g.pages|length }} page ·
+          spend: <strong>{{ '{:,.0f}'.format(g.total_spend) }}đ</strong> ·
+          đã gán: <span class="text-success">{{ g.bound_count }}</span> ·
+          chưa gán: <span class="text-danger">{{ g.unbound_count }}</span>
+        </div>
+      </div>
+      <div class="group-actions">
+        <select name="pos_shop_id" data-cc-search placeholder="-- Chọn shop --" required>
+          <option value="">-- Chọn shop --</option>
+          <option value="_test">⚙ Page test/marketing chung (không shop)</option>
+          <optgroup label="Shops POS">
+            {% for s in shops %}
+            <option value="{{ s.id }}">{{ s.shop_name }} ({{ s.shop_key }})</option>
+            {% endfor %}
+          </optgroup>
+        </select>
+        <input type="date" name="assigned_from" value="{{ date_from }}" title="Ngày áp dụng binding">
+        <button type="submit" class="btn btn-sm" style="background:#F59E0B;color:#fff;font-weight:600;">
+          <i class="bi bi-check2-all"></i> Gán cả nhóm
+        </button>
+      </div>
+    </div>
+
+    <table class="pg-table">
+      <thead>
+        <tr>
+          <th style="width:32px"><input type="checkbox" class="group-check-all" checked title="Tick/Bỏ tick tất cả"></th>
+          <th>Page</th>
+          <th style="width:120px">Spend</th>
+          <th style="width:100px">Last seen</th>
+          <th style="width:200px">Shop hiện tại</th>
+          <th style="width:100px">Trạng thái</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in g.pages %}
+        <tr class="pg-row {% if p.binding_pos_shop_id %}bound{% endif %}"
+            data-ntk="{{ p.accounts|length }}"
+            data-search="{{ (p.page_name ~ ' ' ~ p.page_id)|lower }}">
+          <td>
+            <input type="checkbox" name="page_ids" value="{{ p.page_id }}" class="page-check" checked>
+          </td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <img src="https://graph.facebook.com/{{ p.page_id }}/picture?type=square" alt=""
+                   style="width:30px;height:30px;border-radius:7px;object-fit:cover;flex:0 0 auto"
+                   onerror="this.outerHTML='&lt;i class=\'bi bi-facebook\' style=\'color:#1877f2;font-size:20px\'&gt;&lt;/i&gt;'">
+              <div>
+                <div class="fw-semibold">
+                  <a href="https://www.facebook.com/{{ p.page_id }}" target="_blank" rel="noopener" class="text-decoration-none text-dark">{{ p.page_name }}</a>
+                </div>
+                <div class="muted"><code>{{ p.page_id }}</code></div>
+              </div>
+            </div>
+          </td>
+          <td class="text-success fw-semibold">{{ '{:,.0f}'.format(p.total_spend) }}đ</td>
+          <td class="muted">{{ p.last_seen }}</td>
+          <td>
+            {% if p.binding_pos_shop_id %}
+              <span class="badge-bound"><i class="bi bi-check-circle"></i> {{ p.binding_shop_name }}</span>
+              {% if p.assigned_from %}<div class="muted">từ {{ p.assigned_from }}</div>{% endif %}
+            {% elif p.is_reviewed_test %}
+              <span class="badge-test">⚙ Page test</span>
+            {% else %}
+              <span class="badge-unbound">⚠ Chưa gán</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if p.accounts|length > 1 %}
+              <button type="button" class="badge text-bg-warning border-0 btn-page-acc" title="Xem {{ p.accounts|length }} TK QC đã chạy page này"
+                      style="font-size:10px;cursor:pointer" onclick="openPageAccountSpend('{{ p.page_id }}')">
+                <i class="bi bi-diagram-3"></i> {{ p.accounts|length }} TK
+              </button>
+            {% else %}
+              <button type="button" class="badge text-bg-secondary border-0 btn-page-acc" title="Xem TK QC đã chạy page này"
+                      style="font-size:10px;cursor:pointer;opacity:.85" onclick="openPageAccountSpend('{{ p.page_id }}')">
+                <i class="bi bi-diagram-3"></i> 1 TK
+              </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="bulk-summary">
+      <i class="bi bi-info-circle"></i>
+      Đã tick <strong class="page-count">{{ g.pages|length }}</strong>/{{ g.pages|length }} page —
+      bấm <strong>"Gán cả nhóm"</strong> để áp dụng cho các page đã tick.
+    </div>
+  </form>
+  {% endfor %}
+</div>
+
+<script>
+// Search filter (page name/id + TK QC name/id)
+function stripVN(s) {
+  return (s||'').toString().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d');
+}
+const searchInput = document.getElementById('searchPageAcc');
+const searchCount = document.getElementById('searchCount');
+const btnMultiTk = document.getElementById('btnMultiTk');
+let onlyMultiTk = false;
+function applySearch() {
+  const q = stripVN(searchInput.value.trim());
+  let visibleGroups = 0, visiblePages = 0;
+  document.querySelectorAll('.group-card').forEach(card => {
+    const gKey = stripVN(card.dataset.search || '');
+    const groupMatch = !q || gKey.indexOf(q) >= 0;
+    let anyPageMatch = false;
+    card.querySelectorAll('.pg-row').forEach(row => {
+      const rKey = stripVN(row.dataset.search || '');
+      const textMatch = !q || groupMatch || rKey.indexOf(q) >= 0;
+      const tkMatch = !onlyMultiTk || (parseInt(row.dataset.ntk || '1', 10) > 1);
+      const match = textMatch && tkMatch;
+      row.style.display = match ? '' : 'none';
+      if (match) { anyPageMatch = true; visiblePages++; }
+    });
+    const show = anyPageMatch;
+    card.style.display = show ? '' : 'none';
+    if (show) visibleGroups++;
+  });
+  if (q || onlyMultiTk) searchCount.textContent = `→ ${visiblePages} page / ${visibleGroups} nhóm`;
+  else searchCount.textContent = '';
+}
+searchInput.addEventListener('input', applySearch);
+
+// Đếm số page chạy nhiều TK + toggle nút lọc
+(function(){
+  const n = document.querySelectorAll('.pg-row').length
+            ? Array.from(document.querySelectorAll('.pg-row')).filter(r => parseInt(r.dataset.ntk||'1',10) > 1).length
+            : 0;
+  const lbl = document.getElementById('multiTkCount');
+  if (lbl) lbl.textContent = '(' + n + ')';
+})();
+btnMultiTk.addEventListener('click', () => {
+  onlyMultiTk = !onlyMultiTk;
+  btnMultiTk.classList.toggle('btn-warning', onlyMultiTk);
+  btnMultiTk.classList.toggle('btn-outline-warning', !onlyMultiTk);
+  applySearch();
+});
+
+// Auto-fill từ URL param ?search=... (link từ /chi-phi-qc/bao-cao tab "Chưa gán shop")
+(function(){
+  try {
+    const q = new URLSearchParams(window.location.search).get('search');
+    if (q && q.trim()) {
+      searchInput.value = q.trim();
+      applySearch();
+      searchInput.focus();
+    }
+  } catch(e){}
+})();
+
+// Group checkbox logic + counter
+document.querySelectorAll('.group-card').forEach(card => {
+  const all = card.querySelector('.group-check-all');
+  const items = card.querySelectorAll('.page-check');
+  const counter = card.querySelector('.page-count');
+  function refresh() {
+    const total = items.length;
+    let checked = 0;
+    items.forEach(i => { if (i.checked) checked++; });
+    counter.textContent = checked;
+    all.checked = (checked === total);
+    all.indeterminate = (checked > 0 && checked < total);
+  }
+  all.addEventListener('change', () => {
+    items.forEach(i => { i.checked = all.checked; });
+    refresh();
+  });
+  items.forEach(i => i.addEventListener('change', refresh));
+});
+
+// ── Popup: 1 PAGE chạy trên những TK QC nào (đảo ngược của tab Tài khoản QC) ──
+var PB_DATE_FROM = "{{ date_from }}", PB_DATE_TO = "{{ date_to }}";
+function _pbVnd(n){ return (Math.round(n)||0).toLocaleString('vi-VN') + 'đ'; }
+async function openPageAccountSpend(pageId){
+  var modalEl = document.getElementById('modalPageAcctSpend');
+  var m = bootstrap.Modal.getOrCreateInstance(modalEl);
+  document.getElementById('pasTitle').textContent = '#' + pageId;
+  document.getElementById('pasSub').textContent = pageId + ' · ' + PB_DATE_FROM + ' → ' + PB_DATE_TO;
+  document.getElementById('pasBody').innerHTML =
+    '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải…</div>';
+  document.getElementById('pasTotal').textContent = '';
+  m.show();
+  try {
+    var url = '/page-account/api/page/' + encodeURIComponent(pageId) +
+              '/account-spend?date_from=' + PB_DATE_FROM + '&date_to=' + PB_DATE_TO;
+    var data = await (await fetch(url)).json();
+    if (!data.ok) throw new Error(data.error || 'Lỗi tải dữ liệu');
+    document.getElementById('pasTitle').innerHTML =
+      '<a href="https://www.facebook.com/' + pageId + '" target="_blank" rel="noopener" class="text-white text-decoration-none" title="Mở trang Facebook">' +
+      (data.page_name || ('#'+pageId)) + ' <i class="bi bi-box-arrow-up-right" style="font-size:11px;opacity:.85"></i></a>';
+    if (!data.accounts.length) {
+      document.getElementById('pasBody').innerHTML =
+        '<div class="text-center text-muted py-4"><i class="bi bi-inbox" style="font-size:32px;opacity:.3"></i><div class="mt-2">Page này không có TK QC nào chi tiêu trong khoảng này.</div></div>';
+      return;
+    }
+    var total = data.total || 0;
+    var rows = data.accounts.map(function(a, i){
+      var pct = total > 0 ? (a.spend/total*100) : 0;
+      var accUrl = 'https://www.facebook.com/adsmanager/manage/campaigns?act=' + encodeURIComponent(a.account_id);
+      return '<tr>' +
+        '<td class="text-muted text-center">' + (i+1) + '</td>' +
+        '<td><div class="fw-semibold">' +
+          '<a href="' + accUrl + '" target="_blank" rel="noopener" class="text-decoration-none" title="Mở Trình quản lý quảng cáo">' +
+          (a.account_name||a.account_id) + ' <i class="bi bi-box-arrow-up-right text-muted" style="font-size:10px"></i></a></div>' +
+        '<div class="text-muted" style="font-size:11px">' + a.account_id + '</div></td>' +
+        '<td class="text-end fw-semibold text-success">' + _pbVnd(a.spend) + '</td>' +
+        '<td class="text-end text-muted" style="font-size:12px">' + pct.toFixed(1) + '%</td>' +
+        '<td class="text-end text-muted" style="font-size:12px">' + (a.impressions||0).toLocaleString('vi-VN') + '</td>' +
+        '<td class="text-end text-muted" style="font-size:12px">' + (a.clicks||0).toLocaleString('vi-VN') + '</td>' +
+      '</tr>';
+    }).join('');
+    document.getElementById('pasBody').innerHTML =
+      '<div class="table-responsive"><table class="table table-sm align-middle mb-0">' +
+      '<thead class="table-light"><tr>' +
+      '<th style="width:36px">#</th><th>Tài khoản QC</th><th class="text-end">Chi phí</th>' +
+      '<th class="text-end">%</th><th class="text-end">Hiển thị</th><th class="text-end">Click</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+    document.getElementById('pasTotal').innerHTML =
+      '<i class="bi bi-diagram-3 me-1"></i>' + data.account_count + ' TK QC · Tổng chi phí: <strong>' + _pbVnd(total) + '</strong>';
+  } catch (err) {
+    document.getElementById('pasBody').innerHTML =
+      '<div class="alert alert-danger py-2 mb-0">Lỗi: ' + (err.message||err) + '</div>';
+  }
+}
+</script>
+
+{# ── Modal: 1 PAGE chạy trên những TK QC nào ── #}
+<div class="modal fade" id="modalPageAcctSpend" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2" style="background:#F59E0B;color:#fff">
+        <div>
+          <h6 class="modal-title mb-0"><i class="bi bi-diagram-3 me-2"></i><span id="pasTitle">—</span></h6>
+          <div id="pasSub" style="font-size:11px;opacity:.85"></div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-2" id="pasBody"></div>
+      <div class="modal-footer py-2 justify-content-between">
+        <span id="pasTotal" class="text-success" style="font-size:14px"></span>
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "shop_key": "shop_demo_1",
+      "facebook_user_id": "1234567890",
+      "ad_account_id": "123456789",
+      "access_token": "REPLACE_WITH_LONG_LIVED_USER_TOKEN",
+      "token_type": "bearer",
+      "issued_at": "2026-03-29T10:00:00Z",
+      "expires_at": "2026-06-27T10:00:00Z",
+      "last_refresh_at": "",
+      "refresh_status": "ok",
+      "note": "Sample row — copy to real store path; never commit secrets."
+    }
+  ]
+}

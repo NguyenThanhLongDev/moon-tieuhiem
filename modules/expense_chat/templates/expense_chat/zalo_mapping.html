@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>🧸 Map Zalo Group Chi phí Cty</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; }
+.topbar { background:#1a1a1a; padding:0 20px; min-height:48px; display:flex; align-items:center; gap:12px; }
+.topbar .brand { font-weight:700; font-size:15px; color:#F59E0B; }
+.topbar a { color:rgba(255,255,255,.75); text-decoration:none; font-size:13px; padding:4px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.2); }
+.page-wrap { max-width:900px; margin:0 auto; padding:16px; }
+.section { background:#fff; border-radius:10px; padding:14px 16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+.section h5 { margin:0 0 10px; font-size:15px; font-weight:600; }
+.thread-row { display:flex; gap:8px; align-items:center; padding:8px; border-bottom:1px solid #f1f5f9; flex-wrap:wrap; }
+.thread-row code { background:#f3f4f6; padding:2px 6px; border-radius:4px; font-size:11px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">🧸 Map Zalo group → Chi phí Cty</span>
+  <a href="{{ url_for('expense_chat.khai_bao') }}">← Khai báo</a>
+  <a href="/">🏠 Trang chủ</a>
+</div>
+
+<div class="page-wrap">
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in msgs %}
+      <div class="alert alert-{{ 'success' if cat=='success' else 'info' }} py-2">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  {# Inbox — group Lan forward summary chi phí về cho sếp/kế toán #}
+  <div class="section" style="background:#eff6ff; border:1px solid #93c5fd">
+    <h5>📥 Group Inbox (forward chi phí về đây)</h5>
+    <p class="text-muted small mb-2">
+      NV gửi chi phí ở bất kỳ group nào → Lan tự ghi DB + đẩy 1 tin summary
+      vào group này để anh/sếp theo dõi tập trung. Không set thì không forward.
+    </p>
+    <form method="post" class="d-flex gap-2 align-items-center flex-wrap">
+      <input type="hidden" name="action" value="set_inbox">
+      <select name="thread_id" class="form-select form-select-sm" style="max-width:380px" required>
+        <option value="">— Chọn group inbox —</option>
+        {% for g in all_groups %}
+          <option value="{{ g.thread_id }}" {% if g.thread_id == inbox_tid %}selected{% endif %}>
+            {{ g.name }} · {{ g.member_count }} mem
+          </option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> Lưu inbox</button>
+      {% if inbox_tid %}
+        <span class="text-muted small ms-2">Hiện tại: <code>{{ inbox_tid }}</code></span>
+      {% endif %}
+    </form>
+  </div>
+
+  {% if auto_groups %}
+  <div class="section" style="background:#ecfdf5">
+    <h5>✨ Group Zalo Lan đang ở (chưa map · {{ auto_groups|length }})</h5>
+    {% for g in auto_groups %}
+      <div class="thread-row" style="background:#fff">
+        <strong style="min-width:240px">{{ g.name }}</strong>
+        <span class="text-muted small">{{ g.member_count }} mem</span>
+        <code style="font-size:10px">{{ g.thread_id }}</code>
+        <form method="post" class="d-flex gap-2 align-items-center ms-auto">
+          <input type="hidden" name="thread_id" value="{{ g.thread_id }}">
+          <input type="text" name="label" value="Chi phí - {{ g.name }}" class="form-control form-control-sm" style="max-width:260px" required>
+          <button class="btn btn-sm btn-success">Map làm Chi phí</button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="section">
+    <h5>📡 Group đã map ({{ threads|length }})</h5>
+    {% for t in threads %}
+      <div class="thread-row">
+        <code>{{ t.thread_id }}</code>
+        <strong>{{ t.label }}</strong>
+        <form method="post" class="ms-auto" onsubmit="return confirm('Gỡ map?')">
+          <input type="hidden" name="thread_id" value="{{ t.thread_id }}">
+          <input type="hidden" name="action" value="remove">
+          <button class="btn btn-sm btn-outline-danger">Gỡ</button>
+        </form>
+      </div>
+    {% endfor %}
+    {% if not threads %}
+      <div class="text-muted small">Chưa map group nào. Add Lan vào group "Chi phí Cty" → bridge sẽ thấy ở section ✨.</div>
+    {% endif %}
+
+    <hr>
+    <strong>+ Map thủ công bằng thread_id</strong>
+    <form method="post" class="d-flex gap-2 align-items-center mt-2 flex-wrap">
+      <input type="text" name="thread_id" class="form-control form-control-sm" placeholder="thread_id" style="max-width:260px" required>
+      <input type="text" name="label" class="form-control form-control-sm" value="Chi phí Cty" style="max-width:200px" required>
+      <button class="btn btn-sm btn-primary">Thêm</button>
+    </form>
+  </div>
+
+  <div class="section" style="background:#fffbeb">
+    <h5>📋 Cách dùng</h5>
+    <p style="margin:0 0 8px; color:#7c2d12">
+      <b>Không cần map thread riêng cho expense!</b> Bất cứ Zalo group nào có Lan
+      (team KD, "Chi phí Cty", ...) đều có thể gửi cả NS lẫn chi phí. Lan tự phân loại
+      theo nội dung tin.
+    </p>
+    <ul style="margin:0; padding-left:20px; line-height:1.8">
+      <li>📝 <b>Text "tk X chạy Y ngày Z"</b> → NS (FB Ads).</li>
+      <li>📝 <b>Text "chi/mua/lương/điện/internet ... <số tiền>"</b> → Chi phí Cty.</li>
+      <li>🖼 <b>Ảnh bất kỳ</b> (SMS bank, hoá đơn, screenshot...) → mặc định = Chi phí Cty.</li>
+    </ul>
+    <p class="text-muted small mt-2 mb-0">
+      Section "Map thủ công" bên dưới chỉ dùng khi anh muốn group nào đó <i>chỉ</i>
+      coi là expense (vd group "Chi phí Cty" thuần). Đa số trường hợp không cần.
+    </p>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bc Ads KT — Báo cáo kế toán</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; }
+.topbar { background:#1a1a1a; padding:10px 20px; color:#F59E0B; font-weight:700; display:flex; align-items:center; gap:14px; }
+.topbar a { color:rgba(255,255,255,.85); text-decoration:none; font-weight:400; font-size:13px; padding:4px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.2); }
+.topbar a:hover { background:rgba(255,255,255,.08); color:#fff; }
+.container-wide { max-width:1280px; margin:20px auto; padding:0 16px; }
+
+.reco-card {
+  background:linear-gradient(135deg,#fff 0%,#f8fafc 100%);
+  border:2px solid #e8eaed; border-radius:12px; padding:24px;
+  box-shadow:0 2px 8px rgba(0,0,0,.06); margin-bottom:20px;
+}
+.reco-header { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+.reco-title { font-size:16px; font-weight:700; color:#1a1a1a; }
+.reco-row { display:flex; align-items:baseline; justify-content:space-between; padding:8px 0; border-bottom:1px dashed #e8eaed; }
+.reco-row:last-child { border-bottom:0; }
+.reco-label { font-size:13px; color:#374151; }
+.reco-val { font-size:16px; font-weight:700; }
+.reco-pct { font-size:12px; margin-left:6px; padding:2px 7px; border-radius:10px; }
+.pct-good { background:#d1fae5; color:#065f46; }
+.pct-warn { background:#fef3c7; color:#b45309; }
+.pct-bad  { background:#fee2e2; color:#991b1b; }
+.truth-row { background:#eff6ff; padding:10px 14px; border-radius:8px; margin-bottom:8px; }
+.truth-row .reco-val { font-size:22px; color:#1d4ed8; }
+.sync-ok  { background:#d1fae5; color:#065f46; padding:6px 14px; border-radius:8px; font-weight:600; font-size:13px; }
+.sync-bad { background:#fee2e2; color:#991b1b; padding:6px 14px; border-radius:8px; font-weight:600; font-size:13px; }
+
+.action-bar { background:#fef3c7; border-left:4px solid #f59e0b; padding:12px 18px; border-radius:8px; margin-bottom:20px; }
+.action-item { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:13px; }
+
+.nv-card { background:#fff; border:1px solid #e8eaed; border-radius:10px; margin-bottom:16px; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+.nv-header { padding:12px 16px; border-bottom:1px solid #f1f3f5; display:flex; align-items:center; gap:12px; }
+.nv-name { font-weight:600; color:#1a1a1a; }
+.nv-spend { font-weight:700; color:#dc2626; font-size:18px; }
+.nv-meta { font-size:11px; color:#6c757d; }
+
+.filter-bar { background:#fff; padding:12px 16px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,.05); margin-bottom:16px; display:flex; align-items:end; gap:10px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+{% include "_main_nav.html" %}
+{% set cpqc_active = 'bao_cao_kt' %}{% include "_cpqc_subnav.html" %}
+
+<div class="container-wide">
+
+  {# Filter date range #}
+  <form method="get" class="filter-bar" data-mfilter>
+    <div>
+      {% include "_date_range_picker.html" %}
+    </div>
+    <div class="ms-auto">
+      {% if invariant and invariant.ok %}
+        <span class="sync-ok"><i class="bi bi-check-circle-fill"></i> ĐỒNG BỘ: Tổng các bucket = Truth FB</span>
+      {% else %}
+        <span class="sync-bad"><i class="bi bi-x-circle-fill"></i> CHƯA ĐỒNG BỘ — báo IT</span>
+      {% endif %}
+    </div>
+  </form>
+
+  {% if invariant and not invariant.ok %}
+  <div class="alert alert-danger d-flex align-items-center mt-3 mb-0" role="alert" style="border-left:6px solid #dc2626">
+    <i class="bi bi-exclamation-octagon-fill me-2" style="font-size:1.4rem"></i>
+    <div>
+      <strong>⚠ LỆCH SỐ LIỆU — KHÔNG CHỐT SỔ, BÁO IT NGAY</strong><br>
+      <small>
+        Truth FB: <b>{{ '{:,.0f}'.format(invariant.truth) }}đ</b> ·
+        Tổng bucket: <b>{{ '{:,.0f}'.format(invariant.buckets) }}đ</b> ·
+        Chênh: <b style="color:#dc2626">{{ '{:,.0f}'.format(invariant.diff) }}đ</b>
+      </small>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ━━━━━━━━━━ Reconciliation Card 100% ━━━━━━━━━━ #}
+  <div class="reco-card">
+    <div class="reco-header">
+      <span style="font-size:22px">🎯</span>
+      <div>
+        <div class="reco-title">Kiểm tra tính đầy đủ chi tiêu ads</div>
+        <div class="text-muted" style="font-size:12px">{{ date_from }} → {{ date_to }} · {{ tk_count }} TK QC có chi tiêu</div>
+      </div>
+      <div class="ms-auto text-end" style="font-size:11px;color:#6c757d">
+        <div>VAT 11.3% (theo FB Việt Nam)</div>
+      </div>
+    </div>
+
+    <div class="truth-row">
+      <div class="reco-row" style="border:0">
+        <div>
+          <div class="reco-label" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#1e3a8a">Tổng chi tiêu thực tế từ Facebook</div>
+          <div class="text-muted" style="font-size:11px">Phần mềm lấy tự động từ Ads Meta (không thể chỉnh sửa)</div>
+        </div>
+        <div class="text-end">
+          <div class="reco-val">{{ '{:,.0f}'.format(truth_total) }}₫ <span class="text-muted" style="font-size:11px;font-weight:400">chưa VAT</span></div>
+          <div style="font-size:14px;color:#7c3aed;font-weight:600">{{ '{:,.0f}'.format(truth_total * 1.113) }}₫ <span class="text-muted" style="font-size:11px;font-weight:400">đã VAT</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px">
+      <div style="font-size:12px;font-weight:600;color:#6c757d;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
+        💼 Quy về Nhân viên (KPI/lương)
+      </div>
+      <div class="reco-row">
+        <div class="reco-label">✅ Đã quy về NV ({{ nv_count }} NV)</div>
+        <div class="text-end">
+          <div>
+            <span class="reco-val text-success">{{ '{:,.0f}'.format(spend_with_nv) }}₫</span>
+            <span class="text-muted" style="font-size:11px">chưa VAT</span>
+            <span class="reco-pct {{ 'pct-good' if nv_pct >= 95 else 'pct-warn' if nv_pct >= 80 else 'pct-bad' }}">{{ '{:.1f}'.format(nv_pct) }}%</span>
+          </div>
+          <div style="font-size:13px;color:#7c3aed">{{ '{:,.0f}'.format(spend_with_nv * 1.113) }}₫ <span class="text-muted" style="font-size:10px">đã VAT</span></div>
+        </div>
+      </div>
+      {% if spend_no_nv > 0 %}
+      <div class="reco-row">
+        <div class="reco-label">⚠ Chưa quy NV — IT cần gán TK→NV</div>
+        <div class="text-end">
+          <div>
+            <span class="reco-val text-warning">{{ '{:,.0f}'.format(spend_no_nv) }}₫</span>
+            <span class="text-muted" style="font-size:11px">chưa VAT</span>
+            <span class="reco-pct pct-bad">{{ '{:.1f}'.format(no_nv_pct) }}%</span>
+          </div>
+          <div style="font-size:13px;color:#7c3aed">{{ '{:,.0f}'.format(spend_no_nv * 1.113) }}₫ <span class="text-muted" style="font-size:10px">đã VAT</span></div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div style="margin-top:16px">
+      <div style="font-size:12px;font-weight:600;color:#6c757d;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
+        🏪 Quy về Shop POS (lợi nhuận shop)
+      </div>
+      <div class="reco-row">
+        <div class="reco-label">✅ Đã quy về Shop ({{ shop_count }} shop)</div>
+        <div class="text-end">
+          <div>
+            <span class="reco-val text-success">{{ '{:,.0f}'.format(spend_with_shop) }}₫</span>
+            <span class="text-muted" style="font-size:11px">chưa VAT</span>
+            <span class="reco-pct {{ 'pct-good' if shop_pct >= 95 else 'pct-warn' if shop_pct >= 80 else 'pct-bad' }}">{{ '{:.1f}'.format(shop_pct) }}%</span>
+          </div>
+          <div style="font-size:13px;color:#7c3aed">{{ '{:,.0f}'.format(spend_with_shop * 1.113) }}₫ <span class="text-muted" style="font-size:10px">đã VAT</span></div>
+        </div>
+      </div>
+      {% if spend_no_shop > 0 %}
+      <div class="reco-row">
+        <div class="reco-label">⚠ Chưa quy Shop — IT cần gán Page→Shop</div>
+        <div class="text-end">
+          <div>
+            <span class="reco-val text-warning">{{ '{:,.0f}'.format(spend_no_shop) }}₫</span>
+            <span class="text-muted" style="font-size:11px">chưa VAT</span>
+            <span class="reco-pct pct-bad">{{ '{:.1f}'.format(no_shop_pct) }}%</span>
+          </div>
+          <div style="font-size:13px;color:#7c3aed">{{ '{:,.0f}'.format(spend_no_shop * 1.113) }}₫ <span class="text-muted" style="font-size:10px">đã VAT</span></div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="text-muted mt-3" style="font-size:11px">
+      💡 <strong>Nguyên lý:</strong> không sót 1 đồng. Tổng các bucket luôn = Truth FB. Phần chưa quy được vẫn hiển thị minh bạch để admin xử lý.
+    </div>
+  </div>
+
+  {# ━━━━━━━━━━ Action Items ━━━━━━━━━━ #}
+  {% if action_no_nv > 0 or action_no_shop > 0 %}
+  <div class="action-bar">
+    <div style="font-weight:600;margin-bottom:6px"><i class="bi bi-clipboard-check text-warning"></i> Việc cần xử lý:</div>
+    {% if action_no_nv > 0 %}
+    <div class="action-item">
+      <span class="badge bg-danger">{{ action_no_nv }}</span>
+      <span>TK QC chưa gán NV phụ trách</span>
+      <span class="text-muted">— spend không quy được trách nhiệm</span>
+      <a href="/page-account/ad-accounts" target="_blank" class="ms-auto btn btn-sm btn-outline-primary">Đi gán NV →</a>
+    </div>
+    {% endif %}
+    {% if action_no_shop > 0 %}
+    <div class="action-item">
+      <span class="badge bg-warning text-dark">{{ action_no_shop }}</span>
+      <span>TK QC chưa gán Shop POS</span>
+      <span class="text-muted">— không phân bổ chi phí về shop được</span>
+      <a href="/page-account/page-binding" target="_blank" class="ms-auto btn btn-sm btn-outline-warning">Đi gán Shop →</a>
+    </div>
+    {% endif %}
+    <div class="text-muted mt-1" style="font-size:11px">
+      Sau khi gán xong → kế toán refresh trang này → con số "Chưa quy" sẽ giảm dần về 0.
+    </div>
+  </div>
+  {% endif %}
+
+  {# ━━━━━━━━━━ Drill-down theo NV ━━━━━━━━━━ #}
+  <div class="reco-card" style="padding:16px">
+    <div class="reco-header">
+      <span style="font-size:18px">👥</span>
+      <div class="reco-title">Chi tiết theo Nhân viên ({{ nv_rows|length }} NV)</div>
+      <span class="ms-auto text-muted" style="font-size:12px">Sort theo spend giảm dần</span>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead style="background:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6c757d">
+          <tr>
+            <th style="width:36px"></th>
+            <th style="width:40px">#</th>
+            <th>Nhân viên</th>
+            <th class="text-end" style="width:70px">TK QC</th>
+            <th class="text-end" style="width:140px">Chi tiêu (chưa VAT)</th>
+            <th class="text-end" style="width:140px">Đã VAT 11.3%</th>
+            <th class="text-end" style="width:70px">% tổng</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for nv in nv_rows %}
+          <tr class="nv-row" data-nv-id="nv-{{ loop.index }}" onclick="toggleNvDetail('nv-{{ loop.index }}')" style="cursor:pointer">
+            <td class="text-center text-muted">
+              <i class="bi bi-chevron-right" id="nv-{{ loop.index }}-icon" style="transition:transform .2s"></i>
+            </td>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <div style="width:28px;height:28px;border-radius:50%;background:{{ '#dc2626' if not nv.user_id else '#0d6efd' }};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px">
+                  {{ (nv.full_name or nv.username or '?')[:1]|upper }}
+                </div>
+                <div>
+                  <div class="nv-name">
+                    {% if nv.user_id %}
+                      {{ nv.full_name or nv.username }}
+                      {% if nv.username and nv.full_name and nv.username != nv.full_name %}
+                        <span class="text-muted small">({{ nv.username }})</span>
+                      {% endif %}
+                    {% else %}
+                      <span class="text-danger">⚠ Không gán NV (TK ma)</span>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td class="text-end text-muted">{{ nv.tk_count }}</td>
+            <td class="text-end fw-semibold text-danger">{{ '{:,.0f}'.format(nv.spend) }}₫</td>
+            <td class="text-end fw-semibold" style="color:#7c3aed">{{ '{:,.0f}'.format(nv.spend * 1.113) }}₫</td>
+            <td class="text-end text-muted">{{ '{:.1f}'.format(nv.spend / truth_total * 100 if truth_total else 0) }}%</td>
+          </tr>
+          <tr id="nv-{{ loop.index }}-detail" class="nv-detail" style="display:none;background:#f8fafc">
+            <td colspan="7" style="padding:8px 16px 12px 50px">
+              <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6c757d;margin-bottom:6px">
+                <i class="bi bi-list-ul me-1"></i>Chi tiết {{ nv.tk_count }} tài khoản QC của {{ nv.full_name or nv.username or "NV này" }}
+              </div>
+              <table class="table table-sm mb-0" style="background:#fff;font-size:12px">
+                <thead style="background:#f1f5f9;font-size:10.5px;color:#6c757d">
+                  <tr>
+                    <th>Tên TK QC</th>
+                    <th style="width:120px">ID</th>
+                    <th class="text-center" style="width:100px">Trạng thái</th>
+                    <th class="text-end" style="width:130px">Chi tiêu (chưa VAT)</th>
+                    <th class="text-end" style="width:130px">Đã VAT 11.3%</th>
+                    <th class="text-center" style="width:90px">Audit FB</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for tk in nv.tks %}
+                  <tr>
+                    <td class="fw-semibold">{{ tk.account_name }}</td>
+                    <td><code style="font-size:10.5px">{{ tk.ad_account_id }}</code></td>
+                    <td class="text-center">
+                      {% if tk.has_shop %}
+                        <span class="badge bg-success" style="font-size:10px">✓ có shop</span>
+                      {% else %}
+                        <span class="badge bg-warning text-dark" style="font-size:10px">⚠ chưa shop</span>
+                      {% endif %}
+                    </td>
+                    <td class="text-end text-danger fw-semibold">{{ '{:,.0f}'.format(tk.spend) }}₫</td>
+                    <td class="text-end fw-semibold" style="color:#7c3aed">{{ '{:,.0f}'.format(tk.spend * 1.113) }}₫</td>
+                    <td class="text-center">
+                      <a href="https://www.facebook.com/adsmanager/manage/campaigns?act={{ tk.ad_account_id }}&date={{ date_from }}_{{ date_to }}"
+                         target="_blank" rel="noopener"
+                         class="btn btn-sm btn-outline-primary"
+                         style="font-size:10.5px;padding:1px 6px"
+                         title="Mở Ads Manager để cross-check spend thực tế">
+                        <i class="bi bi-box-arrow-up-right"></i> Mở Ads
+                      </a>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="text-center text-muted py-3">Không có data cho khoảng ngày này.</td></tr>
+        {% endfor %}
+        </tbody>
+        <tfoot style="background:#f8fafc">
+          <tr style="font-weight:700">
+            <td colspan="4" class="text-end">TỔNG ({{ nv_rows|length }} NV):</td>
+            <td class="text-end text-danger">{{ '{:,.0f}'.format(nv_rows | sum(attribute='spend')) }}₫</td>
+            <td class="text-end" style="color:#7c3aed">{{ '{:,.0f}'.format((nv_rows | sum(attribute='spend')) * 1.113) }}₫</td>
+            <td class="text-end text-muted">100%</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <script>
+    function toggleNvDetail(id) {
+      const detail = document.getElementById(id + '-detail');
+      const icon   = document.getElementById(id + '-icon');
+      if (!detail || !icon) return;
+      const open = detail.style.display !== 'none';
+      detail.style.display = open ? 'none' : 'table-row';
+      icon.style.transform = open ? 'rotate(0deg)' : 'rotate(90deg)';
+    }
+    </script>
+
+    <div class="text-muted mt-2" style="font-size:11px">
+      💡 Tổng chi tiêu tất cả NV (chưa VAT) phải = Tổng chi tiêu thực tế từ Facebook ({{ '{:,.0f}'.format(truth_total) }}₫). Nếu lệch → báo IT.
+    </div>
+  </div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

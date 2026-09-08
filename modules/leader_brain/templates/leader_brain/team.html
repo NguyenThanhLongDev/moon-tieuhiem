@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leader Brain — {{ team.team_name }}</title>
+<link rel="stylesheet" href="/static/cc-theme.css">
+<style>
+  body { background:#f5f6f8; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; margin:0; }
+  .lb-topbar { background:#1a1a1a; color:#fff; padding:10px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .lb-topbar a { color:#F59E0B; text-decoration:none; font-weight:600; }
+  .wrap { max-width:1200px; margin:0 auto; padding:16px; }
+  .card { background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); padding:14px 18px; margin-bottom:14px; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:12px; }
+  .stat { background:#f8fafc; border-radius:10px; padding:10px 14px; }
+  .stat .v { font-size:20px; font-weight:700; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:#666; font-weight:600; padding:6px 8px; border-bottom:2px solid #eee; white-space:nowrap; }
+  td { padding:6px 8px; border-bottom:1px solid #f0f0f0; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .muted { color:#999; font-size:12px; }
+  .good { color:#059669; font-weight:700; } .bad { color:#dc2626; font-weight:700; } .warn { color:#b45309; font-weight:700; }
+  .hb { display:inline-block; width:20px; height:20px; border-radius:5px; }
+  .hb-good { background:#9FE1CB; } .hb-warn { background:#FAC775; } .hb-dead { background:#F09595; }
+  .silent { background:#fef2f2; }
+</style>
+</head>
+<body>
+<div class="lb-topbar">
+  {% if me %}<a href="/">← Trang chủ</a>{% else %}<a href="/leader-brain/">← Scoreboard</a>{% endif %}
+  <strong>👑 {{ team.team_name }}</strong>
+  <span class="muted" style="color:#aaa">{% if not me %}Leader: {{ team.leader_name }} · {{ team.nv_ads }} NV ads · {% endif %}kỳ chín {{ d_from }} → {{ d_to }}</span>
+  <a href="{% if me %}/marketing-brain/{% else %}/marketing-brain/?team_id={{ team.id }}{% endif %}" style="margin-left:auto">🧠 Soi ads {% if me %}của tôi{% else %}của team{% endif %}</a>
+</div>
+<div class="wrap">
+
+<form class="card" method="get" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:10px 18px;">
+  {% set date_from = d_from %}{% set date_to = d_to %}
+  {% include "_date_range_picker.html" %}
+  <a href="{% if me %}/leader-brain/me{% else %}/leader-brain/team/{{ team.id }}{% endif %}" style="padding:6px 14px;border-radius:8px;background:#64748b;color:#fff;font-weight:600;text-decoration:none;font-size:13px;">Kỳ chín</a>
+  <span class="muted">Áp cho toàn bộ trang (tiền · nhịp đập · campaign). Kỳ dài quá 31 ngày thì nhịp đập hiện 31 ngày cuối.</span>
+</form>
+
+<div class="card">
+  <div class="stats">
+    {% if lscore %}
+    <div class="stat" style="background:#fffbeb;">
+      <div class="muted">🎖️ Leader Score</div>
+      <div class="v {{ 'good' if lscore.score >= 85 else ('warn' if lscore.score >= 70 else 'bad') }}">{{ lscore.score }}<span style="font-size:13px;color:#999;font-weight:400">/100 · {{ lscore.grade }}</span></div>
+      <div class="muted">Kỷ luật {{ (lscore.p_alert + lscore.p_pulse)|round(0)|int }}/60 (thẻ {{ lscore.alert_acted }}/{{ lscore.alert_total }} · nhịp {{ lscore.pulse }}%) · Tiền {{ (lscore.p_lo + lscore.p_0don + lscore.p_adsdt)|round(0)|int }}/40</div>
+    </div>
+    {% endif %}
+    <div class="stat"><div class="muted" title="DT từ ads − giá vốn − ads VAT. CHƯA trừ ship/phí sàn — lãi kế toán đầy đủ xem trang chủ">Lãi gộp MKT <span style="cursor:help">ⓘ</span></div>
+      <div class="v {{ 'good' if money.profit > 0 else 'bad' }}">{{ "{:,.0f}".format(money.profit).replace(',', '.') }}đ</div>
+      <div class="muted">chưa trừ ship/phí</div></div>
+    <div class="stat"><div class="muted">CP Ads (+VAT)</div>
+      <div class="v">{{ "{:,.0f}".format(money.spend_vat).replace(',', '.') }}đ</div></div>
+    <div class="stat"><div class="muted" title="tiền trên page nhãn TEST — R&D hợp lệ, quản bằng hạn mức ở bảng Túi test bên dưới">🧪 Tiền test</div>
+      <div class="v">{{ "{:,.0f}".format(money.spend_test).replace(',', '.') }}đ</div>
+      <div class="muted">{{ money.pct_test }}% ngân sách</div></div>
+    <div class="stat"><div class="muted" title="tính trên ads NGOÀI page test">% dưới hòa vốn</div>
+      <div class="v {{ 'good' if money.pct_lo < 10 else ('warn' if money.pct_lo < 20 else 'bad') }}">{{ money.pct_lo }}%</div>
+      <div class="muted">ngoài test · mục tiêu &lt;10%</div></div>
+    <div class="stat"><div class="muted" title="ads 0 đơn trên page WIN — đốt thật, không phải test">🔥 % đốt 0 đơn</div>
+      <div class="v {{ 'good' if money.pct_0don < 3 else ('warn' if money.pct_0don < 8 else 'bad') }}">{{ money.pct_0don }}%</div>
+      <div class="muted">ngoài test · mục tiêu &lt;3%</div></div>
+    <div class="stat"><div class="muted">Hoàn/Hủy</div>
+      <div class="v">{{ money.pct_hoan }}%</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 4px; font-size:15px;">📋 Thẻ việc — {{ alerts|length }} chờ xử lý
+    {% if alert_stats and alert_stats.pct is not none %}
+    <span class="muted" style="font-weight:400">· 30 ngày: xử lý {{ alert_stats.acted }}/{{ alert_stats.total }} ({{ alert_stats.pct|int }}%) — tính điểm kỷ luật</span>
+    {% endif %}</h3>
+  <p class="muted" style="margin:0 0 10px">Máy phát 8:30 sáng (đốt 0 đơn ngoài test · hoàn/hủy cao). {% if can_act %}Bấm nút để ghi nhật ký điều phối — ai bấm, lúc nào, lý do đều được log.{% else %}Leader của bạn là người bấm xử lý.{% endif %}</p>
+  {% for a in alerts %}
+  <div style="border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+    <div>
+      <div style="font-size:13.5px; font-weight:600;">
+        {% if a.alert_type == 'dot_0don' %}<span style="background:#fef2f2;color:#991b1b;font-size:11.5px;padding:2px 8px;border-radius:10px;">🔥 đốt 0 đơn</span>
+        {% else %}<span style="background:#fffbeb;color:#92400e;font-size:11.5px;padding:2px 8px;border-radius:10px;">📦 hoàn cao</span>{% endif %}
+        {{ (a.campaign_name or '—')[:50] }}
+      </div>
+      <div class="muted" style="margin-top:2px;">{% if a.nv_name %}NV: <b>{{ a.nv_name }}</b> · {% endif %}{{ a.detail }} · phát {{ a.alert_date }}</div>
+    </div>
+    {% if can_act %}
+    <div style="display:flex; gap:6px;">
+      <form method="post" action="/leader-brain/alert/{{ a.id }}/act" style="margin:0">
+        <input type="hidden" name="action" value="resolved">
+        <button type="submit" style="padding:6px 12px;border-radius:8px;border:0;background:#059669;color:#fff;font-weight:600;cursor:pointer;font-size:12.5px;">✓ Đã xử lý</button>
+      </form>
+      <form method="post" action="/leader-brain/alert/{{ a.id }}/act" style="margin:0" onsubmit="var n=prompt('Lý do giữ lại ad này?'); if(n===null) return false; this.note.value=n; return true;">
+        <input type="hidden" name="action" value="kept"><input type="hidden" name="note" value="">
+        <button type="submit" style="padding:6px 12px;border-radius:8px;border:1px solid #d1d5db;background:#fff;color:#374151;font-weight:600;cursor:pointer;font-size:12.5px;">Giữ lại — lý do</button>
+      </form>
+      <form method="post" action="/leader-brain/alert/{{ a.id }}/act" style="margin:0" onsubmit="var n=prompt('Chuyển cho NV nào / ghi chú?'); if(n===null) return false; this.note.value=n; return true;">
+        <input type="hidden" name="action" value="transferred"><input type="hidden" name="note" value="">
+        <button type="submit" style="padding:6px 12px;border-radius:8px;border:1px solid #d1d5db;background:#fff;color:#374151;font-weight:600;cursor:pointer;font-size:12.5px;">Chuyển NV</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% if not alerts %}<p class="good" style="margin:0">✅ Sạch — không có thẻ việc nào đang chờ.</p>{% endif %}
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 4px; font-size:15px;">💓 Nhịp đập team — kỳ {{ d_from }} → {{ d_to }}</h3>
+  <p class="muted" style="margin:0 0 10px">Mỗi ô gộp 3 dấu vết: ⚡ ads có tiêu tiền · 📦 có đơn về · 📍 chấm công GPS. Xanh = ≥2 dấu vết · vàng = 1 · đỏ = im lặng. Đỏ ≥3 ngày liên tiếp = cần hỏi ngay.</p>
+  <div style="overflow-x:auto">
+  <table>
+    <tr>
+      <th>Nhân viên</th>
+      {% for c in heartbeat[0].cells if heartbeat %}<th class="num">{{ c.d }}</th>{% endfor %}
+      <th class="num">CP Ads kỳ chín</th><th class="num">Đơn</th><th class="num">%Ads/DT</th><th class="num" title="tiền trên page TEST trong kỳ — hợp lệ, có hạn mức">🧪 Tiền test</th><th class="num" title="ads 0 đơn NGOÀI page test — đốt thật">🔥 Đốt 0 đơn</th>
+    </tr>
+    {% for nv in heartbeat %}
+    <tr class="{{ 'silent' if nv.silent_streak >= 3 }}">
+      <td>{{ nv.name }} {% if nv.silent_streak >= 3 %}<span class="bad" title="im lặng {{ nv.silent_streak }} ngày liên tiếp">⚠ {{ nv.silent_streak }}d im</span>{% endif %}
+        <div class="muted">{{ nv.username }}</div></td>
+      {% for c in nv.cells %}
+      <td class="num"><span class="hb hb-{{ c.level }}" title="{{ c.d }}: {{ '⚡' if c.ads }}{{ '📦' if c.don }}{{ '📍' if c.gps }}{{ 'im lặng' if not (c.ads or c.don or c.gps) }}"></span></td>
+      {% endfor %}
+      <td class="num">{{ "{:,.0f}".format(nv.spend).replace(',', '.') }}</td>
+      <td class="num">{{ nv.orders }}</td>
+      <td class="num">{% if nv.pct_ads_dt is not none %}<span class="{{ 'good' if nv.pct_ads_dt < 25 else ('warn' if nv.pct_ads_dt < 35 else 'bad') }}">{{ nv.pct_ads_dt }}%</span>{% else %}—{% endif %}</td>
+      <td class="num">{% if nv.spend_test > 0 %}{{ "{:,.0f}".format(nv.spend_test).replace(',', '.') }}{% else %}<span class="muted">0</span>{% endif %}</td>
+      <td class="num">{% if nv.spend_0don > 0 %}<span class="bad">{{ "{:,.0f}".format(nv.spend_0don).replace(',', '.') }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    {% if not heartbeat %}<tr><td colspan="12" class="muted">Team chưa có NV giữ TK QC.</td></tr>{% endif %}
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 4px; font-size:15px;">💣 Túi test — hạn mức {{ "{:,.0f}".format(test_limit).replace(',', '.') }}đ / 1 mã hàng</h3>
+  <p class="muted" style="margin:0 0 10px">Campaign trên page nhãn TEST · tiền TÍCH LŨY từ 04/06 (ngày bắt đầu có data chi tiết). <b class="bad">Vượt hạn mức mà chưa lên WIN → leader phải khai tử hoặc giải trình.</b></p>
+  <div style="overflow-x:auto">
+  <table>
+    <tr><th>Campaign test</th><th>NV</th><th class="num">Bắt đầu</th><th class="num">Đơn</th><th class="num">Đã tiêu (tích lũy)</th><th style="min-width:140px">So hạn mức</th></tr>
+    {% for t in tests %}
+    <tr class="{{ 'silent' if t.over }}">
+      <td>{{ t.campaign_name[:48] }} {% if t.over %}<span class="bad">⛔ VƯỢT HẠN MỨC</span>{% endif %}</td>
+      <td>{{ t.nv_name or '—' }}</td>
+      <td class="num muted">{{ t.started }}</td>
+      <td class="num">{{ t.orders }}</td>
+      <td class="num"><span class="{{ 'bad' if t.over else '' }}">{{ "{:,.0f}".format(t.spend_all).replace(',', '.') }}đ</span></td>
+      <td>
+        <div style="background:#f1f5f9;border-radius:6px;height:14px;overflow:hidden;">
+          <div style="height:14px;width:{{ [t.pct_limit, 100]|min }}%;background:{{ '#dc2626' if t.over else ('#F59E0B' if t.pct_limit > 70 else '#10b981') }};"></div>
+        </div>
+        <span class="muted">{{ t.pct_limit }}%</span>
+      </td>
+    </tr>
+    {% endfor %}
+    {% if not tests %}<tr><td colspan="6" class="muted">Không có campaign nào trên page test.</td></tr>{% endif %}
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 4px; font-size:15px;">📋 Bảng giá đơn theo campaign — rẻ nhất xếp trước</h3>
+  <p class="muted" style="margin:0 0 10px">CP/đơn = tiền ads ÷ đơn POS thực (kỳ chín, campaign ≥300K). Rẻ + nhiều đơn = đáng dồn tiền; "—" = chưa ra đơn nào.</p>
+  <div style="overflow-x:auto">
+  <table>
+    <tr><th>#</th><th>Campaign</th><th class="num">CP Ads</th><th class="num">Đơn</th><th class="num">CP / 1 đơn</th></tr>
+    {% for c in camps %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ c.campaign_name[:55] }} {% if c.phan_loai == 'ma_test' %}<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:1px 7px;border-radius:9px;">TEST</span>{% endif %}</td>
+      <td class="num">{{ "{:,.0f}".format(c.spend).replace(',', '.') }}</td>
+      <td class="num">{{ c.orders }}</td>
+      <td class="num">{% if c.cp_don is not none %}<span class="{{ 'good' if c.cp_don < 30000 else ('warn' if c.cp_don < 60000 else 'bad') }}">{{ "{:,.0f}".format(c.cp_don).replace(',', '.') }}đ</span>{% else %}<span class="bad">— (0 đơn)</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    {% if not camps %}<tr><td colspan="5" class="muted">Chưa có campaign nào ≥300K trong kỳ.</td></tr>{% endif %}
+  </table>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

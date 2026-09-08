@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lịch sử TK QC — {{ account_name }}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; }
+.topbar { background:#1a1a1a; padding:10px 20px; color:#F59E0B; font-weight:700; }
+.topbar a { color:rgba(255,255,255,.85); text-decoration:none; margin-left:14px; font-weight:400; font-size:13px; }
+.topbar a:hover { color:#fff; }
+.container-narrow { max-width: 1100px; margin: 20px auto; padding: 0 16px; }
+.section-title { color:#444; margin: 18px 0 10px; font-weight:600; }
+table { background:#fff; }
+.badge-active { background:#10b981; color:#fff; padding:2px 8px; border-radius:8px; font-size:11px; }
+.badge-closed { background:#9ca3af; color:#fff; padding:2px 8px; border-radius:8px; font-size:11px; }
+.muted { color:#9ca3af; }
+.account-name { font-size:18px; font-weight:600; color:#1a1a1a; }
+.account-id { font-size:12px; color:#777; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <i class="bi bi-clock-history"></i> Lịch sử phụ trách TK QC
+  <a href="{{ url_for('page_account.all_ad_accounts') }}"><i class="bi bi-arrow-left"></i> Quay lại danh sách TK</a>
+</div>
+
+<div class="container-narrow">
+  <div class="card p-3 mb-3">
+    <div class="account-name">{{ account_name }}</div>
+    <div class="account-id">ad_account_id = <code>{{ ad_account_id }}</code></div>
+    {% if active %}
+      <div class="mt-2">
+        <span class="badge-active">Đang phụ trách</span>
+        <strong>{{ active.full_name or active.username }}</strong>
+        <span class="muted">(từ {{ active.assigned_from }})</span>
+      </div>
+    {% else %}
+      <div class="mt-2"><span class="badge-closed">Chưa gán NV</span></div>
+    {% endif %}
+  </div>
+
+  <h5 class="section-title"><i class="bi bi-person-badge"></i> Lịch sử NV phụ trách</h5>
+  {% if history %}
+  <table class="table table-sm table-bordered">
+    <thead class="table-light">
+      <tr>
+        <th>NV phụ trách</th>
+        <th>Từ ngày</th>
+        <th>Đến ngày</th>
+        <th>Người gán</th>
+        <th>Lý do</th>
+        <th>Tạo lúc</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in history %}
+      <tr>
+        <td>
+          <strong>{{ h.full_name or h.username or '—' }}</strong>
+          {% if h.username and h.full_name %}<span class="muted">({{ h.username }})</span>{% endif %}
+        </td>
+        <td>{{ h.assigned_from }}</td>
+        <td>
+          {% if h.assigned_to %}{{ h.assigned_to }}
+          {% else %}<span class="badge-active">đang phụ trách</span>{% endif %}
+        </td>
+        <td><span class="muted">{{ h.assigned_by_username or '—' }}</span></td>
+        <td><span class="muted">{{ h.reason or '—' }}</span></td>
+        <td><span class="muted">{{ h.created_at.strftime('%Y-%m-%d %H:%M') if h.created_at else '' }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <div class="alert alert-secondary">Chưa có lịch sử NV cho TK này.</div>
+  {% endif %}
+
+  <h5 class="section-title"><i class="bi bi-shop"></i> Lịch sử mapping shop</h5>
+  {% if shop_history %}
+  <table class="table table-sm table-bordered">
+    <thead class="table-light">
+      <tr>
+        <th>Shop</th>
+        <th>Shop key</th>
+        <th>Từ ngày</th>
+        <th>Đến ngày</th>
+        <th>Derived từ NV</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in shop_history %}
+      <tr>
+        <td>{{ s.shop_name }}</td>
+        <td><code>{{ s.shop_key }}</code></td>
+        <td>{{ s.assigned_from }}</td>
+        <td>
+          {% if s.assigned_to %}{{ s.assigned_to }}
+          {% else %}<span class="badge-active">đang map</span>{% endif %}
+        </td>
+        <td><span class="muted">{{ s.derived_from_username or '—' }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <div class="alert alert-secondary">Chưa có mapping shop nào.</div>
+  {% endif %}
+</div>
+
+</body>
+</html>

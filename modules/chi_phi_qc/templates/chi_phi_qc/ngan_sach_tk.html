@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ngân sách TK Quảng Cáo</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+  body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; }
+  .topbar { background:#1a1a1a; color:#fff; padding:10px 20px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .topbar a { color:#f59e0b; text-decoration:none; font-weight:600; }
+  .card-sum { border:none; border-radius:12px; }
+  .team-card { border:1px solid #e9ecef; border-radius:12px; overflow:hidden; margin-bottom:18px; background:#fff; }
+  .team-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 16px; background:linear-gradient(90deg,#f8f9fa,#fff); border-bottom:1px solid #eee; }
+  .acct-table td, .acct-table th { padding:8px 14px; vertical-align:middle; }
+  .row-urgent { background:#fef2f2 !important; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:20px; font-weight:600; }
+  .bar { height:6px; border-radius:4px; background:#e5e7eb; overflow:hidden; margin-top:3px; }
+  .bar > span { display:block; height:100%; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span style="font-size:16px;font-weight:700"><i class="bi bi-wallet2 me-2" style="color:#f59e0b"></i>Ngân sách TK Quảng Cáo</span>
+  <a href="/chi-phi-qc/"><i class="bi bi-arrow-left"></i> Chi phí QC</a>
+  <a href="/"><i class="bi bi-house"></i> Trang chủ</a>
+</div>
+
+<div class="container-fluid py-3" style="max-width:1200px">
+  <!-- Bộ lọc ngày + refresh -->
+  <div class="d-flex align-items-end gap-2 flex-wrap mb-3">
+    <form method="get" class="d-flex align-items-end gap-2">
+      <div>
+        <label class="d-block" style="font-size:11px;color:#6c757d;font-weight:600">Ngày báo cáo</label>
+        <input type="date" name="date" value="{{ snap_date }}" class="form-control form-control-sm"
+               style="width:160px" onchange="this.form.submit()">
+      </div>
+    </form>
+    <button class="btn btn-sm btn-success" onclick="refreshNow(this)">
+      <i class="bi bi-arrow-clockwise me-1"></i>Quét lại ngay
+    </button>
+    {% if synced_at %}
+    <span class="text-muted" style="font-size:12px;align-self:center">
+      <i class="bi bi-clock-history me-1"></i>Cập nhật lúc: {{ synced_at.strftime('%H:%M %d/%m/%Y') }}
+    </span>
+    {% endif %}
+    <span class="text-muted ms-auto" style="font-size:11px;align-self:center">Tự quét mỗi ngày 19:30</span>
+  </div>
+
+  {% if not teams %}
+    <div class="alert alert-warning">Chưa có dữ liệu snapshot cho ngày này. Bấm <b>Quét lại ngay</b> rồi refresh sau ~1 phút.</div>
+  {% else %}
+  <!-- Tổng quan -->
+  <div class="row g-2 mb-3">
+    <div class="col-6 col-md-3">
+      <div class="card card-sum shadow-sm" style="background:#ecfeff">
+        <div class="card-body py-2">
+          <div style="font-size:11px;color:#0e7490;font-weight:700">TỔNG CÒN LẠI</div>
+          <div style="font-size:20px;font-weight:800;color:#0891b2">{{ '{:,.0f}'.format(grand.remaining) }}₫</div>
+          <div style="font-size:10px;color:#64748b">{{ grand.count }} TK</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card card-sum shadow-sm" style="background:#fef2f2">
+        <div class="card-body py-2">
+          <div style="font-size:11px;color:#b91c1c;font-weight:700">🔴 SẮP HẾT (&lt; 1 triệu)</div>
+          <div style="font-size:20px;font-weight:800;color:#dc2626">{{ grand.urgent }} TK</div>
+          <div style="font-size:10px;color:#64748b">cần nạp/nâng limit</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card card-sum shadow-sm" style="background:#f8fafc">
+        <div class="card-body py-2">
+          <div style="font-size:11px;color:#475569;font-weight:700">TỔNG ĐÃ TIÊU</div>
+          <div style="font-size:16px;font-weight:700;color:#334155">{{ '{:,.0f}'.format(grand.amount_spent) }}₫</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card card-sum shadow-sm" style="background:#f8fafc">
+        <div class="card-body py-2">
+          <div style="font-size:11px;color:#475569;font-weight:700">TỔNG GIỚI HẠN</div>
+          <div style="font-size:16px;font-weight:700;color:#334155">{{ '{:,.0f}'.format(grand.spend_cap) }}₫</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Theo team -->
+  {% for t in teams %}
+  <div class="team-card">
+    <div class="team-head">
+      <div>
+        <span style="font-weight:700;font-size:15px"><i class="bi bi-people-fill me-1" style="color:#f59e0b"></i>{{ t.team_name }}</span>
+        <span class="text-muted ms-2" style="font-size:12px">{{ t.accounts|length }} TK</span>
+        {% if t.urgent_count %}<span class="pill" style="background:#fee2e2;color:#b91c1c">🔴 {{ t.urgent_count }} sắp hết</span>{% endif %}
+      </div>
+      <div class="text-end">
+        <div style="font-size:11px;color:#6c757d">Tổng còn lại</div>
+        <div style="font-size:16px;font-weight:800;color:#0891b2">{{ '{:,.0f}'.format(t.total_remaining) }}₫</div>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0 acct-table">
+        <thead class="table-light">
+          <tr>
+            <th>Tài khoản</th>
+            <th>Nhân viên</th>
+            <th class="text-end">Đã tiêu / Giới hạn</th>
+            <th class="text-end" style="width:200px">Còn lại</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in t.accounts %}
+          <tr class="{{ 'row-urgent' if a.urgent else '' }}">
+            <td>
+              {% if a.urgent %}🔴 {% endif %}
+              <a href="https://business.facebook.com/adsmanager/manage/campaigns?act={{ a.ad_account_id }}" target="_blank"
+                 class="text-decoration-none fw-semibold" style="color:#1a1a1a" title="Mở Ads Manager">
+                {{ a.short_name }} <i class="bi bi-box-arrow-up-right" style="font-size:9px;opacity:.5"></i>
+              </a>
+              {% if a.account_status != 1 %}<span class="pill" style="background:#fee2e2;color:#b91c1c">⛔ tắt</span>{% endif %}
+            </td>
+            <td style="font-size:13px;color:#475569">{{ a.user_name or '—' }}</td>
+            <td class="text-end" style="font-size:12px;color:#64748b">
+              {% if a.no_cap %}<span class="text-muted">không đặt giới hạn</span>
+              {% else %}
+                {{ '{:,.0f}'.format(a.amount_spent) }} / {{ '{:,.0f}'.format(a.spend_cap) }}
+                <div class="bar">
+                  {% set pct = (a.amount_spent / a.spend_cap * 100) if a.spend_cap > 0 else 0 %}
+                  <span style="width:{{ [pct,100]|min }}%;background:{{ '#dc2626' if pct >= 97 else ('#f59e0b' if pct >= 90 else '#16a34a') }}"></span>
+                </div>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% if a.no_cap %}<span class="text-muted">—</span>
+              {% else %}
+                <span style="font-weight:800;font-size:15px;color:{{ '#dc2626' if a.urgent else '#0891b2' }}">
+                  {{ '{:,.0f}'.format(a.remaining) }}₫
+                </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+async function refreshNow(btn){
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang quét...';
+  try {
+    const r = await fetch('/chi-phi-qc/ngan-sach-tk/refresh', {method:'POST'});
+    const d = await r.json();
+    if (d.ok){
+      btn.innerHTML = '<i class="bi bi-check2"></i> Đang quét — tải lại sau ~1 phút';
+      setTimeout(()=>location.reload(), 60000);
+    } else {
+      btn.disabled = false; btn.innerHTML = 'Lỗi: ' + (d.error||'');
+    }
+  } catch(e){ btn.disabled=false; btn.innerHTML='Lỗi mạng'; }
+}
+</script>
+</body>
+</html>

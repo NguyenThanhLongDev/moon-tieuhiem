@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Kho Hàng{% endblock %} — Quản lý Kho</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#F59E0B">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tiểu Hiềm">
+  <link rel="apple-touch-icon" href="/static/pwa/icon-192.png">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --brand: #F59E0B;
+      --brand-dark: #D97706;
+      --brand-darker: #B45309;
+    }
+    body { background: #f8f9fa; font-family: 'Segoe UI', sans-serif; }
+
+    /* ── Top navbar ── */
+    .kho-navbar {
+      background: #1a1a1a;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 48px;
+      position: sticky;
+      top: 0;
+      z-index: 1030;
+      box-shadow: 0 2px 4px rgba(0,0,0,.08);
+    }
+    .kho-navbar-brand {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--brand) !important;
+      text-decoration: none;
+      white-space: nowrap;
+      letter-spacing: .3px;
+    }
+    .kho-navbar-brand:hover { color: var(--brand-dark) !important; }
+    .kho-navbar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .kho-sync-badge {
+      font-size: 12px;
+      color: rgba(255,255,255,.55);
+    }
+    .kho-home-link {
+      font-size: 13px;
+      color: rgba(255,255,255,.75);
+      text-decoration: none;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,.2);
+      white-space: nowrap;
+      transition: background .15s, color .15s;
+    }
+    .kho-home-link:hover { background: rgba(255,255,255,.08); color: #fff; }
+
+    /* ── Sub-nav (horizontal nav tabs) ── */
+    .kho-subnav {
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .kho-subnav::-webkit-scrollbar { display: none; }
+    .kho-subnav-link {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 14px;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: #495057;
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      transition: color .15s, border-color .15s;
+    }
+    .kho-subnav-link:hover { color: var(--brand-dark); }
+    .kho-subnav-link.active {
+      color: var(--brand-dark);
+      border-bottom-color: var(--brand);
+      font-weight: 600;
+    }
+    .kho-subnav-sep {
+      width: 1px;
+      height: 20px;
+      background: #e2e8f0;
+      margin: 0 4px;
+      flex-shrink: 0;
+    }
+
+    /* ── Page content ── */
+    .main-content { padding: 24px; max-width: 100%; }
+    @media(max-width:767.98px) { .main-content { padding: 12px 10px 80px; } }
+
+    /* ── Cards & tables ── */
+    .card { border: none; box-shadow: 0 1px 4px rgba(0,0,0,.08); border-radius: 12px; }
+    .card-header { background: transparent; border-bottom: 1px solid #f0f0f0; font-weight: 600; }
+    .badge-qty { font-size: 1rem; padding: 6px 12px; }
+    .tag-biz { display:inline-block; padding:1px 6px; border-radius:6px; font-size:10px; font-weight:700; letter-spacing:.3px; margin-left:6px; vertical-align:middle; line-height:1.4; }
+    .tag-biz-cty { background:#dbeafe; color:#1d4ed8; }
+    .tag-biz-hkd { background:#fef3c7; color:#b45309; }
+    .table th { background: #f8f9fa !important; color: #212529 !important; font-weight: 600; font-size: .85rem; text-transform: uppercase; letter-spacing: .5px; }
+    .low-stock { background: #fff3cd !important; }
+    .very-low-stock { background: #f8d7da !important; }
+    .stat-card { text-align: center; padding: 20px; }
+    .stat-card .num { font-size: 2rem; font-weight: 700; line-height: 1; color: #1a1a1a; }
+    .stat-card .label { font-size: .82rem; color: #6c757d; margin-top: 4px; }
+    .btn-action { min-width: 100px; }
+    .page-header { margin-bottom: 1.5rem; }
+    .page-header h1 { font-size: 1.6rem; font-weight: 700; margin: 0; }
+    .flash-messages { position: fixed; top: 96px; right: 20px; z-index: 9999; width: 380px; }
+
+    /* ═══════════════════════════════════════════════
+       MOBILE RESPONSIVE — chỉ áp dụng ≤ 767px
+       PC giữ nguyên
+       ═══════════════════════════════════════════════ */
+    @media (max-width: 767.98px) {
+      /* Flash messages — full width mobile */
+      .flash-messages {
+        top: 52px; left: 8px; right: 8px;
+        width: auto; max-width: none;
+      }
+      /* Page header — compact */
+      .page-header { margin-bottom: .75rem; }
+      .page-header h1 { font-size: 1.15rem !important; }
+      .page-header p.text-muted { font-size: .78rem; }
+      /* Card radius smaller */
+      .card { border-radius: 10px; }
+      .card-header { font-size: .88rem; padding: .55rem .85rem; }
+      .card-body { padding: .75rem; }
+      .card-footer { padding: .55rem .75rem; }
+      /* Pagination compact */
+      .pagination .page-link { padding: .3rem .5rem; font-size: .8rem; }
+      /* Card footer pagination — stack on mobile */
+      .card-footer.d-flex { flex-wrap: wrap; gap: .4rem; }
+      /* Table font size */
+      .table td, .table th { font-size: .8rem; padding: .35rem .5rem; }
+      /* Form selects & inputs */
+      .form-control, .form-select { font-size: .88rem; }
+      /* Buttons compact */
+      .btn-sm { font-size: .78rem; }
+      /* Admin header buttons — stack */
+      .page-header .d-flex.gap-2 { flex-wrap: wrap; }
+      /* Badge compact */
+      .badge { font-size: .72rem; }
+      /* Subnav — hide on mobile (bottom nav handles it) */
+      .kho-subnav { display: none; }
+      /* Top navbar brand font */
+      .kho-navbar-brand { font-size: 14px; }
+      /* Sync badge hidden on mobile */
+      #auto-sync-badge { display: none !important; }
+    }
+    /* Touch targets — minimum 44px height for clickable elements on mobile */
+    @media (max-width: 767.98px) {
+      .btn-sm { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; }
+      .btn { min-height: 40px; }
+      .btn-lg { min-height: 48px; }
+      input.form-control, select.form-select { min-height: 42px; }
+    }
+
+    /* Brand button overrides */
+    .btn-primary { background-color: #F59E0B !important; border-color: #F59E0B !important; color: #fff !important; }
+    .btn-primary:hover { background-color: #D97706 !important; border-color: #D97706 !important; }
+    .btn-outline-primary { color: #D97706 !important; border-color: #F59E0B !important; }
+    .btn-outline-primary:hover, .btn-outline-primary:focus { background-color: #F59E0B !important; color: #fff !important; border-color: #F59E0B !important; }
+
+    /* ── Bottom nav (mobile only) ── */
+    .mobile-bottom-nav {
+      display: none;
+      position: fixed; bottom: 0; left: 0; right: 0;
+      z-index: 1040;
+      background: #fff;
+      border-top: 1px solid #dee2e6;
+      box-shadow: 0 -2px 8px rgba(0,0,0,.10);
+    }
+    .mobile-bottom-nav .btn-nav {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 8px 2px 6px; font-size: .68rem; font-weight: 500;
+      color: #6c757d; text-decoration: none;
+      border: none; background: transparent; gap: 2px; min-width: 0;
+    }
+    .mobile-bottom-nav .btn-nav i { font-size: 1.25rem; line-height: 1; }
+    .mobile-bottom-nav .btn-nav.active { color: var(--brand-dark); }
+    .mobile-bottom-nav .btn-nav:hover { color: var(--brand-dark); }
+
+    #mobileMoreMenu {
+      display: none; position: fixed;
+      bottom: 56px; left: 0; right: 0;
+      z-index: 1039; background: #fff;
+      border-top: 1px solid #dee2e6;
+      box-shadow: 0 -4px 16px rgba(0,0,0,.12);
+      padding: 8px 0 4px;
+    }
+    #mobileMoreMenu .more-link {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 20px; color: #212529;
+      text-decoration: none; font-weight: 500;
+    }
+    #mobileMoreMenu .more-link.active { background: #FEF3C7; color: var(--brand-dark); }
+    #mobileMoreMenu .more-link i { width: 22px; font-size: 1.1rem; }
+    #mobileMoreOverlay {
+      display: none; position: fixed; inset: 0;
+      z-index: 1038; background: rgba(0,0,0,.25);
+    }
+    @media (max-width: 767.98px) { .mobile-bottom-nav { display: flex; } }
+  </style>
+<link rel="stylesheet" href="/static/cc-multiselect.css">
+<script src="/static/cc-multiselect.js" defer></script>
+</head>
+<body>
+
+{% set _ep = request.endpoint %}
+
+<!-- ── Top Navbar ── -->
+<div class="kho-navbar">
+  <a class="kho-navbar-brand" href="/kho-vat-ly/">
+    <i class="bi bi-box-seam me-1"></i>Kho Hàng
+    <span style="font-size:.6rem;opacity:.6;font-weight:400;margin-left:4px;vertical-align:middle">v2.5</span>
+  </a>
+  <div class="kho-navbar-right">
+    <span class="kho-sync-badge d-none d-md-inline" id="auto-sync-badge">
+      <i class="bi bi-arrow-repeat me-1"></i>Auto-sync: đang chờ...
+    </span>
+    <a href="/cham-cong/diem-danh" class="kho-home-link" style="background:#f59e0b;color:#fff;border-radius:6px;padding:4px 10px;font-weight:600;">
+      <i class="bi bi-fingerprint me-1"></i>Chấm công
+    </a>
+    <a href="/hr/my-profile" class="kho-home-link">
+      <i class="bi bi-person-vcard me-1"></i>Hồ sơ HR
+    </a>
+    <a href="/" class="kho-home-link">
+      <i class="bi bi-house-door me-1"></i>Trang chủ
+    </a>
+    <a href="/logout" class="kho-home-link" style="color:#dc2626;" onclick="return confirm('Đăng xuất khỏi tài khoản?');">
+      <i class="bi bi-box-arrow-right me-1"></i>Đăng xuất
+    </a>
+  </div>
+</div>
+
+<!-- ── Sub-nav (horizontal) ── -->
+<div class="kho-subnav">
+  <a href="/kho-vat-ly/" class="kho-subnav-link {% if _ep == 'kho_vat_ly.index' %}active{% endif %}">
+    <i class="bi bi-speedometer2"></i>Tổng quan
+  </a>
+  <a href="/kho-vat-ly/inbound" class="kho-subnav-link {% if _ep in ['kho_vat_ly.inbound_list','kho_vat_ly.inbound_create'] %}active{% endif %}">
+    <i class="bi bi-box-arrow-in-down"></i>Nhập hàng
+  </a>
+  <a href="/kho-vat-ly/outbound" class="kho-subnav-link {% if _ep in ['kho_vat_ly.outbound_list','kho_vat_ly.outbound_confirm'] %}active{% endif %}">
+    <i class="bi bi-box-arrow-up"></i>Xuất hàng
+  </a>
+  {% if has_perm('kvl_xk_noi_bo') %}
+  <a href="/kho-vat-ly/outbound/xuat-kho-noi-bo" class="kho-subnav-link {% if _ep in ['kho_vat_ly.internal_transfer_list','kho_vat_ly.internal_transfer_create','kho_vat_ly.internal_transfer_print'] %}active{% endif %}">
+    <i class="bi bi-arrow-left-right"></i>XK nội bộ
+  </a>
+  {% endif %}
+  <a href="/kho-vat-ly/in-don" class="kho-subnav-link {% if _ep in ['kho_vat_ly.in_don_list','kho_vat_ly.in_don_print'] %}active{% endif %}">
+    <i class="bi bi-printer"></i>In đơn
+  </a>
+  <a href="/kho-vat-ly/returns" class="kho-subnav-link {% if _ep in ['kho_vat_ly.returns_list','kho_vat_ly.returns_confirm','kho_vat_ly.returns_order_detail','kho_vat_ly.returns_order_confirm_all'] %}active{% endif %}">
+    <i class="bi bi-arrow-return-left"></i>Hàng hoàn
+  </a>
+  <a href="/kho-vat-ly/shops" class="kho-subnav-link {% if _ep in ['kho_vat_ly.shops_list','kho_vat_ly.shop_detail','kho_vat_ly.shops_sync_all','kho_vat_ly.shops_sync_one'] %}active{% endif %}">
+    <i class="bi bi-shop"></i>Kho theo shop
+  </a>
+  <a href="/kho-vat-ly/bao-cao" class="kho-subnav-link {% if _ep in ['kho_vat_ly.bao_cao','kho_vat_ly.bao_cao_shop','kho_vat_ly.bao_cao_ton_kho'] %}active{% endif %}">
+    <i class="bi bi-bar-chart-line"></i>Báo cáo
+  </a>
+  <a href="/kho-vat-ly/kiem-kho" class="kho-subnav-link {% if _ep in ['kho_vat_ly.kiem_kho_list','kho_vat_ly.kiem_kho_moi','kho_vat_ly.kiem_kho_detail'] %}active{% endif %}">
+    <i class="bi bi-clipboard-check"></i>Kiểm kho
+  </a>
+  <a href="/kho-vat-ly/san-pham" class="kho-subnav-link {% if _ep in ['kho_vat_ly.san_pham_list','kho_vat_ly.san_pham_sua'] %}active{% endif %}">
+    <i class="bi bi-box-seam"></i>Sản phẩm
+  </a>
+  {% if session.get('role') in ('admin', 'manager') %}
+  {# menu Biến thể đã ẩn — quản lý SL qua Kiểm kho / Phiếu nhập #}
+  <a href="/kho-vat-ly/tai-chinh" class="kho-subnav-link {% if _ep in ['kho_vat_ly.tai_chinh','kho_vat_ly.tai_chinh_update_gia','kho_vat_ly.tai_chinh_sync_gia'] %}active{% endif %}">
+    <i class="bi bi-cash-coin"></i>Tài chính
+  </a>
+  <a href="/kho-vat-ly/kho-quan-ly" class="kho-subnav-link {% if _ep in ['kho_vat_ly.kho_quan_ly','kho_vat_ly.kho_them','kho_vat_ly.kho_sua','kho_vat_ly.phan_bo','kho_vat_ly.phan_bo_submit'] %}active{% endif %}">
+    <i class="bi bi-building"></i>Quản lý kho
+  </a>
+  <a href="/kho-vat-ly/kiem-tra-lech" class="kho-subnav-link {% if _ep in ['kho_vat_ly.kiem_tra_lech','kho_vat_ly.kiem_tra_lech_resync'] %}active{% endif %}"
+     title="Kiểm tra bản sao POS trong DB có khớp với POS thật không (sync health check)">
+    <i class="bi bi-arrow-repeat"></i>Kiểm tra sync POS
+  </a>
+  {% endif %}
+  <a href="/kho-vat-ly/cai-dat-mau-in" class="kho-subnav-link {% if _ep in ['kho_vat_ly.print_template_list','kho_vat_ly.print_template_edit','kho_vat_ly.print_template_create'] %}active{% endif %}">
+    <i class="bi bi-printer"></i>Mẫu in
+  </a>
+  <div class="kho-subnav-sep"></div>
+  <a href="/kho-vat-ly/history" class="kho-subnav-link {% if _ep == 'kho_vat_ly.history' %}active{% endif %}">
+    <i class="bi bi-clock-history"></i>Lịch sử
+  </a>
+  <a href="/cham-cong/diem-danh" class="kho-subnav-link" style="color:#f59e0b;font-weight:600;">
+    <i class="bi bi-fingerprint"></i>Chấm công
+  </a>
+  <a href="/hr/my-profile" class="kho-subnav-link">
+    <i class="bi bi-person-vcard"></i>Hồ sơ HR
+  </a>
+</div>
+
+<script>
+(function() {
+  function loadSyncStatus() {
+    fetch('/kho-vat-ly/api/last-sync')
+      .then(r => r.json())
+      .then(d => {
+        var el = document.getElementById('auto-sync-badge');
+        if (!el) return;
+        if (d.time) {
+          el.innerHTML = '<i class="bi bi-check-circle me-1" style="color:#22c55e"></i>Sync lúc ' + d.time
+            + ' <span style="opacity:.6">(+' + (d.outbound||0) + ' xuất, +' + (d.returns||0) + ' hoàn, ' + (d.shops||0) + ' shop)</span>';
+        } else {
+          el.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Chưa sync lần nào';
+        }
+      }).catch(function(){});
+  }
+  loadSyncStatus();
+  setInterval(loadSyncStatus, 60000);
+})();
+</script>
+
+<!-- ── Main content ── -->
+<div class="main-content">
+
+  <!-- Flash messages -->
+  <div class="flash-messages">
+    {% for cat, msg in get_flashed_messages(with_categories=True) %}
+    <div class="alert alert-{{ cat }} alert-dismissible fade show shadow-sm" role="alert">
+      {{ msg }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% block content %}{% endblock %}
+</div>
+
+<!-- ── Bottom Nav (mobile only) ── -->
+<div class="mobile-bottom-nav">
+  <a href="/kho-vat-ly/" class="btn-nav {% if _ep == 'kho_vat_ly.index' %}active{% endif %}">
+    <i class="bi bi-speedometer2"></i><span>Tổng quan</span>
+  </a>
+  <a href="/kho-vat-ly/outbound" class="btn-nav {% if _ep in ['kho_vat_ly.outbound_list','kho_vat_ly.outbound_confirm'] %}active{% endif %}">
+    <i class="bi bi-box-arrow-up"></i><span>Xuất hàng</span>
+  </a>
+  <a href="/kho-vat-ly/returns" class="btn-nav {% if _ep in ['kho_vat_ly.returns_list','kho_vat_ly.returns_confirm','kho_vat_ly.returns_order_detail','kho_vat_ly.returns_order_confirm_all'] %}active{% endif %}">
+    <i class="bi bi-arrow-return-left"></i><span>Hoàn</span>
+  </a>
+  <a href="/kho-vat-ly/inbound" class="btn-nav {% if _ep in ['kho_vat_ly.inbound_list','kho_vat_ly.inbound_create'] %}active{% endif %}">
+    <i class="bi bi-box-arrow-in-down"></i><span>Nhập</span>
+  </a>
+  <button class="btn-nav" id="mobileMoreBtn" onclick="toggleMoreMenu()">
+    <i class="bi bi-grid-3x3-gap-fill"></i><span>Thêm</span>
+  </button>
+</div>
+
+<div id="mobileMoreOverlay" onclick="closeMoreMenu()"></div>
+<div id="mobileMoreMenu">
+  <a href="/cham-cong/diem-danh" class="more-link" style="color:#f59e0b;font-weight:600;">
+    <i class="bi bi-fingerprint"></i> Chấm công
+  </a>
+  <a href="/hr/my-profile" class="more-link">
+    <i class="bi bi-person-vcard"></i> Hồ sơ HR
+  </a>
+  <a href="/kho-vat-ly/in-don" class="more-link {% if _ep in ['kho_vat_ly.in_don_list','kho_vat_ly.in_don_print'] %}active{% endif %}">
+    <i class="bi bi-printer"></i> In đơn hàng loạt
+  </a>
+  <a href="/kho-vat-ly/shops" class="more-link {% if _ep in ['kho_vat_ly.shops_list','kho_vat_ly.shop_detail'] %}active{% endif %}">
+    <i class="bi bi-shop"></i> Kho theo shop
+  </a>
+  <a href="/kho-vat-ly/bao-cao" class="more-link {% if _ep in ['kho_vat_ly.bao_cao','kho_vat_ly.bao_cao_shop'] %}active{% endif %}">
+    <i class="bi bi-bar-chart-line"></i> Báo cáo xuất hàng
+  </a>
+  <a href="/kho-vat-ly/kiem-kho" class="more-link {% if _ep in ['kho_vat_ly.kiem_kho_list','kho_vat_ly.kiem_kho_moi','kho_vat_ly.kiem_kho_detail'] %}active{% endif %}">
+    <i class="bi bi-clipboard-check"></i> Kiểm kho
+  </a>
+  {% if session.get('role') in ('admin', 'manager') %}
+  <a href="/kho-vat-ly/tai-chinh" class="more-link {% if _ep in ['kho_vat_ly.tai_chinh','kho_vat_ly.tai_chinh_update_gia'] %}active{% endif %}">
+    <i class="bi bi-cash-coin"></i> Tài chính Kho
+  </a>
+  {% endif %}
+  <a href="/kho-vat-ly/history" class="more-link {% if _ep == 'kho_vat_ly.history' %}active{% endif %}">
+    <i class="bi bi-clock-history"></i> Lịch sử
+  </a>
+  <hr class="my-1 mx-3">
+  <a href="/" class="more-link">
+    <i class="bi bi-house-door-fill text-secondary"></i> <span class="text-secondary">Về trang chủ</span>
+  </a>
+  <a href="/logout" class="more-link" style="color:#dc2626;" onclick="return confirm('Đăng xuất khỏi tài khoản?');">
+    <i class="bi bi-box-arrow-right"></i> Đăng xuất
+  </a>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  setTimeout(() => {
+    document.querySelectorAll('.flash-messages .alert').forEach(el => {
+      const bsAlert = bootstrap.Alert.getOrCreateInstance(el);
+      bsAlert.close();
+    });
+  }, 4000);
+
+  function toggleMoreMenu() {
+    var menu    = document.getElementById('mobileMoreMenu');
+    var overlay = document.getElementById('mobileMoreOverlay');
+    var btn     = document.getElementById('mobileMoreBtn');
+    var open    = menu.style.display === 'block';
+    menu.style.display    = open ? 'none' : 'block';
+    overlay.style.display = open ? 'none' : 'block';
+    btn.classList.toggle('active', !open);
+  }
+  function closeMoreMenu() {
+    document.getElementById('mobileMoreMenu').style.display    = 'none';
+    document.getElementById('mobileMoreOverlay').style.display = 'none';
+    document.getElementById('mobileMoreBtn').classList.remove('active');
+  }
+</script>
+{% block scripts %}{% endblock %}
+<script>
+let _sharedAC = null;
+function _getAC() {
+  if (!_sharedAC) _sharedAC = new (window.AudioContext || window.webkitAudioContext)();
+  if (_sharedAC.state === 'suspended') _sharedAC.resume();
+  return _sharedAC;
+}
+['touchstart','mousedown','keydown'].forEach(ev =>
+  document.addEventListener(ev, () => _getAC(), {once:true, passive:true})
+);
+function beepOk() {
+  try {
+    const a=_getAC(), o=a.createOscillator(), g=a.createGain();
+    o.connect(g); g.connect(a.destination);
+    o.frequency.value=880;
+    g.gain.setValueAtTime(0.35, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime+0.18);
+    o.start(); o.stop(a.currentTime+0.18);
+  } catch(e){}
+}
+function beepErr() {
+  try {
+    const a=_getAC(), o=a.createOscillator(), g=a.createGain();
+    o.connect(g); g.connect(a.destination);
+    o.type='sawtooth'; o.frequency.value=220;
+    g.gain.setValueAtTime(0.25, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime+0.35);
+    o.start(); o.stop(a.currentTime+0.35);
+  } catch(e){}
+}
+</script>
+<script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));</script>
+<style>
+  .sku-copy { cursor: pointer; user-select: all; transition: filter .15s; }
+  .sku-copy:hover { filter: brightness(1.1); outline: 1px dashed currentColor; outline-offset: 1px; }
+  .sku-copy.copied { background:#16a34a !important; color:#fff !important; }
+  #__copyToast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #1a1a1a; color: #fff; padding: 8px 16px; border-radius: 8px;
+    font-size: 13px; z-index: 9999; opacity: 0; pointer-events: none;
+    transition: opacity .2s; box-shadow: 0 4px 12px rgba(0,0,0,.25);
+  }
+  #__copyToast.show { opacity: 1; }
+</style>
+<div id="__copyToast"></div>
+<script>
+(function(){
+  function showToast(msg){
+    const t = document.getElementById('__copyToast');
+    if (!t) return;
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._h);
+    t._h = setTimeout(()=>t.classList.remove('show'), 1400);
+  }
+  function copyText(txt){
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(txt);
+    }
+    const ta = document.createElement('textarea');
+    ta.value = txt; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch(e){}
+    document.body.removeChild(ta);
+    return Promise.resolve();
+  }
+  document.addEventListener('click', function(e){
+    const el = e.target.closest('.sku-copy');
+    if (!el) return;
+    e.preventDefault(); e.stopPropagation();
+    const txt = (el.dataset.copy || el.textContent || '').trim();
+    if (!txt) return;
+    copyText(txt).then(()=>{
+      showToast('Đã copy: ' + txt);
+      el.classList.add('copied');
+      setTimeout(()=>el.classList.remove('copied'), 600);
+    });
+  });
+})();
+</script>
+</body>
+</html>

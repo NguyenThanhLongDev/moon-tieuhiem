@@ -1,0 +1,184 @@
+{% extends "hr/_base.html" %}
+{% block title %}HĐLĐ — {{ profile.full_name }} — HR{% endblock %}
+{% block content %}
+
+{% set current_uid = session.get('user_id') %}
+
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+  <a href="{{ url_for('hr.employee_detail', uid=profile.user_id) }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Hồ sơ
+  </a>
+  <h5 class="mb-0" style="flex:1">
+    <i class="bi bi-file-earmark-text text-warning"></i>
+    Hợp đồng lao động — {{ profile.full_name or profile.username }}
+  </h5>
+  {% if is_admin %}
+  <a href="{{ url_for('hr.contract_new', uid=profile.user_id) }}" class="btn-brand btn btn-sm">
+    <i class="bi bi-plus-lg"></i> Tạo HĐLĐ mới
+  </a>
+  {% endif %}
+</div>
+
+{% if contracts %}
+  {% for c in contracts %}
+  <div class="hr-card">
+    <div class="d-flex align-items-start mb-2 gap-2 flex-wrap">
+      <div style="flex:1; min-width:280px">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <h6 class="mb-0"><i class="bi bi-file-earmark-text text-warning"></i> {{ c.contract_number }}</h6>
+          <span class="status-badge status-{{ 'approved' if c.status == 'signed' else ('submitted' if c.status in ('pending_sign','pending_employee_sign','pending_company_sign') else 'draft') }}">
+            {{ status_labels.get(c.status, c.status) }}
+          </span>
+        </div>
+        <div class="text-muted small mt-1">
+          {{ type_labels.get(c.contract_type, c.contract_type) }} ·
+          {{ c.start_date.strftime('%d/%m/%Y') if c.start_date else '—' }}
+          {% if c.end_date %} → {{ c.end_date.strftime('%d/%m/%Y') }}{% else %} → không thời hạn{% endif %} ·
+          {{ c.company_name }}
+        </div>
+      </div>
+      <div class="text-end small">
+        {% if c.position %}<div><strong>{{ c.position }}</strong></div>{% endif %}
+        {% if c.salary_base %}
+          <div class="text-warning fw-bold">{{ '{:,}'.format(c.salary_base).replace(',','.') }} đ</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Trạng thái ký -->
+    <div class="row g-2 mb-3">
+      <div class="col-md-6">
+        <div class="p-2 rounded" style="background:#f8fafc">
+          <small class="text-muted d-block">Bên A — Công ty (ký số)</small>
+          {% if c.signed_company %}
+            <i class="bi bi-check-circle-fill text-success"></i>
+            <strong>Đã ký</strong>
+            {% if c.signed_company_at %}
+              <small class="text-muted">— {{ c.signed_company_at.strftime('%d/%m/%Y %H:%M') }}</small>
+            {% endif %}
+          {% else %}
+            <i class="bi bi-clock text-muted"></i> <span class="text-muted">Chưa ký</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="p-2 rounded" style="background:#f8fafc">
+          <small class="text-muted d-block">Bên B — Nhân viên (ký tay)</small>
+          {% if c.signed_employee %}
+            <i class="bi bi-check-circle-fill text-success"></i>
+            <strong>Đã ký</strong>
+            {% if c.signed_employee_at %}
+              <small class="text-muted">— {{ c.signed_employee_at.strftime('%d/%m/%Y %H:%M') }}</small>
+            {% endif %}
+          {% else %}
+            <i class="bi bi-clock text-muted"></i> <span class="text-muted">Chưa ký</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Hành động -->
+    <div class="d-flex gap-2 flex-wrap">
+      {% if c.docx_path %}
+      <a href="{{ url_for('hr.contract_download', cid=c.id) }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-file-earmark-word"></i> Bản gốc (.docx)
+      </a>
+      {% endif %}
+
+      {% if c.signed_file_path %}
+      <a href="{{ url_for('hr.contract_download_signed', cid=c.id) }}" class="btn btn-sm btn-primary">
+        <i class="bi bi-file-earmark-check"></i> Bản công ty đã ký
+      </a>
+      {% endif %}
+
+      {% if c.final_docx_path %}
+      <a href="{{ url_for('hr.contract_download_final', cid=c.id) }}" class="btn btn-sm" style="background:#16a34a;color:#fff">
+        <i class="bi bi-file-earmark-pdf"></i> Bản có chữ ký NV
+      </a>
+      {% elif is_admin and c.signed_employee %}
+      <form method="POST" action="{{ url_for('hr.contract_regenerate_final', cid=c.id) }}" class="d-inline">
+        <button class="btn btn-sm btn-outline-success">
+          <i class="bi bi-arrow-repeat"></i> Sinh bản có chữ ký NV
+        </button>
+      </form>
+      {% endif %}
+
+      {% if is_admin and not c.signed_file_path %}
+      <!-- Form upload bản đã ký -->
+      <form method="POST" action="{{ url_for('hr.contract_upload_signed', cid=c.id) }}"
+            enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
+        <input type="file" name="file" accept=".docx,.doc,.pdf" required
+               class="form-control form-control-sm" style="width:auto">
+        <button class="btn btn-sm" style="background:#F59E0B;color:#fff">
+          <i class="bi bi-cloud-arrow-up"></i> Upload bản đã ký số
+        </button>
+      </form>
+      {% elif is_admin and c.signed_file_path %}
+      <form method="POST" action="{{ url_for('hr.contract_upload_signed', cid=c.id) }}"
+            enctype="multipart/form-data" class="d-flex gap-2 align-items-center"
+            onsubmit="return confirm('Thay file đã ký bằng file mới?')">
+        <input type="file" name="file" accept=".docx,.doc,.pdf" required
+               class="form-control form-control-sm" style="width:auto">
+        <button class="btn btn-sm btn-outline-warning">
+          <i class="bi bi-arrow-repeat"></i> Thay file
+        </button>
+      </form>
+      {% endif %}
+
+      <!-- NV ký xác nhận: bên nào ký trước cũng được -->
+      {% if c.user_id == current_uid and not c.signed_employee %}
+      <a href="{{ url_for('hr.contract_sign_employee', cid=c.id) }}" class="btn btn-sm btn-success">
+        <i class="bi bi-pen"></i> Ký xác nhận (NV)
+      </a>
+      {% endif %}
+
+      <!-- Xem chữ ký NV -->
+      {% if c.signed_employee %}
+      <button type="button" class="btn btn-sm btn-outline-secondary"
+              data-bs-toggle="modal" data-bs-target="#sigModal{{ c.id }}">
+        <i class="bi bi-eye"></i> Xem chữ ký NV
+      </button>
+      {% endif %}
+
+      {% if is_admin and c.status != 'signed' %}
+      <form method="POST" action="{{ url_for('hr.contract_delete', cid=c.id) }}" class="d-inline ms-auto"
+            onsubmit="return confirm('Xóa hợp đồng {{ c.contract_number }}?')">
+        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Xóa</button>
+      </form>
+      {% endif %}
+    </div>
+
+    {% if c.signed_employee %}
+    <!-- Modal hiện chữ ký -->
+    <div class="modal fade" id="sigModal{{ c.id }}" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h6 class="modal-title">Chữ ký NV — {{ c.contract_number }}</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body text-center">
+            <img src="{{ url_for('hr.contract_employee_signature', cid=c.id) }}"
+                 alt="Chữ ký" style="max-width:100%; max-height:300px; border:1px solid #e2e8f0; border-radius:6px; background:#fff">
+            <div class="small text-muted mt-2">
+              Ký lúc {{ c.signed_employee_at.strftime('%d/%m/%Y %H:%M:%S') if c.signed_employee_at }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+{% else %}
+<div class="hr-card text-center text-muted py-4">
+  Chưa có hợp đồng nào.
+  {% if is_admin %}
+  <a href="{{ url_for('hr.contract_new', uid=profile.user_id) }}">Tạo HĐLĐ đầu tiên</a>.
+  {% endif %}
+</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+{% endblock %}

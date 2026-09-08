@@ -1,0 +1,2 @@
+ALTER TABLE hr_profiles DROP COLUMN IF EXISTS region;
+ALTER TABLE teams DROP COLUMN IF EXISTS region;

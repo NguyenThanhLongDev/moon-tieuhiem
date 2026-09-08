@@ -1,0 +1,121 @@
+{# ── Thanh tab DÙNG CHUNG cho cụm Page & Tài khoản (kiểu .cc-subnav của Chấm công) ──
+   Cách dùng (đặt trong .page-wrap/container, sau _main_nav):
+     {% set pa_active = 'bm' %}{% set bm_count = bms|length %}{% set mapping_count = mappings|length %}
+     {% include "page_account/_pa_tabbar.html" %}
+   pa_active: bm | pages | ad_accounts | page_binding | chi_phi | kiem_soat
+   Kèm sẵn CSS + modal "Thêm Token FB" để hoạt động ở bất kỳ trang nào include. #}
+<style>
+  /* Chuyển tab mượt, không nhấp nháy trắng (cross-document View Transitions) */
+  @view-transition { navigation: auto; }
+  .topbar { view-transition-name: app-topbar; }   /* giữ navbar đen đứng yên khi chuyển trang */
+  .pa-tabbar { display:flex; align-items:stretch; gap:12px; background:#fff; border-bottom:2px solid #e2e8f0; padding:0 12px; view-transition-name:pa-tabbar;
+               position:sticky; top:46px; z-index:1020; box-shadow:0 2px 6px rgba(0,0,0,.04); }
+  .pa-subnav { display:flex; gap:4px; flex:1 1 auto; min-width:0; overflow-x:auto; list-style:none; margin:0; padding:0; flex-wrap:nowrap;
+               scroll-behavior:smooth; scrollbar-width:thin; scrollbar-color:#cbd5e1 transparent; -webkit-overflow-scrolling:touch; }
+  .pa-subnav::-webkit-scrollbar { height:5px; }
+  .pa-subnav::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }
+  .pa-subnav::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
+  .pa-subnav .nav-item { display:contents; }
+  .pa-subnav .nav-link { display:flex; align-items:center; gap:5px; padding:10px 14px; font-size:13px; font-weight:500; color:#64748b; text-decoration:none; border:none; border-bottom:3px solid transparent; margin-bottom:-2px; white-space:nowrap; transition:.15s; }
+  .pa-subnav .nav-link .bi { font-size:15px; }
+  .pa-subnav .nav-link:hover { color:#F59E0B; }
+  .pa-subnav .nav-link.active { color:#F59E0B; border-bottom-color:#F59E0B; font-weight:600; }
+  .pa-actions { display:flex; align-items:center; gap:8px; flex:0 0 auto; padding:6px 0; }
+</style>
+<div class="pa-tabbar mb-3">
+  <ul class="pa-subnav" id="mainTab">
+    <li class="nav-item">
+      <a class="nav-link {% if pa_active == 'bm' %}active{% endif %}" href="{{ url_for('page_account.index') }}">
+        <i class="bi bi-building"></i>Business Managers
+        {% if bm_count %}<span class="badge bg-secondary ms-1">{{ bm_count }}</span>{% endif %}
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link {% if pa_active in ('pages', 'page_breakdown', 'landing_pages', 'page_binding') %}active{% endif %}" href="{{ url_for('page_account.page_ads') }}">
+        <i class="bi bi-collection"></i>Page & Ads
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link {% if pa_active in ('ad_accounts', 'chi_phi') %}active{% endif %}" href="{{ url_for('page_account.all_ad_accounts') }}">
+        <i class="bi bi-graph-up-arrow"></i>Tài khoản QC
+        {% if mapping_count %}<span class="badge bg-success ms-1">{{ mapping_count }} đã gán</span>{% endif %}
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link {% if pa_active == 'kiem_soat' %}active{% endif %}" href="{{ url_for('page_account.kiem_soat') }}">
+        <i class="bi bi-shield-exclamation"></i>Kiểm soát
+        {% if pa_active == 'kiem_soat' and kiem_soat is defined and kiem_soat %}
+          {% set unknown_total = kiem_soat | selectattr('unknown_count', 'gt', 0) | list | length %}
+          {% if unknown_total %}<span class="badge bg-danger ms-1">{{ unknown_total }} TK lạ</span>{% endif %}
+        {% endif %}
+      </a>
+    </li>
+  </ul>
+  <div class="pa-actions">
+    <a class="btn btn-sm text-white" href="{{ url_for('page_account.pages_cty') }}" style="background:#1877f2;border-color:#1877f2">
+      <i class="bi bi-grid-3x3-gap me-1"></i>Pages công ty
+    </a>
+    <button class="btn btn-sm text-white" data-bs-toggle="modal" data-bs-target="#modalAddToken" style="background:#1877f2;border-color:#1877f2">
+      <i class="bi bi-facebook me-1"></i>Thêm Token FB
+    </button>
+    <form method="post" action="{{ url_for('page_account.sync') }}" class="m-0">
+      <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-repeat me-1"></i>Sync lại</button>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: thêm token thủ công (dùng chung) -->
+<div class="modal fade" id="modalAddToken" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('page_account.token_add') }}">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-facebook me-2 text-primary"></i>Thêm Facebook Access Token</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-success py-2 mb-3" style="font-size:13px">
+            <div class="fw-bold mb-1"><i class="bi bi-infinity me-1"></i>Khuyến nghị: dùng System User Token (không hết hạn)</div>
+            <ol class="mb-1 ps-3" style="line-height:1.9">
+              <li>Vào <strong>Business Manager</strong> → <em>Cài đặt doanh nghiệp</em> → <em>System Users</em></li>
+              <li>Tạo hoặc chọn System User (loại <strong>Admin</strong>)</li>
+              <li>Bấm <strong>Tạo token mới</strong> → chọn App → tick quyền:<br>
+                <code style="font-size:11px">business_management, pages_show_list, pages_read_engagement, ads_read, ads_management</code></li>
+              <li>Copy token → paste vào ô bên dưới → Lưu</li>
+            </ol>
+            <div class="text-success" style="font-size:12px"><i class="bi bi-check-circle me-1"></i>Hệ thống tự nhận diện và đánh dấu <strong>System User — không hết hạn</strong></div>
+          </div>
+          <details class="mb-3">
+            <summary class="text-muted" style="font-size:12px;cursor:pointer">
+              <i class="bi bi-clock me-1"></i>Phương án dự phòng: User token (~60 ngày)
+            </summary>
+            <div class="mt-2 ps-2" style="font-size:12px;color:#6b7280;line-height:1.8">
+              Vào <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener">Graph API Explorer</a>
+              → chọn App → Generate User Token → cấp quyền <code>business_management</code>, <code>ads_read</code>, <code>pages_show_list</code>.
+              Token sẽ tự động được đổi sang long-lived (~60 ngày).
+            </div>
+          </details>
+          <label class="form-label fw-semibold">Access Token</label>
+          <textarea name="access_token" class="form-control font-monospace" rows="4"
+                    placeholder="EAABxxxxxx..." required style="font-size:12px"></textarea>
+          <div class="form-text">Token sẽ được lưu vào DB và tự động đồng bộ BM, Pages, Tài khoản QC.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-cloud-download me-1"></i>Lưu & Đồng bộ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var nav=document.querySelector('.pa-subnav');
+  if(!nav) return;
+  nav.addEventListener('wheel', function(e){
+    if(Math.abs(e.deltaY) > Math.abs(e.deltaX)){ nav.scrollLeft += e.deltaY; e.preventDefault(); }
+  }, {passive:false});
+  var act=nav.querySelector('.nav-link.active');
+  if(act){ try{ act.scrollIntoView({inline:'center', block:'nearest'}); }catch(_){} }
+})();
+</script>

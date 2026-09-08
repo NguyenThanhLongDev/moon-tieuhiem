@@ -1,0 +1,661 @@
+{% extends "kho_vat_ly/base.html" %}
+{% block title %}Kho theo shop{% endblock %}
+
+{% block content %}
+
+{# ── Page header ── #}
+<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="mb-0" style="font-size:1.5rem;font-weight:700">
+      <i class="bi bi-shop me-2"></i>Tồn kho theo Shop
+    </h1>
+    <span class="text-muted small">
+      Số liệu kéo từ Pancake POS — mỗi shop có kho online riêng
+      {% if synced_at %}
+      <span class="ms-2 badge bg-light text-muted border">Sync: {{ synced_at }}</span>
+      {% endif %}
+    </span>
+  </div>
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    <a href="/kho-vat-ly/shops/export/all" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-file-earmark-excel me-1"></i>Xuất Excel tất cả
+    </a>
+    <form method="post" action="/kho-vat-ly/products/sync-all" class="m-0">
+      <button class="btn btn-sm btn-dark" type="submit" id="btnSyncProducts">
+        <i class="bi bi-arrow-repeat me-1"></i>Sync sản phẩm từ POS
+      </button>
+    </form>
+  </div>
+</div>
+
+{# ══ PROGRESS BANNER SYNC SẢN PHẨM ══ #}
+<div id="productSyncProgressBanner" class="alert alert-warning d-none mb-3 py-2 px-3" role="alert" style="border-left:4px solid #F59E0B;">
+  <div class="d-flex align-items-center gap-2">
+    <span class="spinner-border spinner-border-sm text-warning" role="status"></span>
+    <span id="productSyncProgressText" class="small">Đang sync sản phẩm từ POS…</span>
+    <span class="ms-auto text-muted small" id="productSyncProgressTime"></span>
+  </div>
+  <div class="progress mt-2" style="height:6px;">
+    <div id="productSyncProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
+         role="progressbar" style="width:100%"></div>
+  </div>
+</div>
+<div id="productSyncDoneBanner" class="alert alert-success d-none mb-3 py-2 px-3" role="alert" style="border-left:4px solid #198754;">
+  <div class="d-flex align-items-start justify-content-between gap-2">
+    <div class="flex-grow-1">
+      <span id="productSyncDoneText" class="small"></span>
+      <div id="productSyncNewSkus" class="mt-2 d-none" style="font-size:.82rem;line-height:1.8;"></div>
+      <div id="productSyncErrorList" class="mt-1 d-none">
+        <ul class="mb-0 ps-3 small text-danger" id="productSyncErrorItems"></ul>
+      </div>
+    </div>
+    <button type="button" class="btn-close btn-sm flex-shrink-0" onclick="this.closest('.alert').classList.add('d-none')"></button>
+  </div>
+</div>
+
+{# ── Ô tìm kiếm sản phẩm ── #}
+<div class="d-flex align-items-center gap-2 mb-3">
+  <div class="input-group" style="max-width:380px">
+    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+    <input type="text" id="shopSearch" class="form-control border-start-0"
+           placeholder="Tìm sản phẩm theo tên hoặc SKU…"
+           autocomplete="off" oninput="applyProductSearch()">
+    <button class="btn btn-outline-secondary" onclick="openShopCamera()" title="Quét mã SKU">
+      <i class="bi bi-camera-fill"></i>
+    </button>
+    <button class="btn btn-outline-secondary" onclick="clearProductSearch()">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+  <span class="text-muted small" id="productSearchCount"></span>
+</div>
+
+{# ── Tabs ── #}
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <a class="nav-link {% if view=='by_shop' %}active{% endif %}" href="?view=by_shop">
+      <i class="bi bi-shop me-1"></i>Theo shop
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if view=='by_product' %}active{% endif %}" href="?view=by_product">
+      <i class="bi bi-table me-1"></i>Theo sản phẩm
+    </a>
+  </li>
+</ul>
+
+{# ══════════════════════════════════════════
+   VIEW 1: THEO SHOP — shop pills trên, bảng dưới
+══════════════════════════════════════════ #}
+{% if view == 'by_shop' %}
+
+{# ── Thanh shop ngang (scrollable) ── #}
+<div class="card mb-3">
+  <div class="card-body py-2 px-3">
+    <div class="d-flex align-items-center gap-1 mb-2">
+      <i class="bi bi-funnel text-muted me-1" style="font-size:.8rem"></i>
+      <span class="text-muted small fw-semibold">Chọn shop:</span>
+      <div class="input-group input-group-sm ms-auto" style="max-width:200px">
+        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted" style="font-size:.75rem"></i></span>
+        <input type="text" id="shopListSearch" class="form-control border-start-0 ps-0"
+               placeholder="Tìm shop…" oninput="filterShopList()" style="font-size:.8rem">
+      </div>
+    </div>
+    <div id="shopPillsRow" class="d-flex flex-wrap gap-2">
+      {% for shop in shops %}
+      {% set total = shop_totals.get(shop.id, 0) %}
+      <button type="button"
+              class="shop-pill btn btn-sm"
+              style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:5px 10px;text-align:left;line-height:1.3;min-width:80px"
+              data-shop-id="{{ shop.id }}"
+              data-shop-key="{{ shop.shop_key | lower }}"
+              data-shop-name="{{ shop.shop_name | lower }}"
+              onclick="selectShop('{{ shop.id }}', this)">
+        <div style="font-size:.65rem;font-weight:600;color:#6c757d;text-transform:uppercase;letter-spacing:.04em">{{ shop.shop_key }}{% set _bt = (shop_biz_map.get(shop.shop_key) or 'cty') %}<span class="tag-biz {% if _bt == 'hkd' %}tag-biz-hkd{% else %}tag-biz-cty{% endif %}" style="margin-left:4px;">{% if _bt == 'hkd' %}HKD{% else %}CTY{% endif %}</span></div>
+        <div style="font-size:.78rem;font-weight:600;color:#1a1a1a;white-space:nowrap">{{ shop.shop_name }}</div>
+        <div style="font-size:.72rem;color:{% if total == 0 %}#dc3545{% else %}#1a1a1a{% endif %};font-weight:{% if total == 0 %}700{% else %}500{% endif %}">
+          {{ fmt_qty(total) }} sp
+        </div>
+      </button>
+      {% endfor %}
+      <div id="shopListEmpty" class="text-muted small py-1 d-none">
+        <i class="bi bi-search me-1"></i>Không tìm thấy
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Vùng chi tiết shop ── #}
+<div id="shopDetailArea">
+  <div id="shopDetailPlaceholder" class="card">
+    <div class="card-body text-center text-muted py-5">
+      <i class="bi bi-hand-index fs-1 d-block mb-3"></i>
+      <div class="fw-semibold">Chọn một shop ở trên để xem tồn kho</div>
+    </div>
+  </div>
+
+  {% for shop in shops %}
+  {% set items = shop_items.get(shop.id, []) %}
+  <div class="card d-none shop-detail-panel" id="shop-panel-{{ shop.id }}">
+    <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div>
+        <span class="badge bg-secondary me-1" style="font-size:.72rem">{{ shop.shop_key }}</span>
+        <strong>{{ shop.shop_name }}</strong>
+        {% set _bt2 = (shop_biz_map.get(shop.shop_key) or 'cty') %}
+        <span class="tag-biz {% if _bt2 == 'hkd' %}tag-biz-hkd{% else %}tag-biz-cty{% endif %}">{% if _bt2 == 'hkd' %}HKD{% else %}CTY{% endif %}</span>
+        <span class="text-muted small ms-2" id="panel-count-{{ shop.id }}">{{ items | length }} sản phẩm</span>
+        {% if shop.warehouse_id %}
+          {% for wh in warehouses %}{% if wh.id == shop.warehouse_id %}
+          <span class="badge ms-2" style="background:#e8f4fd;color:#1565c0;font-size:.72rem;font-weight:600;">
+            <i class="bi bi-building me-1"></i>{{ wh.name }}
+          </span>
+          {% endif %}{% endfor %}
+        {% else %}
+          <span class="badge bg-light text-muted ms-2" style="font-size:.72rem;">Chưa gán kho</span>
+        {% endif %}
+      </div>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        {% if session.get('role') in ('admin','superadmin') %}
+        <form method="post" action="/kho-vat-ly/shops/{{ shop.shop_key }}/assign-warehouse" class="d-flex gap-1 align-items-center m-0">
+          <select name="warehouse_id" data-cc-search class="form-select form-select-sm" style="width:auto;font-size:.8rem;" onchange="this.form.submit()">
+            <option value="">-- Chọn kho --</option>
+            {% for wh in warehouses %}
+            <option value="{{ wh.id }}" {% if shop.warehouse_id == wh.id %}selected{% endif %}>{{ wh.name }}</option>
+            {% endfor %}
+          </select>
+        </form>
+        {% endif %}
+        <a href="/kho-vat-ly/shops/export/shop/{{ shop.shop_key }}" class="btn btn-sm btn-outline-secondary" title="Xuất Excel shop này">
+          <i class="bi bi-file-earmark-excel me-1"></i>Excel
+        </a>
+        <a href="/kho-vat-ly/shops/{{ shop.shop_key }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-box-arrow-up-right me-1"></i>Chi tiết
+        </a>
+      </div>
+    </div>
+    {% if items %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0" style="font-size:.86rem;">
+        <thead class="table-light">
+          <tr>
+            <th style="min-width:90px;">SKU</th>
+            <th>Tên sản phẩm</th>
+            <th class="text-end" style="min-width:80px;">Tồn POS</th>
+            {% if shop.warehouse_id %}
+            <th class="text-end" style="min-width:90px;">
+              Tồn kho vật lý
+              {% for wh in warehouses %}{% if wh.id == shop.warehouse_id %}
+              <div style="font-size:.7rem;font-weight:400;color:#1565c0;">({{ wh.name }})</div>
+              {% endif %}{% endfor %}
+            </th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr class="shop-item-row" data-sku="{{ item.sku | lower }}" data-name="{{ item.product_name | lower }}">
+            <td><a href="/kho-vat-ly/san-pham/{{ item.product_id }}/xem" class="text-decoration-none"><span class="badge bg-secondary font-monospace sku-copy" style="font-size:.75rem" title="Bấm để copy SKU">{{ item.sku }}</span></a></td>
+            <td class="small"><a href="/kho-vat-ly/san-pham/{{ item.product_id }}/xem" class="text-decoration-none text-reset">{{ item.product_name }}</a></td>
+            <td class="text-end fw-bold">
+              {% if item.qty_pos == 0 %}
+                <span class="text-danger">0</span>
+              {% elif item.qty_pos <= 3 %}
+                <span class="text-danger">{{ fmt_qty(item.qty_pos) }}</span>
+              {% elif item.qty_pos <= 10 %}
+                <span style="color:#D97706">{{ fmt_qty(item.qty_pos) }}</span>
+              {% else %}
+                {{ fmt_qty(item.qty_pos) }}
+              {% endif %}
+            </td>
+            {% if shop.warehouse_id %}
+            <td class="text-end">
+              {% set qp = item.qty_physical %}
+              {% if qp == 0 %}
+                <span class="text-muted">—</span>
+              {% elif qp <= 5 %}
+                <span style="color:#D97706;font-weight:600;">{{ fmt_qty(qp) }}</span>
+              {% else %}
+                <span class="fw-semibold">{{ fmt_qty(qp) }}</span>
+              {% endif %}
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body text-muted text-center py-4">
+      <i class="bi bi-inbox me-1"></i>Chưa có dữ liệu POS
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{# ══════════════════════════════════════════
+   VIEW 2: THEO SẢN PHẨM
+══════════════════════════════════════════ #}
+{% else %}
+
+{# Shop filter chips — nhóm theo kho #}
+<div class="card mb-3">
+  <div class="card-body py-2 px-3">
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+      <span class="text-muted small fw-semibold text-nowrap">
+        <i class="bi bi-funnel me-1"></i>Hiện shop:
+      </span>
+      <button class="btn btn-sm btn-dark" onclick="toggleAllShops(true)">
+        <i class="bi bi-check-all"></i> Tất cả
+      </button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllShops(false)">
+        <i class="bi bi-x-lg"></i> Bỏ hết
+      </button>
+    </div>
+    {% for wh in warehouses %}
+    {% set wh_short = wh.code.replace('KHO_','') if wh.code else wh.name[:4] %}
+    {% set wh_shops = shops | selectattr('warehouse_id', 'equalto', wh.id) | list %}
+    {% if wh_shops %}
+    <div class="d-flex align-items-center gap-1 mb-1 flex-wrap">
+      <span class="badge me-1" style="background:#e8f4fd;color:#1565c0;font-size:.7rem;min-width:50px;">
+        <i class="bi bi-building me-1"></i>{{ wh_short }}
+      </span>
+      {% for sh in wh_shops %}
+      {% set cidx = shop_col_idx[sh.id] %}
+      <button class="btn btn-sm btn-dark shop-filter-btn"
+              data-col-idx="{{ cidx }}"
+              onclick="toggleShopCol({{ cidx }}, this)"
+              title="{{ sh.shop_name }}">
+        {{ sh.shop_key }}
+        <small class="text-muted d-block" style="font-size:.6rem;line-height:1;margin-top:1px">{{ sh.shop_name[:8] }}</small>
+      </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endfor %}
+    {% set no_wh_shops = shops | rejectattr('warehouse_id') | list %}
+    {% if no_wh_shops %}
+    <div class="d-flex align-items-center gap-1 mb-1 flex-wrap">
+      <span class="badge bg-secondary me-1" style="font-size:.7rem;min-width:50px;">Chưa gán</span>
+      {% for sh in no_wh_shops %}
+      {% set cidx = shop_col_idx[sh.id] %}
+      <button class="btn btn-sm btn-outline-secondary shop-filter-btn"
+              data-col-idx="{{ cidx }}"
+              onclick="toggleShopCol({{ cidx }}, this)"
+              title="{{ sh.shop_name }}">
+        {{ sh.shop_key }}
+        <small class="text-muted d-block" style="font-size:.6rem;line-height:1;margin-top:1px">{{ sh.shop_name[:8] }}</small>
+      </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-table me-1"></i>Tồn kho từng sản phẩm theo shop</span>
+    <span class="text-muted small" id="productTableCount"></span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered mb-0" id="productTable" style="font-size:.82rem;">
+      <thead class="table-light">
+        <tr>
+          <th class="sticky-col" rowspan="2" style="vertical-align:middle;">Sản phẩm <span class="text-muted small fw-normal">SKU / tên</span></th>
+          {% if warehouses %}
+          <th class="text-center fw-semibold"
+              colspan="{{ warehouses|length }}"
+              style="background:#e8f4fd;color:#1565c0;border-bottom:2px solid #90caf9;">
+            <i class="bi bi-building me-1"></i>Kho vật lý
+          </th>
+          {% endif %}
+          {% for sh in shops %}
+          <th class="text-center shop-th" data-col-idx="{{ loop.index0 }}"
+              style="min-width:58px;" title="{{ sh.shop_name }}">
+            {{ sh.shop_key }}
+          </th>
+          {% endfor %}
+        </tr>
+        <tr class="table-secondary" style="font-size:.75rem;">
+          {% for wh in warehouses %}
+          {% set wh_short = wh.code.replace('KHO_','') if wh.code else wh.name[:4] %}
+          <th class="text-center fw-semibold" style="min-width:80px;color:#1565c0;background:#e8f4fd;">
+            {{ wh_short }}
+          </th>
+          {% endfor %}
+          {% for sh in shops %}
+          {% set sh_wh_short = '' %}
+          {% for wh in warehouses %}{% if wh.id == sh.warehouse_id %}{% set sh_wh_short = wh.code.replace('KHO_','') if wh.code else wh.name[:2] %}{% endif %}{% endfor %}
+          <th class="text-center text-muted shop-th" data-col-idx="{{ loop.index0 }}"
+              style="font-weight:400;line-height:1.3;padding:2px 4px;">
+            <div>{{ sh.shop_name[:8] }}</div>
+            {% if sh_wh_short %}<div style="font-size:.65rem;color:#1565c0;font-weight:600;">{{ sh_wh_short }}</div>{% else %}<div style="font-size:.65rem;color:#adb5bd;">?</div>{% endif %}
+          </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in product_rows %}
+        <tr class="product-row" data-sku="{{ row.sku | lower }}" data-name="{{ row.product_name | lower }}">
+          <td class="sticky-col">
+            <a href="/kho-vat-ly/san-pham/{{ row.product_id }}/xem" class="text-decoration-none text-reset d-block">
+              <span class="badge bg-secondary font-monospace sku-copy me-1" style="font-size:.73rem" title="Bấm để copy SKU">{{ row.sku }}</span>
+              <span class="small">{{ row.product_name }}</span>
+            </a>
+          </td>
+          {% for wh in warehouses %}
+          {% set wq = row.wh_qtys.get(wh.id, 0) %}
+          <td class="text-center fw-bold" style="background:#f0f7ff;
+              {% if wq == 0 %}color:#adb5bd;{% elif wq <= 5 %}color:#D97706;{% else %}color:#1565c0;{% endif %}">
+            {% if wq > 0 %}{{ fmt_qty(wq) }}{% else %}—{% endif %}
+          </td>
+          {% endfor %}
+          {% for sh in shops %}
+          {% set q = row.shop_qtys.get(sh.id, 0) %}
+          <td class="text-center shop-td" data-col-idx="{{ loop.index0 }}"
+              style="{% if q == 0 %}color:#adb5bd;{% elif q <= 3 %}color:#dc3545;font-weight:700;{% elif q <= 10 %}color:#D97706;{% endif %}">
+            {% if q > 0 %}{{ fmt_qty(q) }}{% else %}—{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<style>
+.sticky-col { position:sticky; left:0; background:#fff; z-index:2; min-width:200px; }
+thead .sticky-col { background:#f8f9fa; }
+</style>
+{% endif %}
+
+{# ── CAMERA MODAL ── #}
+<div class="modal fade" id="shopCameraModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title"><i class="bi bi-camera-fill me-2"></i>Quét mã SKU</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-2">
+        <div id="shop-camera-reader" style="width:100%;"></div>
+        <div id="shop-camera-error" class="alert alert-danger mt-2 d-none small"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.shop-pill.active-shop {
+  background: #FEF3C7 !important;
+  border-color: #F59E0B !important;
+}
+.shop-pill.active-shop .shop-pill-key { color: #D97706 !important; }
+.nav-tabs .nav-link.active { color: #D97706; border-bottom-color: #F59E0B; font-weight:600; }
+.nav-tabs .nav-link { color: #495057; }
+.nav-tabs .nav-link:hover { color: #D97706; }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+const VIEW = '{{ view }}';
+let _activeShopId = null;
+
+/* ── Chọn shop ── */
+function selectShop(shopId, el) {
+  document.querySelectorAll('.shop-pill').forEach(p => p.classList.remove('active-shop'));
+  el.classList.add('active-shop');
+
+  const ph = document.getElementById('shopDetailPlaceholder');
+  if (ph) ph.classList.add('d-none');
+  document.querySelectorAll('.shop-detail-panel').forEach(p => p.classList.add('d-none'));
+
+  const panel = document.getElementById('shop-panel-' + shopId);
+  if (panel) panel.classList.remove('d-none');
+  _activeShopId = shopId;
+
+  const q = (document.getElementById('shopSearch')?.value || '').trim();
+  if (q) applyProductSearch();
+}
+
+/* ── Lọc shop pills ── */
+function filterShopList() {
+  const q = (document.getElementById('shopListSearch')?.value || '').toLowerCase().trim();
+  let visible = 0;
+  document.querySelectorAll('.shop-pill').forEach(pill => {
+    const key  = (pill.dataset.shopKey  || '').toLowerCase();
+    const name = (pill.dataset.shopName || '').toLowerCase();
+    const match = !q || key.includes(q) || name.includes(q);
+    pill.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  const empty = document.getElementById('shopListEmpty');
+  if (empty) empty.classList.toggle('d-none', visible > 0);
+}
+
+/* ── View 2: toggle cột shop ── */
+function toggleShopCol(idx, btn) {
+  const nowOn = !btn.classList.contains('btn-dark');
+  btn.classList.toggle('btn-dark', nowOn);
+  btn.classList.toggle('btn-outline-secondary', !nowOn);
+  document.querySelectorAll(`[data-col-idx="${idx}"]`).forEach(el => {
+    el.style.display = nowOn ? '' : 'none';
+  });
+}
+
+function toggleAllShops(show) {
+  document.querySelectorAll('.shop-filter-btn').forEach(btn => {
+    btn.classList.toggle('btn-dark', show);
+    btn.classList.toggle('btn-outline-secondary', !show);
+  });
+  document.querySelectorAll('.shop-th, .shop-td').forEach(el => {
+    el.style.display = show ? '' : 'none';
+  });
+}
+
+/* ── Tìm kiếm sản phẩm ── */
+function applyProductSearch() {
+  const q = (document.getElementById('shopSearch')?.value || '').toLowerCase().trim();
+  if (VIEW === 'by_product') {
+    const rows = document.querySelectorAll('.product-row');
+    let shown = 0;
+    rows.forEach(r => {
+      const match = !q || r.dataset.sku.includes(q) || r.dataset.name.includes(q);
+      r.style.display = match ? '' : 'none';
+      if (match) shown++;
+    });
+    const cnt = document.getElementById('productSearchCount');
+    if (cnt) cnt.textContent = q ? `${shown} / ${rows.length} sản phẩm` : '';
+    const cnt2 = document.getElementById('productTableCount');
+    if (cnt2) cnt2.textContent = q ? `Đang lọc: ${shown} sản phẩm` : `${rows.length} sản phẩm`;
+  } else {
+    if (!_activeShopId) return;
+    const panel = document.getElementById('shop-panel-' + _activeShopId);
+    if (!panel) return;
+    const rows = panel.querySelectorAll('.shop-item-row');
+    let shown = 0;
+    rows.forEach(r => {
+      const match = !q || r.dataset.sku.includes(q) || r.dataset.name.includes(q);
+      r.style.display = match ? '' : 'none';
+      if (match) shown++;
+    });
+    const cnt = document.getElementById('productSearchCount');
+    if (cnt) cnt.textContent = q ? `${shown} / ${rows.length} trong shop này` : '';
+    const pc = document.getElementById('panel-count-' + _activeShopId);
+    if (pc) pc.textContent = q ? `${shown} / ${rows.length} sản phẩm` : `${rows.length} sản phẩm`;
+  }
+}
+
+function clearProductSearch() {
+  const el = document.getElementById('shopSearch');
+  if (el) { el.value = ''; applyProductSearch(); }
+}
+
+/* ── Init ── */
+document.addEventListener('DOMContentLoaded', function() {
+  const inp = document.getElementById('shopListSearch');
+  if (inp) inp.addEventListener('input', filterShopList);
+
+  if (VIEW === 'by_product') {
+    const rows = document.querySelectorAll('.product-row');
+    const cnt2 = document.getElementById('productTableCount');
+    if (cnt2) cnt2.textContent = `${rows.length} sản phẩm`;
+  }
+  if (VIEW === 'by_shop') {
+    const first = document.querySelector('.shop-pill');
+    if (first) selectShop(first.dataset.shopId, first);
+  }
+});
+
+/* ── Camera ── */
+let _shopScanner = null;
+
+function openShopCamera() {
+  new bootstrap.Modal(document.getElementById('shopCameraModal')).show();
+  document.getElementById('shopCameraModal').addEventListener('shown.bs.modal', _startShopCamera, {once:true});
+}
+
+function _shopScannerFormats() {
+  if (!window.Html5QrcodeSupportedFormats) return undefined;
+  const F = Html5QrcodeSupportedFormats;
+  return [F.QR_CODE, F.CODE_128, F.CODE_39, F.CODE_93, F.EAN_13, F.EAN_8,
+          F.UPC_A, F.UPC_E, F.ITF, F.CODABAR, F.DATA_MATRIX, F.PDF_417, F.AZTEC];
+}
+function _shopTrackTweaks() {
+  try {
+    const video = document.querySelector('#shop-camera-reader video');
+    if (!video || !video.srcObject) return;
+    const track = video.srcObject.getVideoTracks()[0];
+    if (!track) return;
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    const adv = [];
+    if (caps.focusMode && caps.focusMode.includes('continuous'))    adv.push({ focusMode: 'continuous' });
+    if (caps.exposureMode && caps.exposureMode.includes('continuous')) adv.push({ exposureMode: 'continuous' });
+    if (caps.whiteBalanceMode && caps.whiteBalanceMode.includes('continuous')) adv.push({ whiteBalanceMode: 'continuous' });
+    if (adv.length) track.applyConstraints({ advanced: adv }).catch(()=>{});
+  } catch (e) {}
+}
+function _startShopCamera() {
+  const errEl = document.getElementById('shop-camera-error');
+  if (errEl) errEl.classList.add('d-none');
+  _shopScanner = new Html5Qrcode('shop-camera-reader', {
+    verbose: false,
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+    formatsToSupport: _shopScannerFormats(),
+  });
+  _shopScanner.start(
+    { facingMode: { ideal: 'environment' } },
+    {
+      fps: 25,
+      qrbox: (w,h) => { const s = Math.floor(Math.min(w,h) * 0.88); return {width: s, height: s}; },
+      videoConstraints: {
+        facingMode: { ideal: 'environment' },
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+    },
+    (code) => {
+      _stopShopCamera();
+      bootstrap.Modal.getInstance(document.getElementById('shopCameraModal'))?.hide();
+      const searchEl = document.getElementById('shopSearch');
+      if (searchEl) searchEl.value = code.trim();
+      applyProductSearch();
+      const cnt = document.querySelectorAll(
+        VIEW === 'by_product' ? '.product-row:not([style*="none"])' : '#shop-panel-' + _activeShopId + ' .shop-item-row:not([style*="none"])'
+      ).length;
+      if (cnt > 0) beepOk(); else beepErr();
+    },
+    () => {}
+  ).then(() => _shopTrackTweaks())
+   .catch(err => {
+    if (errEl) { errEl.textContent = 'Không mở được camera: ' + err; errEl.classList.remove('d-none'); }
+  });
+}
+
+function _stopShopCamera() {
+  if (_shopScanner) { _shopScanner.stop().catch(()=>{}); _shopScanner = null; }
+}
+document.getElementById('shopCameraModal').addEventListener('hidden.bs.modal', _stopShopCamera);
+
+// ── Hiển thị banner xong sync ─────────────────────────────────────────────
+function _showProductSyncDone(d) {
+  const banner = document.getElementById('productSyncDoneBanner');
+  document.getElementById('productSyncDoneText').innerHTML = d.status_text || '✅ Sync xong';
+  const errs = d.errors || [];
+  const errList = document.getElementById('productSyncErrorList');
+  const errItems = document.getElementById('productSyncErrorItems');
+  if (errs.length > 0) {
+    errItems.innerHTML = errs.map(e => `<li>${e}</li>`).join('');
+    errList.classList.remove('d-none');
+    banner.classList.remove('alert-success');
+    banner.classList.add('alert-warning');
+    banner.style.borderLeftColor = '#F59E0B';
+  } else {
+    errList.classList.add('d-none');
+    banner.classList.remove('alert-warning');
+    banner.classList.add('alert-success');
+    banner.style.borderLeftColor = '#198754';
+  }
+  // Hiện danh sách SKU mới nếu có
+  const newSkus = d.new_skus || [];
+  const newCount = d.new_products || 0;
+  const newSkusEl = document.getElementById('productSyncNewSkus');
+  if (newSkusEl) {
+    if (newCount > 0) {
+      const skuHtml = newSkus.length
+        ? newSkus.map(s => `<span class='badge bg-success me-1'>${s.sku}</span> <span class='small text-muted'>${s.name}</span>`).join('<br>')
+        : '';
+      newSkusEl.innerHTML = `<div class='fw-semibold text-success mt-1 mb-1'>🆕 ${newCount} SKU mới được thêm vào hệ thống:</div>${skuHtml}`;
+      newSkusEl.classList.remove('d-none');
+    } else {
+      newSkusEl.classList.add('d-none');
+    }
+  }
+  banner.classList.remove('d-none');
+}
+
+// ── Polling progress sync sản phẩm ──────────────────────────────────────────
+let _pSyncTimer = null;
+function _startProductSyncPolling() {
+  if (_pSyncTimer) return;
+  document.getElementById('productSyncProgressBanner').classList.remove('d-none');
+  document.getElementById('productSyncDoneBanner').classList.add('d-none');
+  _pSyncTimer = setInterval(_pollProductSync, 1500);
+}
+async function _pollProductSync() {
+  try {
+    const r = await fetch('/kho-vat-ly/api/products-sync-progress');
+    const d = await r.json();
+    const progressPct = d.shop_total > 0
+      ? Math.round((d.shop_idx / d.shop_total) * 100) : 100;
+    document.getElementById('productSyncProgressText').innerHTML =
+      d.status_text || 'Đang sync sản phẩm từ POS…';
+    document.getElementById('productSyncProgressBar').style.width = progressPct + '%';
+    document.getElementById('productSyncProgressTime').textContent =
+      d.started_at ? 'Bắt đầu ' + d.started_at : '';
+    if (!d.running) {
+      clearInterval(_pSyncTimer); _pSyncTimer = null;
+      document.getElementById('productSyncProgressBanner').classList.add('d-none');
+      if (d.done_at) {
+        _showProductSyncDone(d);
+      }
+    }
+  } catch (e) { /* ignore */ }
+}
+// Tự động check khi load trang — nếu đang chạy thì polling, nếu vừa xong thì show kết quả
+(async () => {
+  try {
+    const r = await fetch('/kho-vat-ly/api/products-sync-progress');
+    const d = await r.json();
+    if (d.running) {
+      _startProductSyncPolling();
+    } else if (d.done_at) {
+      _showProductSyncDone(d);
+    }
+  } catch(e) {}
+})();
+// Khi bấm nút sync → bắt đầu polling ngay
+const _syncForm = document.querySelector('form[action="/kho-vat-ly/products/sync-all"]');
+if (_syncForm) _syncForm.addEventListener('submit', () => setTimeout(_startProductSyncPolling, 1000));
+</script>
+{% endblock %}

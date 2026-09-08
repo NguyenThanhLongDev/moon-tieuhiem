@@ -1,0 +1,1808 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page & Tài khoản</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#F59E0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tiểu Hiềm">
+<link rel="apple-touch-icon" href="/static/pwa/icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; }
+.topbar { background:#1a1a1a; border-bottom:none; padding:0 20px; min-height:48px; display:flex; align-items:center; gap:12px; box-shadow:0 2px 8px rgba(0,0,0,.25); flex-wrap:wrap; }
+.topbar .brand { font-weight:700; font-size:15px; color:#F59E0B; white-space:nowrap; }
+.topbar a, .topbar button { color:rgba(255,255,255,.75); text-decoration:none; font-size:13px; padding:4px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.2); white-space:nowrap; background:transparent; cursor:pointer; }
+.topbar a:hover, .topbar button:hover { background:rgba(255,255,255,.08); color:#fff; }
+.topbar .btn-fb { background:#1877f2; border-color:#1877f2; color:#fff; }
+.topbar .btn-fb:hover { background:#1668d3; color:#fff; }
+.page-wrap { max-width:1300px; margin:0 auto; padding:16px; }
+.nav-tabs .nav-link { color:#555; }
+.nav-tabs .nav-link.active { font-weight:600; }
+/* CSS thanh tab (.pa-tabbar/.pa-subnav/.pa-actions) nằm trong partial _pa_tabbar.html */
+.bm-card { border:1px solid #dee2e6; border-radius:8px; background:#fff; margin-bottom:12px; }
+.bm-header { padding:12px 16px; display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none; }
+.bm-header:hover { background:#f8f9fa; border-radius:8px 8px 0 0; }
+.bm-body { border-top:1px solid #dee2e6; padding:0; }
+.bm-sub-tabs .nav-link { font-size:12.5px; padding:6px 14px; }
+.badge-owned { background:#d1fae5; color:#065f46; font-size:11px; }
+.badge-client { background:#dbeafe; color:#1e40af; font-size:11px; }
+.badge-status { font-size:11px; }
+.token-row { background:#fff8f0; border:1px solid #fde68a; border-radius:6px; padding:8px 12px; display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.tbl-sm { font-size:12.5px; }
+.tbl-sm th { background:#f8f9fa; font-weight:600; }
+.page-pic { width:32px; height:32px; border-radius:50%; object-fit:cover; }
+.text-truncate-180 { max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Bảng cân cột theo tỉ lệ, không để 1 cột giãn trống hoác */
+.pa-fixed { table-layout:fixed; }
+.pa-fixed th, .pa-fixed td { word-break:break-word; }
+
+/* ── Responsive: mobile (≤640px) ── */
+@media (max-width: 640px) {
+  html, body { overflow-x: hidden; max-width: 100%; }
+  .page-wrap { padding: 12px 10px; }
+  /* Topbar: thương hiệu 1 dòng, 4 nút chia đều 2/hàng cho gọn */
+  .topbar { gap: 8px; padding: 8px 12px; }
+  .topbar .brand { flex: 1 1 100%; font-size: 15px; }
+  .topbar a:not(.brand), .topbar button, .topbar form { flex: 1 1 calc(50% - 4px); }
+  .topbar a:not(.brand), .topbar button { display: flex; align-items: center; justify-content: center; font-size: 12px; padding: 7px 8px; width: 100%; }
+  .topbar form { margin: 0; padding: 0; border: none; }
+  .topbar form button { width: 100%; }
+  /* Sub-nav tabs: cuộn ngang 1 hàng, không vỡ nhiều dòng */
+  .nav-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .nav-tabs::-webkit-scrollbar { display: none; }
+  .nav-tabs .nav-item { flex: 0 0 auto; }
+  .nav-tabs .nav-link { white-space: nowrap; padding: 8px 11px; font-size: 13px; }
+  /* Bảng cuộn ngang riêng — không kéo giãn trang */
+  .page-wrap table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; max-width: 100%; }
+  /* Hàng nút/lọc tự xuống dòng; ô không tràn */
+  .page-wrap .d-flex { flex-wrap: wrap; }
+  .page-wrap input, .page-wrap select, .page-wrap .form-control, .page-wrap .form-select { max-width: 100%; }
+  .text-truncate-180 { max-width: 130px; }
+  /* Bộ lọc ngày: 2 ô Từ/Đến thẳng hàng 50/50, nút Xem full dòng dưới */
+  .pa-date-filter .pa-dt { flex: 1 1 calc(50% - 4px); min-width: 0; }
+  .pa-date-filter .pa-dt input { width: 100% !important; }
+  .pa-date-filter > button[type="submit"] { flex: 1 1 100%; }
+}
+
+/* ── Nút biểu tượng cho 2 cột Shop & Nhân viên (sếp chốt 17/08/2026: bỏ nút chữ,
+      hàng nào cũng 4–5 nút chữ nên bảng rối mắt). Ý nghĩa nút nằm ở tooltip. ── */
+.pa-acts { display:inline-grid; grid-auto-flow:column; grid-auto-columns:26px;
+  align-items:center; gap:4px; vertical-align:middle; }
+.pa-ico { display:inline-flex; align-items:center; justify-content:center;
+  width:26px; height:26px; padding:0; border:1px solid #dfe3e8; border-radius:7px;
+  background:#fff; color:#64748b; font-size:13px; line-height:1; cursor:pointer;
+  text-decoration:none; transition:background .12s, color .12s, border-color .12s; }
+.pa-ico:hover { background:#f1f5f9; color:#0f172a; border-color:#cbd5e1; }
+.pa-ico:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
+.pa-ico.is-add:hover   { background:#dcfce7; color:#15803d; border-color:#86efac; }
+.pa-ico.is-shop:hover  { background:#dbeafe; color:#1d4ed8; border-color:#93c5fd; }
+.pa-ico.is-swap:hover  { background:#fef3c7; color:#b45309; border-color:#fcd34d; }
+.pa-ico.is-del:hover   { background:#fee2e2; color:#b91c1c; border-color:#fca5a5; }
+.pa-ico.is-warn { background:#fef3c7; color:#b45309; border-color:#fcd34d; }
+.pa-ico.is-warn:hover { background:#fde68a; color:#92400e; }
+/* nút gỡ nằm sát nhãn shop — nhỏ hơn, chỉ hiện rõ khi trỏ vào hàng */
+.pa-x { width:20px; height:20px; font-size:11px; border-color:transparent; background:transparent;
+  color:#cbd5e1; margin-left:2px; }
+tr:hover .pa-x { color:#94a3b8; border-color:#e5e7eb; }
+.pa-x:hover { background:#fee2e2 !important; color:#b91c1c !important; border-color:#fca5a5 !important; }
+/* Mỗi shop một dòng, 3 cột cố định nên nhãn loại hình và nút gỡ THẲNG HÀNG
+   giữa các dòng (sếp 17/08: "cho ô rộng ra chút cho thẳng hàng thẳng lối"). */
+.pa-shop-row { display:grid; grid-template-columns:minmax(0,1fr) 52px 22px;
+  align-items:center; gap:4px; margin-bottom:3px; }
+.pa-shop-row > .badge { max-width:100%; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; justify-self:start; }
+.pa-shop-row .tag-biz { margin-left:0 !important; justify-self:start; }
+</style>
+<link rel="stylesheet" href="/static/cc-multiselect.css">
+<script src="/static/cc-multiselect.js" defer></script>
+</head>
+<body>
+{% include "_main_nav.html" %}
+{# ── Thanh tab dùng chung (full-width, sát menu — giống Chấm công / Page→Shop) ── #}
+{% set pa_active = tab|default('bm') %}
+{% set bm_count = bms|length if bms else 0 %}
+{% set mapping_count = mappings|length if mappings else 0 %}
+{% include "page_account/_pa_tabbar.html" %}
+
+<div class="page-wrap">
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+    <div class="alert alert-{{ cat }} alert-dismissible py-2 mb-2" role="alert">
+      {{ msg }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+  {% endwith %}
+
+  {# ── Sync status banner (auto-refresh) ── #}
+  <div id="syncBanner" class="d-none alert alert-info py-2 mb-2">
+    <i class="bi bi-hourglass-split me-2"></i><span id="syncMsg">Đang đồng bộ...</span>
+  </div>
+
+  {# ── Token list ── #}
+  {# Tài khoản Facebook đã kết nối — ẩn theo yêu cầu (đổi `false` → `tokens` để hiện lại) #}
+  {% if false %}
+  <div class="mb-3">
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="fw-semibold text-muted" style="font-size:13px"><i class="bi bi-key me-1"></i>Tài khoản Facebook đã kết nối</div>
+      <button class="btn btn-sm btn-outline-secondary ms-auto" style="font-size:11px;padding:2px 8px"
+              type="button" data-bs-toggle="collapse" data-bs-target="#guideCollapse">
+        <i class="bi bi-question-circle me-1"></i>Hướng dẫn IT
+      </button>
+    </div>
+
+    {# Hướng dẫn cho IT — collapsible #}
+    <div class="collapse mb-2" id="guideCollapse">
+      <div class="card card-body py-3 px-3" style="background:#fffbeb;border:1px solid #fde68a;font-size:13px">
+        <div class="fw-bold mb-2" style="color:#92400e"><i class="bi bi-tools me-1"></i>Hướng dẫn thay đổi / gia hạn token Facebook</div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="fw-semibold mb-1 text-success"><i class="bi bi-infinity me-1"></i>Ưu tiên — System User Token (không hết hạn)</div>
+            <ol class="mb-0 ps-3" style="line-height:1.8">
+              <li>BM → <em>Cài đặt doanh nghiệp</em> → <em>System Users</em></li>
+              <li>Chọn System User loại <strong>Admin</strong> → <strong>Tạo token mới</strong></li>
+              <li>Chọn App → tick quyền:<br>
+                <code style="font-size:11px">business_management, ads_read,<br>pages_show_list, pages_read_engagement</code></li>
+              <li>Bấm <strong>Thêm Token FB</strong> → paste → Lưu<br>
+                <span class="text-success" style="font-size:11px">Hệ thống tự nhận diện "System User — không hết hạn"</span></li>
+            </ol>
+          </div>
+          <div class="col-md-6">
+            <div class="fw-semibold mb-1">Dự phòng — User Token (~60 ngày)</div>
+            <ol class="mb-0 ps-3" style="line-height:1.8">
+              <li>Vào <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener">Graph API Explorer <i class="bi bi-box-arrow-up-right" style="font-size:10px"></i></a></li>
+              <li>Generate token, cần quyền:<br>
+                <code style="font-size:11px">business_management, pages_show_list,<br>pages_read_engagement, ads_read</code></li>
+              <li>Bấm <strong>Thêm Token FB</strong> → paste → Lưu<br>
+                <span class="text-warning" style="font-size:11px">Tự động đổi sang long-lived (~60 ngày)</span></li>
+            </ol>
+          </div>
+        </div>
+        <div class="mt-2 pt-2 border-top" style="color:#78716c">
+          <strong>Lưu ý:</strong> System User phải được cấp quyền <strong>Admin</strong> trên tất cả BM cần quản lý. Token đổi mới thì hệ thống sync lại BM/Pages/TK QC tự động trong nền.
+        </div>
+      </div>
+    </div>
+
+    {% for t in tokens %}
+    <div class="token-row">
+      <i class="bi bi-person-fill text-warning"></i>
+      <div class="flex-grow-1">
+        <span class="fw-semibold">{{ t.fb_user_name or t.fb_user_id }}</span>
+        <span class="text-muted ms-2" style="font-size:12px">ID: {{ t.fb_user_id }}</span>
+        {% if t.token_type == 'system_user' %}
+          <span class="badge ms-2" style="background:#059669;font-size:10px"><i class="bi bi-infinity me-1"></i>System User · vĩnh viễn</span>
+        {% elif t.expires_at and t.expires_at > 0 %}
+          {% set _days = ((t.expires_at - (now_ts or 0)) // 86400) | int %}
+          {% set _exp_str = t.expires_at | fb_ts_to_vn %}
+          {% if _days <= 0 %}
+            <span class="badge ms-2" style="background:#dc2626;font-size:10px"><i class="bi bi-exclamation-triangle me-1"></i>Đã hết hạn ({{ _exp_str }})</span>
+          {% elif _days <= 7 %}
+            <span class="badge ms-2" style="background:#dc2626;font-size:10px"><i class="bi bi-exclamation-triangle me-1"></i>User Token · còn {{ _days }} ngày ({{ _exp_str }})</span>
+          {% elif _days <= 30 %}
+            <span class="badge ms-2" style="background:#d97706;font-size:10px"><i class="bi bi-clock me-1"></i>User Token · còn {{ _days }} ngày ({{ _exp_str }})</span>
+          {% else %}
+            <span class="badge ms-2" style="background:#0ea5e9;font-size:10px"><i class="bi bi-clock me-1"></i>User Token · còn {{ _days }} ngày ({{ _exp_str }})</span>
+          {% endif %}
+        {% else %}
+          <span class="badge ms-2" style="background:#6b7280;font-size:10px"><i class="bi bi-question-circle me-1"></i>User Token · không rõ hạn</span>
+        {% endif %}
+        {% if t.added_by %}<span class="text-muted ms-2" style="font-size:11px">· Thêm bởi {{ t.added_by }}</span>{% endif %}
+        {% if t.updated_at %}<span class="text-muted ms-2" style="font-size:11px">· {{ t.updated_at.strftime('%d/%m/%Y') if t.updated_at else '' }}</span>{% endif %}
+      </div>
+      <form method="post" action="{{ url_for('page_account.token_delete') }}" class="m-0"
+            onsubmit="return confirm('Xóa token của {{ t.fb_user_name or t.fb_user_id }}?')">
+        <input type="hidden" name="fb_user_id" value="{{ t.fb_user_id }}">
+        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash3"></i></button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ════════ TAB: BM list ════════ #}
+  {% if tab not in ['pages', 'ad_accounts', 'chi_phi', 'kiem_soat'] %}
+    {% if not bms %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-building" style="font-size:48px;opacity:.3"></i>
+      <div class="mt-2">Chưa có dữ liệu. Nhấn <strong>Kết nối Facebook</strong> để bắt đầu.</div>
+    </div>
+    {% else %}
+    {% for bm in bms %}
+    <div class="bm-card" id="bm-{{ bm.bm_id }}">
+      <div class="bm-header" onclick="toggleBM('{{ bm.bm_id }}')">
+        <i class="bi bi-building-fill text-warning"></i>
+        <div class="flex-grow-1">
+          <span class="fw-semibold">{{ bm.bm_name }}</span>
+          <span class="text-muted ms-2" style="font-size:12px">{{ bm.bm_id }}</span>
+          {% if bm.permitted_roles %}
+          <span class="badge bg-light text-dark border ms-2" style="font-size:11px">{{ bm.permitted_roles | join(', ') }}</span>
+          {% endif %}
+        </div>
+        <span class="badge bg-primary me-1"><i class="bi bi-file-earmark-text me-1"></i>{{ bm.page_count }} pages</span>
+        <span class="badge bg-info text-dark me-2"><i class="bi bi-graph-up-arrow me-1"></i>{{ bm.account_count }} TK QC</span>
+        <i class="bi bi-chevron-down bm-chevron" id="chev-{{ bm.bm_id }}"></i>
+      </div>
+      <div class="bm-body collapse" id="body-{{ bm.bm_id }}">
+        <ul class="nav nav-tabs bm-sub-tabs px-3 pt-2" id="sub-{{ bm.bm_id }}">
+          <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#pages-{{ bm.bm_id }}">
+              <i class="bi bi-file-earmark-text me-1"></i>Pages ({{ bm.page_count }})
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#adacc-{{ bm.bm_id }}">
+              <i class="bi bi-graph-up-arrow me-1"></i>Tài khoản QC ({{ bm.account_count }})
+            </a>
+          </li>
+        </ul>
+        <div class="tab-content px-3 pb-3 pt-1">
+          {# Pages sub-tab #}
+          <div class="tab-pane fade show active" id="pages-{{ bm.bm_id }}">
+            <div class="bm-pages-holder" data-bm="{{ bm.bm_id }}">
+              <div class="text-muted small py-3 text-center bm-loading"><i class="bi bi-hourglass-split me-1"></i>Đang tải...</div>
+            </div>
+          </div>
+          {# Ad Accounts sub-tab #}
+          <div class="tab-pane fade" id="adacc-{{ bm.bm_id }}">
+            <div class="bm-adacc-holder" data-bm="{{ bm.bm_id }}">
+              <div class="text-muted small py-3 text-center bm-loading"><i class="bi bi-hourglass-split me-1"></i>Đang tải...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+  {% endif %}
+
+  {# ════════ TAB: all pages ════════ #}
+  {% if tab == 'pages' %}
+  {% set page_ads_view = 'pages' %}{% include "page_account/_page_ads_pills.html" %}
+  {% set pages = pages if pages is defined else [] %}
+  <div class="card">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center flex-wrap gap-2 pa-cardhd">
+      <span class="fw-semibold"><i class="bi bi-file-earmark-text me-2"></i>Tất cả Pages ({{ pages|length }})</span>
+      <input type="search" class="form-control form-control-sm w-auto" placeholder="🔍 Tìm tên page / ID..." id="searchPages" oninput="filterTable('tblPages', this.value)">
+    </div>
+    <div class="table-responsive">
+      <table class="table table-bordered tbl-sm align-middle mb-0" id="tblPages">
+        <thead><tr>
+          <th>#</th><th>Page</th><th>BM</th><th>Danh mục</th><th>Loại</th><th>Trạng thái</th><th>Đồng bộ</th>
+        </tr></thead>
+        <tbody>
+          {% for p in pages %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <img src="https://graph.facebook.com/{{ p.page_id }}/picture?type=square" class="page-pic" alt=""
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'">
+                <span class="page-pic" style="display:none;align-items:center;justify-content:center;background:#e2e8f0;color:#64748b;font-weight:700;font-size:13px">{{ (p.page_name or 'P')[:1]|upper }}</span>
+                <div>
+                  <a href="https://www.facebook.com/{{ p.page_id }}" target="_blank" rel="noopener"
+                     class="fw-semibold text-decoration-none text-dark">
+                    {{ p.page_name }}<i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:10px"></i>
+                  </a>
+                  <div class="text-muted" style="font-size:11px">{{ p.page_id }}{% if p.username %} · @{{ p.username }}{% endif %}</div>
+                </div>
+              </div>
+            </td>
+            <td class="text-truncate-180">{{ p.bm_name or p.bm_id or '—' }}</td>
+            <td class="text-muted">{{ p.category or '—' }}</td>
+            <td>
+              {% if p.bm_relation == 'owned' %}<span class="badge badge-owned">Owned</span>
+              {% else %}<span class="badge badge-client">Client</span>{% endif %}
+            </td>
+            <td>
+              {% if p.is_published %}<span class="badge bg-success">Published</span>
+              {% else %}<span class="badge bg-secondary">Unpublished</span>{% endif %}
+            </td>
+            <td class="text-muted" style="font-size:11px">{{ p.synced_at.strftime('%d/%m %H:%M') if p.synced_at else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ════════ TAB: all ad accounts ════════ #}
+  {% if tab == 'ad_accounts' %}
+  {% set acc_view = 'accounts' %}{% include "page_account/_acc_pills.html" %}
+  {% set ma = mapped_activity if mapped_activity is defined else [] %}
+  {% set mapped_list   = ma | selectattr('is_mapped') | list %}
+  {% set unmapped_list = ma | rejectattr('is_mapped') | list %}
+  {% set active_count  = mapped_list | selectattr('is_active') | list | length %}
+  {% set no_nv_count   = mapped_list | rejectattr('users') | list | length %}
+
+  {# ⚠ KHÔNG đổi tên TK QC trên Facebook — gây mất đồng bộ với hệ thống #}
+  <div class="mobile-hide alert alert-danger py-2 px-3 mb-3" style="font-size:13px;border-left:4px solid #dc2626">
+    <i class="bi bi-exclamation-octagon-fill me-1"></i>
+    <strong>KHÔNG đổi tên TK QC trên Facebook.</strong>
+    Đổi tên xong, hệ thống sẽ hiển thị tên cũ ở trang gán → không tìm thấy để gán shop/NV.
+    Tìm bằng <strong>ID TK</strong> (vd <code>1254377349408799</code>) là cách tin cậy nhất.
+  </div>
+
+  {# Quick filter & count alerts #}
+  {% if no_nv_count > 0 %}
+  <div class="alert alert-warning py-2 px-3 mb-3" style="font-size:13px">
+    <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
+    Có <strong>{{ no_nv_count }}</strong> TK QC chưa được gán NV phụ trách.
+    <a href="#" onclick="document.getElementById('searchAcc').value='⚠';filterAcc();return false;" class="ms-1">Lọc TK chưa có NV →</a>
+  </div>
+  {% endif %}
+
+  {# ── Lọc theo ngày (đồng nhất Page→Shop) — cột Chi phí tính theo khoảng này ── #}
+  <form method="get" action="{{ url_for('page_account.all_ad_accounts') }}" id="accDateForm"
+        class="card p-3 mb-3 pa-filt" style="border:none;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      <i class="bi bi-calendar-range text-warning"></i>
+      {% include "_date_range_picker.html" %}
+      <span class="text-muted small ms-1">({{ date_days }} ngày)</span>
+    </div>
+  </form>
+  <script>
+    /* ── Modal: chi tiết page chạy theo TK QC trong khoảng ngày ── */
+    var PA_DATE_FROM = "{{ date_from }}", PA_DATE_TO = "{{ date_to }}";
+    function _vnd(n){ return (Math.round(n)||0).toLocaleString('vi-VN') + 'đ'; }
+    async function openAcctPageSpend(accId, accName){
+      var modalEl = document.getElementById('modalAcctPageSpend');
+      var m = bootstrap.Modal.getOrCreateInstance(modalEl);
+      var accUrl = 'https://www.facebook.com/adsmanager/manage/campaigns?act=' + encodeURIComponent(accId);
+      document.getElementById('apsTitle').innerHTML =
+        '<a href="' + accUrl + '" target="_blank" rel="noopener" class="text-white text-decoration-none" title="Mở Trình quản lý quảng cáo">' +
+        (accName || accId) + ' <i class="bi bi-box-arrow-up-right" style="font-size:11px;opacity:.85"></i></a>';
+      document.getElementById('apsSub').textContent = accId + ' · ' + PA_DATE_FROM + ' → ' + PA_DATE_TO;
+      document.getElementById('apsBody').innerHTML =
+        '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải…</div>';
+      document.getElementById('apsTotal').textContent = '';
+      m.show();
+      try {
+        var url = '/page-account/api/ad-account/' + encodeURIComponent(accId) +
+                  '/page-spend?date_from=' + PA_DATE_FROM + '&date_to=' + PA_DATE_TO;
+        var res = await fetch(url);
+        var data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Lỗi tải dữ liệu');
+        if (!data.pages.length) {
+          document.getElementById('apsBody').innerHTML =
+            '<div class="text-center text-muted py-4"><i class="bi bi-inbox" style="font-size:32px;opacity:.3"></i><div class="mt-2">Không có page nào chi tiêu trong khoảng này.</div></div>';
+          document.getElementById('apsTotal').textContent = '';
+          return;
+        }
+        var rows = data.pages.map(function(p, i){
+          var _ch = ((p.page_name||'P').trim()[0]||'P').toUpperCase();
+          var _av = '<img src="https://graph.facebook.com/' + p.page_id + '/picture?type=square" ' +
+                    'style="width:34px;height:34px;border-radius:8px;object-fit:cover;flex:0 0 auto" alt="" ' +
+                    'onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'inline-flex\'">' +
+                    '<span style="display:none;width:34px;height:34px;border-radius:8px;background:#e2e8f0;color:#64748b;font-weight:700;align-items:center;justify-content:center;flex:0 0 auto">' + _ch + '</span>';
+          return '<tr>' +
+            '<td class="text-muted text-center">' + (i+1) + '</td>' +
+            '<td><div class="d-flex align-items-center gap-2">' + _av + '<div><div class="fw-semibold">' +
+              '<a href="https://www.facebook.com/' + p.page_id + '" target="_blank" rel="noopener" class="text-decoration-none" title="Mở trang Facebook">' +
+              (p.page_name||('#'+p.page_id)) + ' <i class="bi bi-box-arrow-up-right text-muted" style="font-size:10px"></i></a></div>' +
+            '<div class="text-muted" style="font-size:11px">' + p.page_id +
+              (p.san_pham ? ' · <span class="text-primary">📦 ' + p.san_pham + '</span>' : '') +
+              '</div></div></div></td>' +
+            '<td class="text-end fw-semibold text-success">' + _vnd(p.spend) + '</td>' +
+            '<td class="text-end">' + (p.don_pos ? '<b class="text-success">' + p.don_pos.toLocaleString('vi-VN') + '</b>' : '<span class="text-muted">0</span>') + '</td>' +
+            '<td class="text-end">' + ((p.don_meta||0) ? '<b class="text-warning">' + p.don_meta.toLocaleString('vi-VN') + '</b>' : '<span class="text-muted">0</span>') + '</td>' +
+            '<td class="text-end">' + ((p.don_ladi||0) ? '<b class="text-primary">' + p.don_ladi.toLocaleString('vi-VN') + '</b>' : '<span class="text-muted">0</span>') + '</td>' +
+            '<td class="text-end">' + ((p.ket_qua||0) ? '<b>' + p.ket_qua.toLocaleString('vi-VN') + '</b>' : '<span class="text-muted">0</span>') + '</td>' +
+            '<td class="text-end">' + (p.ads_don != null
+                 ? '<b class="' + (p.ads_don > 300000 ? 'text-danger' : 'text-dark') + '">' + _vnd(p.ads_don) + '</b>'
+                 : '<span class="text-danger" style="font-size:11px">chưa ra đơn</span>') + '</td>' +
+            '<td class="text-end text-muted" style="font-size:12px">' + (p.impressions||0).toLocaleString('vi-VN') + '</td>' +
+            '<td class="text-end text-muted" style="font-size:12px">' + (p.clicks||0).toLocaleString('vi-VN') + '</td>' +
+          '</tr>';
+        }).join('');
+        document.getElementById('apsBody').innerHTML =
+          '<div class="table-responsive"><table class="table table-sm align-middle mb-0">' +
+          '<thead class="table-light"><tr>' +
+          '<th style="width:36px">#</th><th>Page</th><th class="text-end">Chi phí</th>' +
+          '<th class="text-end text-success" title="Đơn đã có trên POS của page trong kỳ">Đơn POS</th>' +
+          '<th class="text-end text-warning" title="Lượt mua / đăng ký pixel Meta báo">Đơn Meta</th>' +
+          '<th class="text-end text-primary" title="Đơn khách điền form LadiPage thật">Đơn Ladi</th>' +
+          '<th class="text-end" title="= Đơn Meta + Đơn Ladi (sếp 28/08)">Kết quả</th>' +
+          '<th class="text-end" title="Chi phí ÷ KẾT QUẢ (Meta + Ladi) — sếp 28/08">Ads/kết quả</th>' +
+          '<th class="text-end">Hiển thị</th><th class="text-end">Click</th>' +
+          '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+        var _tpos = data.pages.reduce(function(a,p){ return a + (p.don_pos||0); }, 0);
+        var _tkq  = data.pages.reduce(function(a,p){ return a + (p.ket_qua||0); }, 0);
+        document.getElementById('apsTotal').innerHTML =
+          '<i class="bi bi-bag-check me-1"></i>' + data.page_count + ' page · Tổng chi phí: <strong>' + _vnd(data.total) + '</strong>' +
+          ' · <strong class="text-success">' + _tpos.toLocaleString('vi-VN') + '</strong> đơn POS' +
+          ' · <strong>' + _tkq.toLocaleString('vi-VN') + '</strong> kết quả (Meta+Ladi)' +
+          (_tkq ? ' · <strong>' + _vnd(data.total/_tkq) + '</strong>/kết quả' : '');
+      } catch (err) {
+        document.getElementById('apsBody').innerHTML =
+          '<div class="alert alert-danger py-2 mb-0">Lỗi: ' + (err.message||err) + '</div>';
+      }
+    }
+  </script>
+
+  {# ── Modal chi tiết page theo TK QC ── #}
+  {# Modal chi tiết CAMPAIGN của 1 TK QC (kiểu tieuhiem.com) #}
+  <div class="modal fade" id="modalAcctCamps" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"
+         style="max-width:min(1500px, 96vw)">
+      <div class="modal-content">
+        <div class="modal-header py-2" style="background:#6f42c1;color:#fff">
+          <div>
+            <h6 class="modal-title mb-0"><i class="bi bi-megaphone-fill me-2"></i><span id="pcTitle">—</span></h6>
+            <div id="pcSub" style="font-size:11px;opacity:.85"></div>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-2" id="pcBody"></div>
+        <div class="modal-footer py-2 justify-content-between">
+          <span id="pcTotal" class="text-success" style="font-size:14px"></span>
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+  async function paShowCamps(accId, accName){
+    var m = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAcctCamps'));
+    document.getElementById('pcTitle').textContent = accName || accId;
+    document.getElementById('pcSub').textContent = accId + ' · ' + PA_DATE_FROM + ' → ' + PA_DATE_TO;
+    document.getElementById('pcBody').innerHTML =
+      '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải…</div>';
+    document.getElementById('pcTotal').textContent = '';
+    m.show();
+    try{
+      var res = await fetch('/page-account/api/ad-account/' + encodeURIComponent(accId) +
+                            '/campaigns?date_from=' + PA_DATE_FROM + '&date_to=' + PA_DATE_TO);
+      var d = await res.json();
+      if(!d.ok) throw new Error(d.error || 'Lỗi tải dữ liệu');
+      if(!d.camps.length){
+        document.getElementById('pcBody').innerHTML =
+          '<div class="text-center text-muted py-4"><i class="bi bi-inbox" style="font-size:32px;opacity:.3"></i>' +
+          '<div class="mt-2">Không có campaign nào chi tiêu trong khoảng này.</div></div>';
+        return;
+      }
+      var rows = d.camps.map(function(c, i){
+        return '<tr>' +
+          '<td class="text-muted text-center">' + (i+1) + '</td>' +
+          '<td><div class="fw-semibold">' + (c.ten || '(không tên)') + '</div>' +
+            '<div class="text-muted" style="font-size:11px">' + (c.campaign_id || '') + '</div></td>' +
+          '<td><div>' + (c.page_ten || '—') + '</div>' +
+            (c.san_pham ? '<div class="text-primary" style="font-size:11px">📦 ' + c.san_pham + '</div>' : '') + '</td>' +
+          '<td class="text-end fw-semibold text-success">' + _vnd(c.chi) + '</td>' +
+          '<td class="text-end">' + ((c.don_pos||0) ? '<b class="text-success">' + c.don_pos.toLocaleString('vi-VN') + '</b>' +
+              '<div style="font-size:10px" class="text-muted">của page</div>'
+              : '<span class="text-muted">0</span>') + '</td>' +
+          '<td class="text-end">' + (c.kq ? '<b class="text-warning">' + c.kq.toLocaleString('vi-VN') + '</b>'
+              : '<span class="text-muted">0</span>') + '</td>' +
+          '<td class="text-end">' + (c.don_ladi ? '<b class="text-primary">' + c.don_ladi.toLocaleString('vi-VN') + '</b>'
+              : '<span class="text-muted">0</span>') + '</td>' +
+          '<td class="text-end">' + ((c.kq_tong||0) ? '<b>' + c.kq_tong.toLocaleString('vi-VN') + '</b>'
+              : '<span class="text-muted">0</span>') + '</td>' +
+          '<td class="text-end">' + (c.cp_kq != null
+              ? '<b class="' + (c.cp_kq > 300000 ? 'text-danger' : '') + '">' + _vnd(c.cp_kq) + '</b>'
+              : '<span class="text-danger" style="font-size:11px">chưa ra kết quả</span>') + '</td>' +
+          '<td class="text-end text-muted" style="font-size:12px">' + (c.hien_thi||0).toLocaleString('vi-VN') + '</td>' +
+          '<td class="text-end text-muted" style="font-size:12px">' + (c.clicks||0).toLocaleString('vi-VN') + '</td>' +
+        '</tr>';
+      }).join('');
+      document.getElementById('pcBody').innerHTML =
+        '<div class="table-responsive"><table class="table table-sm align-middle mb-0">' +
+        '<thead class="table-light"><tr><th style="width:36px">#</th><th>Campaign</th><th>Page · Sản phẩm</th>' +
+        '<th class="text-end">Chi phí</th>' +
+        '<th class="text-end text-success" title="Đơn đã lên POS của PAGE này trong kỳ (POS không tách theo campaign)">Đơn POS</th>' +
+        '<th class="text-end text-warning" title="Lượt mua / đăng ký pixel Meta báo">Đơn Meta</th>' +
+        '<th class="text-end text-primary" title="Đơn khách điền form LadiPage thật (dò utm trong link) — không tính đơn Bỏ qua">Đơn Ladi</th>' +
+        '<th class="text-end" title="= Đơn Meta + Đơn Ladi (sếp 28/08)">Kết quả</th>' +
+        '<th class="text-end" title="Chi phí ÷ Kết quả (Meta + Ladi)">CP/kết quả</th><th class="text-end">Hiển thị</th><th class="text-end">Click</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+      var _tkq = d.tong_kq_tong || ((d.tong_kq||0) + (d.tong_ladi||0));
+      document.getElementById('pcTotal').innerHTML =
+        '<i class="bi bi-megaphone me-1"></i>' + d.count + ' campaign · Tổng: <strong>' + _vnd(d.total) + '</strong>' +
+        ' · Meta <strong class="text-warning">' + (d.tong_kq||0).toLocaleString('vi-VN') + '</strong>' +
+        ' + Ladi <strong class="text-primary">' + (d.tong_ladi||0).toLocaleString('vi-VN') + '</strong>' +
+        ' = <strong>' + _tkq.toLocaleString('vi-VN') + '</strong> kết quả' +
+        (_tkq ? ' · <strong>' + _vnd(d.total/_tkq) + '</strong>/kết quả' : '');
+    }catch(err){
+      document.getElementById('pcBody').innerHTML =
+        '<div class="alert alert-danger py-2 mb-0">Lỗi: ' + (err.message||err) + '</div>';
+    }
+  }
+  </script>
+
+  <div class="modal fade" id="modalAcctPageSpend" tabindex="-1">
+    {# Bảng 7 cột (thêm Số đơn + Ads/đơn) → modal-lg chật, cho rộng gần hết màn hình #}
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"
+         style="max-width:min(1500px, 96vw)">
+      <div class="modal-content">
+        <div class="modal-header py-2" style="background:#1877f2;color:#fff">
+          <div>
+            <h6 class="modal-title mb-0"><i class="bi bi-megaphone-fill me-2"></i><span id="apsTitle">—</span></h6>
+            <div id="apsSub" style="font-size:11px;opacity:.85"></div>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-2" id="apsBody"></div>
+        <div class="modal-footer py-2 justify-content-between">
+          <span id="apsTotal" class="text-success" style="font-size:14px"></span>
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# FAB "Tìm & Lọc" + bottom-sheet (mobile) — gom lịch, ô tìm, nút lọc gán shop #}
+  <style>
+  #paFab{display:none} #paSheet{display:none}
+  /* Điện thoại: mọi ô tìm/header thẻ xuống dòng & rộng hết bề ngang */
+  @media (max-width:768px){
+    .pa-cardhd{ align-items:stretch !important; }
+    .card-header{ flex-wrap:wrap !important; gap:8px; }
+    input[type="search"].form-control{ width:100% !important; max-width:none !important; }
+    .table-responsive{ -webkit-overflow-scrolling:touch; }
+  }
+  @media (max-width:768px){
+    .pa-filt:not(.in-sheet){display:none !important}
+    .pa-filt.in-sheet{padding:0 !important;border:none !important;box-shadow:none !important;
+      background:none !important;margin:0 0 16px !important;display:block !important}
+    .pa-filt.in-sheet > div{flex-direction:column;align-items:stretch !important;gap:10px !important}
+    .pa-filt.in-sheet .form-control,
+    .pa-filt.in-sheet .dr-picker,
+    .pa-filt.in-sheet .dr-trigger{width:100% !important;max-width:none !important}
+    .pa-filt.in-sheet .btn-group{width:100%;display:flex}
+    .pa-filt.in-sheet .btn-group .btn{flex:1;padding:10px 4px;font-size:12.5px}
+    .pa-filt.in-sheet #btnFilterActive{width:100%;padding:10px !important;font-size:13.5px !important}
+    .pa-filt.in-sheet .ms-auto{margin-left:0 !important}
+    #paFab{display:flex;position:fixed;right:14px;bottom:76px;z-index:1500;
+      align-items:center;gap:6px;background:#0d6efd;color:#fff;border:none;
+      border-radius:999px;padding:12px 18px;font-weight:700;font-size:14px;
+      box-shadow:0 6px 20px rgba(13,110,253,.45)}
+    #paSheet.open{display:block;position:fixed;inset:0;z-index:2600}
+    #paSheet .cs-bd{position:absolute;inset:0;background:rgba(15,23,42,.5)}
+    #paSheet .cs-card{position:absolute;left:0;right:0;bottom:0;background:#fff;
+      border-radius:16px 16px 0 0;padding:14px 16px 24px;max-height:84vh;overflow-y:auto;
+      box-shadow:0 -8px 30px rgba(0,0,0,.25)}
+    #paSheet .cs-hd{display:flex;align-items:center;justify-content:space-between;
+      font-weight:800;font-size:15px;margin-bottom:14px}
+    #paSheet .cs-x{border:none;background:#f1f5f9;border-radius:999px;
+      width:32px;height:32px;font-size:18px;line-height:1}
+    /* nút đầu trang xuống dòng gọn */
+    .pa-topbtns{flex-wrap:wrap}
+    .pa-topbtns .btn{flex:1 1 46%}
+  }
+  </style>
+  <button type="button" id="paFab"><i class="bi bi-funnel-fill"></i> Tìm &amp; Lọc</button>
+  <div id="paSheet">
+    <div class="cs-bd"></div>
+    <div class="cs-card">
+      <div class="cs-hd"><span><i class="bi bi-funnel me-1"></i>Tìm &amp; Lọc</span>
+        <button type="button" class="cs-x">&times;</button></div>
+      <div id="paSheetSlot"></div>
+    </div>
+  </div>
+
+  {# Thanh tìm kiếm + lọc #}
+  <div class="d-flex align-items-center gap-2 mb-3 flex-wrap pa-filt">
+    <input type="search" class="form-control form-control-sm" style="max-width:260px"
+           placeholder="Tìm tên, ID tài khoản..." id="searchAcc" oninput="filterAcc()">
+    <div class="d-flex gap-1" title="Xem nhanh N ngày gần nhất">
+      {% for r in quick_ranges %}
+      <a href="{{ url_for('page_account.all_ad_accounts', date_from=r.f, date_to=r.t) }}"
+         class="btn btn-sm {{ 'btn-primary' if r.on else 'btn-outline-secondary' }}"
+         style="padding:2px 9px;font-size:12px">{{ r.n }}n</a>
+      {% endfor %}
+    </div>
+    <button id="btnFilterActive" class="btn btn-sm btn-outline-success"
+            style="padding:2px 9px;font-size:12px" onclick="toggleActiveFilter(this)">
+      <i class="bi bi-activity me-1"></i>Đang chạy
+      <span class="badge bg-success ms-1">{{ active_count }}</span>
+    </button>
+    {# Lọc theo trạng thái gán shop #}
+    <div class="btn-group btn-group-sm" role="group" aria-label="Lọc gán shop">
+      <button type="button" class="btn btn-outline-primary active" id="paAsgAll" onclick="paFilterAssign('all')">Tất cả</button>
+      <button type="button" class="btn btn-outline-success" id="paAsgMapped" onclick="paFilterAssign('mapped')">
+        <i class="bi bi-check-circle me-1"></i>Đã gán <span class="badge bg-success ms-1">{{ mapped_list|length }}</span>
+      </button>
+      <button type="button" class="btn btn-outline-warning" id="paAsgUnmapped" onclick="paFilterAssign('unmapped')">
+        <i class="bi bi-exclamation-circle me-1"></i>Chưa gán <span class="badge bg-warning text-dark ms-1">{{ unmapped_list|length }}</span>
+      </button>
+    </div>
+    <span class="ms-auto text-muted" style="font-size:12px" id="accFilterCount"></span>
+  </div>
+  <script>
+    function paFilterAssign(mode){
+      var cm=document.getElementById('cardMapped'), cu=document.getElementById('cardUnmapped');
+      if(cm) cm.style.display = (mode==='unmapped') ? 'none' : '';
+      if(cu) cu.style.display = (mode==='mapped')   ? 'none' : '';
+      ['paAsgAll','paAsgMapped','paAsgUnmapped'].forEach(function(id){var b=document.getElementById(id);if(b)b.classList.remove('active');});
+      var b=document.getElementById({all:'paAsgAll',mapped:'paAsgMapped',unmapped:'paAsgUnmapped'}[mode]);
+      if(b) b.classList.add('active');
+    }
+  </script>
+
+  {# ── CARD 1: Đã gán shop ── #}
+  <div class="card mb-3" id="cardMapped">
+    <div class="card-header py-2 d-flex align-items-center gap-2">
+      <span class="fw-semibold"><i class="bi bi-check-circle-fill text-success me-1"></i>Đã gán shop — đang sync chi phí</span>
+      <span class="badge bg-success ms-1">{{ mapped_list|length }}</span>
+      <span class="ms-auto text-muted" style="font-size:12px">
+        Tổng {{ date_days }}n: <strong>{{ '{:,.0f}'.format(mapped_list | sum(attribute='spend_nd')) }}₫</strong>
+      </span>
+    </div>
+    {# Chú giải nút — bảng dùng nút biểu tượng nên nói rõ một lần ở đây #}
+    <div class="px-3 py-2 border-bottom text-muted d-flex flex-wrap align-items-center"
+         style="font-size:12px;gap:14px;background:#fafbfc">
+      <span><i class="bi bi-plus-lg me-1"></i>Thêm shop</span>
+      <span><i class="bi bi-shop me-1"></i>Sửa danh sách shop</span>
+      <span><i class="bi bi-arrow-repeat me-1"></i>Đổi nhân viên</span>
+      <span><i class="bi bi-person-dash-fill me-1"></i>Đóng phụ trách</span>
+      <span><i class="bi bi-clock-history me-1"></i>Lịch sử</span>
+      <span><i class="bi bi-x-lg me-1"></i>Gỡ shop</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-bordered tbl-sm align-middle mb-0" id="tblAcc">
+        <thead class="table-light"><tr>
+          <th style="width:36px">#</th>
+          <th>Tài khoản QC</th>
+          <th style="width:170px">Chi phí {{ date_days }}n</th>
+          <th style="width:270px">
+            Shop
+            <i class="bi bi-info-circle text-muted" style="font-size:11px"
+               title="Shop được IT chọn tường minh khi gán TK (nằm trong danh sách shop của NV). Sửa bằng nút hình cửa hàng ở cột Nhân viên."></i>
+          </th>
+          <th style="width:180px">
+            Nhân viên phụ trách
+            <i class="bi bi-info-circle text-muted" style="font-size:11px"
+               title="Trỏ chuột vào từng nút để biết nút đó làm gì."></i>
+          </th>
+        </tr></thead>
+        <tbody>
+        {% for a in mapped_list %}
+        {% set dname = a.display_name or a.raw_id %}
+        <tr data-active="{{ '1' if a.is_active else '0' }}"
+            {% if a.is_active %}style="background:#f0fdf4"{% endif %}>
+          <td class="text-muted text-center">{{ loop.index }}</td>
+          <td>
+            <a href="https://www.facebook.com/adsmanager/manage/?act={{ a.raw_id }}"
+               target="_blank" rel="noopener" class="fw-semibold text-decoration-none text-dark">
+              {{ dname }}<i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:10px"></i>
+            </a>
+            <div class="text-muted" style="font-size:11px">{{ a.raw_id }}</div>
+            <button type="button" class="btn btn-outline-primary btn-sm mt-1" style="padding:1px 8px;font-size:11px"
+                    onclick="paShowCamps('{{ a.raw_id }}', '{{ (dname or '')|replace("'","") }}')">
+              <i class="bi bi-list-ul me-1"></i>Chi tiết camp/page
+            </button>
+          </td>
+          <td>
+            {% if a.is_active %}
+              <div><span class="badge bg-success"><i class="bi bi-activity me-1"></i>Đang chạy</span></div>
+              <div class="fw-semibold text-success mt-1">{{ '{:,.0f}'.format(a.spend_nd) }}₫</div>
+              {% if a.last_seen %}
+              <div class="text-muted" style="font-size:10px">Cập nhật: {{ a.last_seen }}</div>
+              {% endif %}
+            {% else %}
+              <span class="text-muted" style="font-size:12px">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% for sh in (a.shops or []) %}
+              {% if sh.shop_name or sh.shop_key %}
+              <div class="pa-shop-row">
+                {% if sh.pancake_shop_id %}
+                  <a href="https://pos.pancake.vn/shop/{{ sh.pancake_shop_id }}/order" target="_blank" rel="noopener"
+                     class="badge bg-warning text-dark text-decoration-none"
+                     title="{{ sh.shop_name or sh.shop_key }} — mở Pancake POS shop #{{ sh.pancake_shop_id }}">
+                    {{ sh.shop_name or sh.shop_key }} <i class="bi bi-box-arrow-up-right" style="font-size:9px;opacity:.7"></i>
+                  </a>
+                {% else %}
+                  <span class="badge bg-warning text-dark"
+                        title="{{ sh.shop_name or sh.shop_key }}">{{ sh.shop_name or sh.shop_key }}</span>
+                {% endif %}
+                {{ shop_biz_badge(sh.shop_key or sh.shop_name) | safe }}
+                <form method="post" action="{{ url_for('page_account.unmap_shop') }}" class="d-inline">
+                  <input type="hidden" name="mapping_id" value="{{ sh.mapping_id }}">
+                  <button type="submit" class="pa-ico pa-x"
+                          title="Gỡ shop {{ sh.shop_name or sh.shop_key }} khỏi tài khoản này"
+                          onclick="return confirm('Gỡ shop khỏi tài khoản này?')">
+                    <i class="bi bi-x-lg"></i>
+                  </button>
+                </form>
+              </div>
+              {% endif %}
+            {% endfor %}
+            <button class="pa-ico is-add mt-1" type="button"
+                    onclick="openMapModal('{{ a.raw_id }}','{{ dname|replace("'","\\'")|e }}')"
+                    title="Thêm shop cho tài khoản này">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+          </td>
+          <td data-nv="{% if not a.users %}⚠{% endif %}">
+            {% if not a.users %}
+              <div class="mb-2">
+                <span class="badge bg-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>Chưa gán NV</span>
+              </div>
+              <div class="pa-acts">
+                <button class="pa-ico is-warn" type="button"
+                        onclick="openAssignModal('{{ a.raw_id }}','{{ dname|replace("'","\\'")|e }}', '')"
+                        title="Gán nhân viên phụ trách">
+                  <i class="bi bi-person-plus-fill"></i>
+                </button>
+                <a href="{{ url_for('page_account.ad_account_history', ad_account_id=a.raw_id) }}"
+                   class="pa-ico" title="Xem lịch sử phụ trách">
+                  <i class="bi bi-clock-history"></i>
+                </a>
+              </div>
+            {% else %}
+              {% for usr in (a.users or []) %}
+                <div class="d-inline-flex align-items-center mb-1 me-1">
+                  <span class="badge bg-primary"><i class="bi bi-person-fill me-1"></i>{{ usr.full_name or usr.user_id }}</span>
+                </div>
+              {% endfor %}
+              <div class="pa-acts mt-1">
+                <button class="pa-ico is-shop" type="button"
+                        onclick="openSetShopsModal('{{ a.raw_id }}','{{ dname|replace("'","\\'")|e }}')"
+                        title="Sửa danh sách shop tài khoản này chạy">
+                  <i class="bi bi-shop"></i>
+                </button>
+                <button class="pa-ico is-swap" type="button"
+                        onclick="openAssignModal('{{ a.raw_id }}','{{ dname|replace("'","\\'")|e }}', '{{ (a.users[0].full_name or a.users[0].user_id)|replace("'","\\'")|e }}')"
+                        title="Đổi nhân viên phụ trách (đóng khoảng cũ, mở khoảng mới)">
+                  <i class="bi bi-arrow-repeat"></i>
+                </button>
+                <form method="post" action="{{ url_for('page_account.unassign_user') }}" class="d-inline">
+                  <input type="hidden" name="ad_account_id" value="{{ a.raw_id }}">
+                  <button type="submit" class="pa-ico is-del"
+                          title="Đóng phụ trách — không gán cho ai (dùng khi nhân viên nghỉ mà chưa có người tiếp quản)"
+                          onclick="return confirm('Đóng phụ trách hiện tại cho TK này?\nLịch sử cũ vẫn được lưu.\nDùng khi NV nghỉ mà chưa có người tiếp quản.')">
+                    <i class="bi bi-person-dash-fill"></i>
+                  </button>
+                </form>
+                <a href="{{ url_for('page_account.ad_account_history', ad_account_id=a.raw_id) }}"
+                   class="pa-ico" title="Xem lịch sử phụ trách">
+                  <i class="bi bi-clock-history"></i>
+                </a>
+              </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Chưa có tài khoản nào</td></tr>
+        {% endfor %}
+        </tbody>
+        {% if mapped_list %}
+        <tfoot class="table-light fw-bold">
+          <tr>
+            <td colspan="2" class="text-end">Tổng {{ mapped_list|length }} TK:</td>
+            <td class="text-success">{{ '{:,.0f}'.format(mapped_list | sum(attribute='spend_nd')) }}₫</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+
+  {# ── CARD 2: Chưa gán shop (pa_ad_accounts từ BM sync) ── #}
+  {% if unmapped_list %}
+  {% set unmapped_active = unmapped_list | selectattr('is_active') | list | length %}
+  {% set unmapped_total  = unmapped_list | sum(attribute='spend_nd') %}
+  <div class="card" id="cardUnmapped">
+    <div class="card-header py-2 d-flex align-items-center gap-2 flex-wrap">
+      <span class="fw-semibold text-warning"><i class="bi bi-exclamation-circle me-1"></i>Chưa gán shop</span>
+      <span class="badge bg-warning text-dark">{{ unmapped_list|length }}</span>
+      {% if unmapped_active %}
+      <span class="badge bg-success"><i class="bi bi-activity me-1"></i>{{ unmapped_active }} đang chạy</span>
+      {% endif %}
+      {% if unmapped_total > 0 %}
+      <span class="fw-semibold text-success ms-1" style="font-size:13px">
+        Tổng: <strong>{{ '{:,.0f}'.format(unmapped_total) }}₫</strong>
+      </span>
+      {% endif %}
+      <form method="post" action="{{ url_for('page_account.sync_pa_insights') }}" class="ms-auto d-inline">
+        <input type="hidden" name="days" value="{{ date_days|default(7) }}">
+        <button type="submit" class="btn btn-sm btn-outline-primary"
+                style="padding:2px 9px;font-size:12px"
+                onclick="this.disabled=true;this.innerHTML='<i class=\'bi bi-hourglass-split\'></i> Đang sync...'">
+          <i class="bi bi-arrow-repeat me-1"></i>Sync spend từ FB
+        </button>
+      </form>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-bordered tbl-sm align-middle mb-0 pa-fixed" id="tblAccUnmapped">
+        <thead class="table-light"><tr>
+          <th style="width:4%">#</th>
+          <th style="width:24%">Tài khoản QC</th>
+          <th style="width:16%">Chi phí</th>
+          <th style="width:18%">BM</th>
+          <th style="width:19%">Shop</th>
+          <th style="width:19%">Nhân viên</th>
+        </tr></thead>
+        <tbody>
+        {% for a in unmapped_list %}
+        {% set dname = a.display_name or a.raw_id %}
+        <tr data-active="{{ '1' if a.is_active else '0' }}"
+            {% if a.is_active %}style="background:#f0fdf4"{% endif %}>
+          <td class="text-muted text-center">{{ loop.index }}</td>
+          <td>
+            <a href="https://www.facebook.com/adsmanager/manage/?act={{ a.raw_id }}"
+               target="_blank" rel="noopener" class="fw-semibold text-decoration-none text-dark">
+              {{ dname }}<i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:10px"></i>
+            </a>
+            <div class="text-muted" style="font-size:11px">{{ a.raw_id }}</div>
+          </td>
+          <td>
+            {% if a.is_active %}
+              <div><span class="badge bg-success"><i class="bi bi-activity me-1"></i>Đang chạy</span></div>
+              <div class="fw-semibold text-success mt-1">{{ '{:,.0f}'.format(a.spend_nd) }}₫</div>
+              {% if a.last_seen %}
+              <div class="text-muted" style="font-size:10px">Cập nhật: {{ a.last_seen }}</div>
+              {% endif %}
+              <div class="d-flex gap-1 mt-1 flex-wrap">
+                <button type="button" class="btn btn-outline-primary btn-sm" style="padding:1px 8px;font-size:11px"
+                        onclick="openAcctPageSpend('{{ a.raw_id }}','{{ dname|replace("'","\\'")|e }}')">
+                  <i class="bi bi-file-earmark-text me-1"></i>Chi tiết page
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" style="padding:1px 8px;font-size:11px"
+                        onclick="paShowCamps('{{ a.raw_id }}','{{ dname|replace("'","\\'")|e }}')">
+                  <i class="bi bi-megaphone me-1"></i>Chi tiết camp
+                </button>
+              </div>
+            {% else %}
+              <div><span class="badge bg-light text-secondary" style="font-weight:500"><i class="bi bi-pause-circle me-1"></i>Không chạy</span></div>
+              <div class="fw-semibold text-muted mt-1">{{ '{:,.0f}'.format(a.spend_nd or 0) }}₫</div>
+            {% endif %}
+          </td>
+          <td class="text-muted" style="font-size:12px">{{ a.bm_name or '—' }}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-success"
+                    onclick="openMapModal('{{ a.raw_id }}','{{ dname|replace("'","\\'")|e }}')">
+              <i class="bi bi-shop me-1"></i>Gán Shop
+            </button>
+          </td>
+          <td>
+            {% for usr in (a.users or []) %}
+              <div class="d-inline-flex align-items-center mb-1 me-1">
+                <span class="badge bg-primary"><i class="bi bi-person-fill me-1"></i>{{ usr.full_name or usr.user_id }}</span>
+                <form method="post" action="{{ url_for('page_account.unassign_user') }}" class="d-inline ms-1">
+                  <input type="hidden" name="map_id" value="{{ usr.map_id }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger" style="padding:0 4px;font-size:11px"
+                          title="Hủy gán NV {{ usr.full_name }}"
+                          onclick="return confirm('Xóa gán NV này?')">
+                    <i class="bi bi-x"></i>
+                  </button>
+                </form>
+              </div>
+            {% endfor %}
+            <button class="btn btn-sm btn-outline-primary"
+                    onclick="openAssignModal('{{ a.raw_id }}','{{ dname|replace("'","\\'")|e }}')">
+              <i class="bi bi-person-plus me-1"></i>{% if a.users %}Thêm NV{% else %}Gán NV{% endif %}
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% endif %}
+
+  {# ════════ TAB: chi phí hôm nay ════════ #}
+  {% if tab == 'chi_phi' %}
+  {% set acc_view = 'chiphi' %}{% include "page_account/_acc_pills.html" %}
+  {% set sd  = spend_today        if spend_today        is defined else {'accounts':[],'total':0,'unbound_total':0,'date':'','count':0} %}
+  {% set pai = pa_insights_today  if pa_insights_today  is defined else {'accounts':[],'total':0,'date':'','count':0} %}
+  {# FIX 2026-05-13: bỏ + pai.total — `sd` đã 3-tier (mapped + unbound bucket),
+     sd.total = đúng truth FB API. Cộng thêm pa_insights_today → cộng dồn 2× (cùng bug
+     /chi-phi-qc/bao-cao đã fix hôm qua). Tách mapped/unbound từ sd.accounts. #}
+  {% set mapped_accs   = sd.accounts | rejectattr('is_unbound') | list %}
+  {% set unbound_accs  = sd.accounts | selectattr('is_unbound') | list %}
+  {% set mapped_total  = mapped_accs  | sum(attribute='spend_today') %}
+  {% set unbound_total = unbound_accs | sum(attribute='spend_today') %}
+  {% set grand_total   = sd.total %}
+  {% set df = date_from if date_from is defined else today %}
+  {% set dt = date_to   if date_to   is defined else today %}
+
+  {# ── Bộ lọc ngày ── #}
+  <form method="get" action="{{ url_for('page_account.chi_phi_hom_nay') }}"
+        class="pa-date-filter d-flex align-items-end gap-2 mb-3 flex-wrap">
+    {% set date_from = df %}{% set date_to = dt %}
+    {% include "_date_range_picker.html" %}
+    <form method="post" action="{{ url_for('page_account.sync_spend') }}" class="m-0 ms-auto">
+      <button type="submit" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-arrow-repeat me-1"></i>Sync ngay
+      </button>
+    </form>
+  </form>
+
+  {# ── Stat cards ── #}
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+      <div class="card text-center py-3 border-danger">
+        <div class="text-muted" style="font-size:12px">Tổng tất cả TK</div>
+        <div class="fw-bold text-danger" style="font-size:1.6rem">{{ '{:,.0f}'.format(grand_total) }}₫</div>
+        <div class="text-muted" style="font-size:11px">{{ sd.date }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card text-center py-3">
+        <div class="text-muted" style="font-size:12px">Đã gán shop ({{ mapped_accs|length }} TK)</div>
+        <div class="fw-bold text-danger" style="font-size:1.3rem">{{ '{:,.0f}'.format(mapped_total) }}₫</div>
+        <div class="text-muted" style="font-size:11px">page có shop binding hoặc TK đơn shop</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card text-center py-3">
+        <div class="text-muted" style="font-size:12px">⚠ Chưa gán shop ({{ unbound_accs|length }} TK)</div>
+        <div class="fw-bold text-warning" style="font-size:1.3rem">{{ '{:,.0f}'.format(unbound_total) }}₫</div>
+        <div class="text-muted" style="font-size:11px">page chưa binding / TK đa shop</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card text-center py-3">
+        <div class="text-muted" style="font-size:12px">Impressions / Clicks</div>
+        <div class="fw-bold" style="font-size:1.1rem">{{ '{:,.0f}'.format(sd.accounts | sum(attribute='impressions')) }}</div>
+        <div class="text-muted" style="font-size:11px">{{ '{:,.0f}'.format(sd.accounts | sum(attribute='clicks')) }} clicks</div>
+      </div>
+    </div>
+  </div>
+
+  {# Banner cảnh báo nếu có spend của page chưa gán shop #}
+  {% if sd.unbound_total and sd.unbound_total > 0 %}
+  <div class="alert alert-warning d-flex align-items-start gap-2 py-2 px-3 mb-2" style="border-left:4px solid #dc3545">
+    <i class="bi bi-exclamation-triangle-fill text-danger mt-1"></i>
+    <div style="font-size:13px">
+      <strong>{{ '{:,.0f}'.format(sd.unbound_total) }}đ</strong> đang rơi vào bucket
+      <strong>"⚠ Chưa gán shop"</strong> — page chưa được gán shop POS. Số liệu vẫn được hiển thị
+      đầy đủ (không thất thoát) nhưng cần admin xử lý để chi phí phân bổ về đúng shop.
+      <a href="{{ url_for('page_account.page_binding', filter='unbound') }}" class="ms-1">Gán ngay →</a>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Search bar #}
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <input type="search" class="form-control form-control-sm" style="width:240px"
+           placeholder="Tìm tên tài khoản..." oninput="filterTable('tblSpend', this.value)">
+  </div>
+
+  {% if not sd.accounts %}
+  <div class="text-center py-5">
+    <i class="bi bi-bar-chart-line text-muted" style="font-size:48px;opacity:.3"></i>
+    <div class="mt-2 text-muted">Chưa có data hôm nay.</div>
+    <form method="post" action="{{ url_for('page_account.sync_spend') }}" class="mt-3">
+      <button type="submit" class="btn btn-success"><i class="bi bi-arrow-repeat me-2"></i>Sync chi phí ngay</button>
+    </form>
+  </div>
+  {% else %}
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-bordered tbl-sm align-middle mb-0" id="tblSpend">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Tài khoản QC</th>
+            <th>Nhân viên</th>
+            <th>Shop</th>
+            <th class="text-end">Chi phí hôm nay</th>
+            <th class="text-end">Impressions</th>
+            <th class="text-end">Clicks</th>
+            <th class="text-end">Pages</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in sd.accounts %}
+          <tr {% if a.spend_today == 0 %}class="text-muted"{% endif %}>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td>
+              <a href="https://www.facebook.com/adsmanager/manage/?act={{ a.fb_ad_account_id }}"
+                 target="_blank" rel="noopener"
+                 class="fw-semibold text-decoration-none {% if a.spend_today > 0 %}text-dark{% else %}text-muted{% endif %}">
+                {{ a.account_name }}<i class="bi bi-box-arrow-up-right ms-1" style="font-size:10px;opacity:.5"></i>
+              </a>
+              <div style="font-size:11px;color:#aaa">{{ a.fb_ad_account_id }}</div>
+            </td>
+            <td>
+              {% if a.employee_name %}
+                <span class="badge bg-primary" style="font-size:11px">{{ a.employee_name }}</span>
+              {% else %}
+                <span class="text-muted" style="font-size:11px">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if a.is_unbound %}
+                <span class="badge bg-danger">⚠ {{ a.shop_name }}</span>
+                <a href="{{ url_for('page_account.page_binding', filter='unbound') }}"
+                   class="ms-1 text-decoration-none" style="font-size:11px"
+                   title="Gán shop cho page">Gán →</a>
+              {% elif a.shop_name %}
+                <span class="badge bg-warning text-dark">{{ a.shop_name }}</span>{{ shop_biz_badge(a.shop_name) | safe }}
+              {% else %}
+                <span class="text-muted" style="font-size:11px">Chưa gán</span>
+              {% endif %}
+            </td>
+            <td class="text-end fw-semibold {% if a.spend_today > 0 %}text-danger{% endif %}">
+              {{ '{:,.0f}'.format(a.spend_today) }}₫
+            </td>
+            <td class="text-end">{{ '{:,.0f}'.format(a.impressions) }}</td>
+            <td class="text-end">{{ '{:,.0f}'.format(a.clicks) }}</td>
+            <td class="text-end">{{ a.page_count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="fw-bold table-light">
+            <td colspan="4" class="text-end">TỔNG CỘNG</td>
+            <td class="text-end text-danger">{{ '{:,.0f}'.format(sd.total) }}₫</td>
+            <td class="text-end">{{ '{:,.0f}'.format(sd.accounts | sum(attribute='impressions')) }}</td>
+            <td class="text-end">{{ '{:,.0f}'.format(sd.accounts | sum(attribute='clicks')) }}</td>
+            <td class="text-end">{{ sd.accounts | sum(attribute='page_count') }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  {% endif %}{# end if not sd.accounts #}
+
+  {# ── Section 2: TK chưa gán shop đang chạy (pa_account_insights) ── #}
+  {% set pai = pa_insights_today if pa_insights_today is defined else {'accounts':[],'total':0,'date':'','count':0} %}
+  {% if pai.accounts %}
+  <div class="card mt-4">
+    <div class="card-header py-2 d-flex align-items-center gap-2">
+      <i class="bi bi-exclamation-circle text-warning"></i>
+      <span class="fw-semibold text-warning">TK chưa gán shop — đang chạy hôm nay</span>
+      <span class="badge bg-warning text-dark ms-1">{{ pai.count }}</span>
+      <span class="ms-auto fw-bold text-success">Tổng: {{ '{:,.0f}'.format(pai.total) }}₫</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-bordered tbl-sm align-middle mb-0" id="tblPaSpend">
+        <thead class="table-light"><tr>
+          <th style="width:36px">#</th>
+          <th>Tài khoản QC</th>
+          <th>BM</th>
+          <th class="text-end">Chi phí hôm nay</th>
+        </tr></thead>
+        <tbody>
+        {% for a in pai.accounts %}
+        <tr style="background:#f0fdf4">
+          <td class="text-muted text-center">{{ loop.index }}</td>
+          <td>
+            <a href="https://www.facebook.com/adsmanager/manage/?act={{ a.account_id }}"
+               target="_blank" rel="noopener" class="fw-semibold text-decoration-none text-dark">
+              {{ a.account_name }}<i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:10px"></i>
+            </a>
+            <div class="text-muted" style="font-size:11px">{{ a.account_id }}</div>
+          </td>
+          <td class="text-muted" style="font-size:12px">{{ a.bm_name or '—' }}</td>
+          <td class="text-end fw-semibold text-success">{{ '{:,.0f}'.format(a.spend) }}₫</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot class="table-light fw-bold">
+          <tr>
+            <td colspan="3" class="text-end">TỔNG {{ pai.count }} TK chưa gán shop:</td>
+            <td class="text-end text-success">{{ '{:,.0f}'.format(pai.total) }}₫</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% endif %}
+
+  {# ════════ TAB: kiểm soát ════════ #}
+  {% if tab == 'kiem_soat' %}
+  <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+    <form method="get" action="{{ url_for('page_account.kiem_soat') }}" class="d-flex align-items-center gap-3 flex-wrap m-0">
+      <input type="hidden" name="view" value="{{ ks_view }}">
+      {% include "_date_range_picker.html" %}
+    </form>
+    <form method="post" action="{{ url_for('page_account.sync_spend') }}" class="ms-auto m-0">
+      <button type="submit" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-arrow-repeat me-1"></i>Sync chi phí QC ngay
+      </button>
+    </form>
+  </div>
+
+  {# Nút chuyển: theo TK QC (mặc định) / danh sách TẤT CẢ page lạ #}
+  <div class="d-flex gap-2 mb-3 flex-wrap">
+     <a href="{{ url_for('page_account.kiem_soat', days=kiem_soat_days, view='byacc', date_from=date_from or none, date_to=date_to or none) }}"
+        class="btn btn-sm {% if ks_view != 'pagela' %}btn-warning{% else %}btn-outline-secondary{% endif %}">
+        <i class="bi bi-diagram-3 me-1"></i>Theo Tài khoản QC</a>
+      <a href="{{ url_for('page_account.kiem_soat', days=kiem_soat_days, view='pagela', date_from=date_from or none, date_to=date_to or none) }}"
+       class="btn btn-sm {% if ks_view == 'pagela' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+      <i class="bi bi-exclamation-triangle me-1"></i>Danh sách page lạ</a>
+  </div>
+
+  {% if ks_view == 'pagela' %}
+  {# ── DANH SÁCH TOÀN BỘ PAGE LẠ (gộp mọi TK) ── #}
+  <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:13px">
+    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+    <strong>{{ page_la | length }} page lạ</strong> — page KHÔNG thuộc công ty mà TK đang chạy ads (trong {{ kiem_soat_days }} ngày). Tổng chi phí đổ vào: <strong>{{ '{:,.0f}'.format(page_la | sum(attribute='total_spend')) }}₫</strong>
+  </div>
+  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">
+    <table class="table table-sm mb-0" style="font-size:13px">
+      <thead class="table-light"><tr>
+        <th style="width:40px">#</th><th>Page lạ</th><th>TK QC chạy</th><th>NV</th>
+        <th class="text-end">Chi phí {{ kiem_soat_days }}n</th><th>Lần cuối</th>
+        <th title="Sếp xác nhận page này là của công ty → hết báo lạ ở mọi tab"></th>
+      </tr></thead>
+      <tbody>
+        {% for p in page_la %}
+        <tr class="table-danger">
+          <td class="text-muted">{{ loop.index }}</td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <img src="https://graph.facebook.com/{{ p.page_id }}/picture?type=square" style="width:30px;height:30px;border-radius:6px;object-fit:cover" alt=""
+                   onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'">
+              <span style="display:none;width:30px;height:30px;border-radius:6px;background:#fecaca;color:#991b1b;font-weight:700;align-items:center;justify-content:center">{{ (p.page_name or 'P')[:1]|upper }}</span>
+              <div>
+                <a href="https://www.facebook.com/{{ p.page_id }}" target="_blank" rel="noopener" class="fw-semibold text-danger text-decoration-none">{{ p.page_name }} <i class="bi bi-box-arrow-up-right" style="font-size:9px"></i></a>
+                <div class="text-muted" style="font-size:11px;font-family:monospace">{{ p.page_id }}</div>
+              </div>
+            </div>
+          </td>
+          <td style="font-size:12px">{{ p.n_acc }} TK: {{ p.accounts | join(', ') | truncate(50) }}</td>
+          <td style="font-size:12px">{% if p.nvs %}{{ p.nvs | join(', ') }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td class="text-end fw-semibold text-danger">{{ '{:,.0f}'.format(p.total_spend) }}₫</td>
+          <td class="text-muted" style="font-size:12px">{{ p.last_seen }}</td>
+          <td style="white-space:nowrap">
+            {% if current_role in ('admin','superadmin','it','manager') %}
+            <form method="post" action="{{ url_for('page_account.page_cty_add') }}" class="d-inline"
+                  onsubmit="return confirm('Ghi nhận \'{{ (p.page_name or p.page_id)|replace("'","") }}\' là PAGE CÔNG TY?')">
+              <input type="hidden" name="page_id" value="{{ p.page_id }}">
+              <input type="hidden" name="page_name" value="{{ (p.page_name or '')|e }}">
+              <button class="btn btn-outline-success btn-sm py-0 px-1" style="font-size:11px">✓ Page cty</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-success py-4"><i class="bi bi-check-circle me-1"></i>Không có page lạ nào — mọi TK chạy ads đúng page công ty 🎉</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+
+  {% if not kiem_soat %}
+  <div class="text-center py-5">
+    <i class="bi bi-bar-chart-line text-muted" style="font-size:48px;opacity:.3"></i>
+    <div class="mt-2 text-muted">Chưa có dữ liệu spend.</div>
+    <form method="post" action="{{ url_for('page_account.sync_spend') }}" class="mt-3">
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-arrow-repeat me-2"></i>Sync chi phí QC ngay
+      </button>
+    </form>
+    <div class="text-muted mt-2" style="font-size:12px">Hệ thống cũng tự động sync 6 lần/ngày (7:10, 10:10, 13:10, 16:10, 19:10, 22:10)</div>
+  </div>
+  {% else %}
+
+  {# Summary bar #}
+  {% set accounts_with_unknown = kiem_soat | selectattr('unknown_count', 'gt', 0) | list %}
+  {% if accounts_with_unknown %}
+  <div class="alert alert-danger py-2 mb-3">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <strong>{{ accounts_with_unknown | length }} tài khoản QC</strong> đang chạy ads trên page không thuộc công ty!
+    <span class="text-muted ms-2" style="font-size:12px">Kiểm tra ngay các dòng nền đỏ bên dưới.</span>
+  </div>
+  {% endif %}
+
+  {% for acc in kiem_soat %}
+  {% set has_unknown = acc.unknown_count > 0 %}
+  <div class="bm-card mb-3 {% if has_unknown %}border-danger{% endif %}" style="{% if has_unknown %}border-width:2px!important{% endif %}">
+    <div class="bm-header" onclick="toggleBM('ks-{{ loop.index }}')">
+      {% if has_unknown %}
+        <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+      {% else %}
+        <i class="bi bi-check-circle-fill text-success"></i>
+      {% endif %}
+      <div class="flex-grow-1">
+        <span class="fw-semibold">{{ acc.account_name }}</span>
+        <span class="text-muted ms-2" style="font-size:11px">{{ acc.ad_account_id }}</span>
+        {% if acc.employee_name %}
+          <span class="badge bg-primary ms-2"><i class="bi bi-person-fill me-1"></i>{{ acc.employee_name }}</span>
+          <form method="post" action="{{ url_for('page_account.unassign_user') }}"
+                class="d-inline" onclick="event.stopPropagation()">
+            <input type="hidden" name="map_id" value="{{ acc.map_id }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger ms-1" style="padding:1px 5px;font-size:11px"
+                    title="Xóa gán nhân viên"
+                    onclick="return confirm('Xóa gán {{ acc.employee_name }} khỏi TK này?')">
+              <i class="bi bi-x"></i>
+            </button>
+          </form>
+        {% else %}
+          <button class="badge bg-secondary border-0 ms-2"
+                  style="cursor:pointer"
+                  onclick="event.stopPropagation(); openAssignModal('{{ acc.ad_account_id }}','{{ acc.account_name|replace("'","\\'")|e }}')"
+                  title="Gán nhân viên phụ trách">
+            <i class="bi bi-person-plus me-1"></i>Chưa gán NV
+          </button>
+        {% endif %}
+      </div>
+      <span class="badge bg-success me-1">{{ acc.company_count }} page cty</span>
+      {% if has_unknown %}<span class="badge bg-danger me-1">{{ acc.unknown_count }} page lạ</span>{% endif %}
+      <span class="badge bg-light text-dark border me-2">{{ '{:,.0f}'.format(acc.total_spend) }}₫</span>
+      <i class="bi bi-chevron-down" id="chev-ks-{{ loop.index }}" style="transition:transform .2s"></i>
+    </div>
+    <div class="bm-body collapse" id="body-ks-{{ loop.index }}">
+      <div class="table-responsive">
+        <table class="table table-bordered tbl-sm align-middle mb-0">
+          <thead><tr>
+            <th>#</th><th>Page</th><th>Sản phẩm</th><th>Trạng thái</th>
+            <th class="text-end">Chi phí {{ kiem_soat_days }}n</th>
+            <th class="text-end text-success" title="Đơn đã có trên POS trong kỳ">Đơn POS</th>
+            <th class="text-end text-warning" title="Lượt mua / đăng ký pixel Meta báo">Đơn Meta</th>
+            <th class="text-end text-primary" title="Đơn khách điền form LadiPage thật">Đơn Ladi</th>
+            <th class="text-end" title="= Đơn Meta + Đơn Ladi (sếp 28/08)">Kết quả</th>
+            <th class="text-end" title="Chi phí ÷ KẾT QUẢ (Meta + Ladi) — sếp 28/08">Ads/kết quả</th><th>Lần cuối</th>
+          </tr></thead>
+          <tbody>
+            {% for p in acc.pages %}
+            <tr {% if not p.is_company_page %}class="table-danger"{% endif %}>
+              <td class="text-muted">{{ loop.index }}</td>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <img src="https://graph.facebook.com/{{ p.page_id }}/picture?type=square" class="page-pic" alt=""
+                       onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'">
+                  <span class="page-pic" style="display:none;align-items:center;justify-content:center;background:#e2e8f0;color:#64748b;font-weight:700;font-size:13px">{{ (p.page_name or 'P')[:1]|upper }}</span>
+                  <div>
+                    <a href="https://www.facebook.com/{{ p.page_id }}" target="_blank" rel="noopener"
+                       class="fw-semibold text-decoration-none {% if not p.is_company_page %}text-danger{% else %}text-dark{% endif %}">
+                      {{ p.page_name }}<i class="bi bi-box-arrow-up-right ms-1" style="font-size:10px;opacity:.6"></i>
+                    </a>
+                    <div class="text-muted" style="font-size:11px">{{ p.page_id }}</div>
+                  </div>
+                </div>
+              </td>
+              <td style="font-size:12px">
+                {% if p.san_pham %}<span class="text-primary">📦 {{ p.san_pham }}</span>
+                {% else %}<span class="text-muted">—</span>{% endif %}
+              </td>
+              <td style="white-space:nowrap">
+                {% if p.is_company_page %}
+                  <span class="badge bg-success" title="Nhận diện nhờ: {{ p.cty_nguon }}"><i class="bi bi-building me-1"></i>Page công ty</span>
+                  <div class="text-muted" style="font-size:10.5px">{{ p.cty_nguon }}</div>
+                  {% if p.cty_nguon == 'Ghi nhận tay' and current_role in ('admin','superadmin','it','manager') %}
+                  <form method="post" action="{{ url_for('page_account.page_cty_remove') }}" class="d-inline"
+                        onsubmit="return confirm('Bỏ ghi nhận tay page này?')">
+                    <input type="hidden" name="page_id" value="{{ p.page_id }}">
+                    <button class="btn btn-link btn-sm p-0 text-muted" style="font-size:10.5px" title="Bỏ ghi nhận tay">✗ bỏ</button>
+                  </form>
+                  {% endif %}
+                {% else %}
+                  <span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Page lạ</span>
+                  {% if current_role in ('admin','superadmin','it','manager') %}
+                  <form method="post" action="{{ url_for('page_account.page_cty_add') }}" class="d-inline ms-1"
+                        onsubmit="return confirm('Ghi nhận \'{{ (p.page_name or p.page_id)|replace("'","") }}\' là PAGE CÔNG TY?')">
+                    <input type="hidden" name="page_id" value="{{ p.page_id }}">
+                    <input type="hidden" name="page_name" value="{{ (p.page_name or '')|e }}">
+                    <button class="btn btn-outline-success btn-sm py-0 px-1" style="font-size:11px" title="Sếp xác nhận đây là page công ty → hết báo lạ">✓ Page cty</button>
+                  </form>
+                  {% endif %}
+                {% endif %}
+              </td>
+              <td class="text-end fw-semibold {% if not p.is_company_page %}text-danger{% endif %}">
+                {{ '{:,.0f}'.format(p.total_spend) }}₫
+              </td>
+              <td class="text-end">
+                {% if p.don_pos %}<b class="text-success">{{ '{:,.0f}'.format(p.don_pos) }}</b>
+                {% else %}<span class="text-muted">0</span>{% endif %}
+              </td>
+              <td class="text-end">
+                {% if p.don_meta %}<b class="text-warning">{{ '{:,.0f}'.format(p.don_meta) }}</b>
+                {% else %}<span class="text-muted">0</span>{% endif %}
+              </td>
+              <td class="text-end">
+                {% if p.don_ladi %}<b class="text-primary">{{ '{:,.0f}'.format(p.don_ladi) }}</b>
+                {% else %}<span class="text-muted">0</span>{% endif %}
+              </td>
+              <td class="text-end">
+                {% if p.ket_qua %}<b>{{ '{:,.0f}'.format(p.ket_qua) }}</b>
+                {% else %}<span class="text-muted">0</span>{% endif %}
+              </td>
+              <td class="text-end">
+                {% if p.ads_don %}<b class="{{ 'text-danger' if p.ads_don > 300000 else '' }}">{{ '{:,.0f}'.format(p.ads_don) }}₫</b>
+                {% else %}<span class="text-danger" style="font-size:11px">chưa ra kết quả</span>{% endif %}
+              </td>
+              <td class="text-muted" style="font-size:12px">{{ p.last_seen }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+  {% endif %}{# đóng ks_view != 'pagela' #}
+  {% endif %}
+
+</div><!-- /.page-wrap -->
+
+<!-- Modal: gán ad account vào shop -->
+<div class="modal fade" id="modalMapShop" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('page_account.map_shop') }}">
+        <input type="hidden" name="ad_account_id" id="mapAdAccountId">
+        <input type="hidden" name="account_name" id="mapAccountName">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-link-45deg me-2 text-success"></i>Gán Tài khoản QC vào Shop</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label text-muted">Tài khoản QC</label>
+            <div class="fw-semibold" id="mapAdAccountLabel"></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Chọn Shop</label>
+            <select name="shop_id" data-cc-search class="form-select" required>
+              <option value="">-- Chọn shop --</option>
+              {% for s in shops %}
+              <option value="{{ s.id }}">{{ s.shop_name }} ({{ s.shop_key }}) [{{ shop_biz(s.shop_key) | upper }}]</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Ngày hiệu lực <span class="text-muted fw-normal">(gán shop từ ngày)</span></label>
+            <input type="date" name="assigned_from" class="form-control" style="max-width:200px">
+            <div class="form-text text-muted">Để TRỐNG = hôm nay. Chọn ngày sớm hơn để báo cáo ngày cũ thấy shop này (khi gán muộn).</div>
+          </div>
+          <div class="form-text text-muted">
+            Sau khi gán, token sẽ tự động được cập nhật vào token store để script sync chi phí hoạt động ngay.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-success"><i class="bi bi-check2 me-1"></i>Xác nhận gán</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: gán nhân viên vào tài khoản QC -->
+<div class="modal fade" id="modalAssignUser" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('page_account.assign_user') }}">
+        <input type="hidden" name="ad_account_id" id="assignAdAccountId">
+        <input type="hidden" name="account_name" id="assignAdAccountName">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-person-plus me-2 text-primary"></i>Gán nhân viên phụ trách</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label text-muted">Tài khoản QC</label>
+            <div class="fw-semibold" id="assignAdAccountLabel"></div>
+          </div>
+          <div id="assignCurrentNvBox" class="alert alert-warning py-2 px-3 mb-3 d-none" style="font-size:13px">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            TK này đang do <strong id="assignCurrentNvName"></strong> phụ trách. Submit sẽ:
+            <ul class="mb-0 mt-1" style="font-size:12px">
+              <li>Đóng phụ trách cũ vào <strong>1 ngày trước ngày áp dụng</strong></li>
+              <li>Mở phụ trách mới cho NV bạn chọn, từ <strong>ngày áp dụng</strong></li>
+              <li>Đóng shop mappings cũ + mở mới theo shop bạn chọn dưới</li>
+              <li>Lưu lại lịch sử cũ (vẫn truy được báo cáo cũ)</li>
+            </ul>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">1. Chọn nhân viên</label>
+            <select name="user_id" id="assignUserSelect" data-cc-search class="form-select" required onchange="loadUserShopsForAssign()">
+              <option value="">-- Chọn nhân viên --</option>
+              {% for u in active_users if active_users is defined %}
+              <option value="{{ u.id }}">{{ u.full_name or u.username }} ({{ u.role }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">
+              2. Áp dụng từ ngày
+              <span class="text-muted" style="font-weight:400">(backdate được nếu NV đã chạy TK từ trước)</span>
+            </label>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+              <input type="date" name="assigned_from" id="assignFromDate" class="form-control" style="max-width:200px">
+              <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-outline-secondary" onclick="setAssignFromToday()">Hôm nay</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="setAssignFromOffset(-7)">−7 ngày</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="setAssignFromOffset(-30)">−30 ngày</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="setAssignFromMonthStart()">Đầu tháng</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="setAssignFromYearStart()">Đầu năm</button>
+              </div>
+            </div>
+            <div class="form-text text-muted" style="font-size:12px">
+              <i class="bi bi-info-circle me-1"></i>
+              Báo cáo chi phí <strong>từ ngày này trở đi</strong> sẽ quy về NV. Spend trước ngày này → bucket "Không gán NV".
+              Mặc định = hôm nay.
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">3. Chọn shop TK chạy <span class="text-muted" style="font-weight:400">(có thể bỏ trống nếu chưa biết)</span></label>
+            <div id="assignShopList" class="border rounded p-2" style="min-height:60px;max-height:200px;overflow-y:auto;background:#fafafa">
+              <div class="text-muted" style="font-size:12px">← Chọn NV trước, danh sách shop của NV sẽ hiện ở đây.</div>
+            </div>
+            <div class="form-text text-muted" style="font-size:12px">
+              <strong>Quan trọng:</strong> 1 NV có thể quản N shop nhưng mỗi TK chỉ chạy 1 subset.
+              Vd NV có shop A, B, C — TK này chỉ chạy shop A → chỉ tick A.
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Lý do (tuỳ chọn)</label>
+            <input type="text" name="reason" class="form-control" placeholder="VD: NV cũ nghỉ, chuyển team...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Xác nhận gán</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Sửa shop của TK (cho TK đã có NV phụ trách) -->
+<div class="modal fade" id="modalSetShops" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('page_account.set_shops') }}">
+        <input type="hidden" name="ad_account_id" id="setShopsAdAccountId">
+        <input type="hidden" name="account_name" id="setShopsAdAccountName">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-shop me-2 text-success"></i>Sửa danh sách shop của TK</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label text-muted">Tài khoản QC</label>
+            <div class="fw-semibold" id="setShopsAdAccountLabel"></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-muted">NV phụ trách</label>
+            <div class="fw-semibold" id="setShopsNvLabel">—</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Shop TK chạy</label>
+            <div id="setShopsList" class="border rounded p-2" style="min-height:60px;max-height:240px;overflow-y:auto;background:#fafafa">
+              <div class="text-muted">Đang tải...</div>
+            </div>
+            <div class="form-text text-muted" style="font-size:12px">
+              Tick các shop TK này thực sự chạy. Bỏ tick = đóng mapping (giữ lịch sử cũ).
+              Shop disabled = không nằm trong <code>assigned_shops</code> của NV.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-success"><i class="bi bi-check2 me-1"></i>Lưu danh sách shop</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal "Thêm Token FB" đã chuyển vào partial _pa_tabbar.html (dùng chung) -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+
+// ── Sync status polling ───────────────────────────────────────────────────────
+(function checkSyncStatus() {
+  fetch('/page-account/sync-status').then(r => r.json()).then(data => {
+    const running = Object.values(data).some(v => v.status === 'running');
+    const banner = document.getElementById('syncBanner');
+    const msg = document.getElementById('syncMsg');
+    if (running) {
+      banner.classList.remove('d-none');
+      msg.textContent = 'Đang đồng bộ BM/Pages/TK QC... tự động refresh sau khi xong.';
+      setTimeout(checkSyncStatus, 5000);
+    } else {
+      const done = Object.values(data).find(v => v.status === 'done');
+      if (done && banner && !banner.classList.contains('d-none')) {
+        // Vừa xong, reload để hiện data mới
+        location.reload();
+      } else if (Object.keys(data).length > 0) {
+        banner.classList.add('d-none');
+      }
+    }
+  }).catch(() => {});
+  // Check ngay khi load nếu có trạng thái running
+})();
+
+// ── BM accordion with lazy-load ───────────────────────────────────────────────
+const _loadedBM = {};
+
+function renderPagesTable(pages) {
+  if (!pages.length) return '<p class="text-muted small py-2 text-center">Không có page nào.</p>';
+  let rows = pages.map((p, i) => {
+    const pic = p.picture_url
+      ? `<img src="${p.picture_url}" class="page-pic me-2" alt="">`
+      : `<i class="bi bi-file-earmark-person text-secondary me-2" style="font-size:24px"></i>`;
+    const rel = p.bm_relation === 'owned'
+      ? '<span class="badge badge-owned">Owned</span>'
+      : '<span class="badge badge-client">Client</span>';
+    const pub = p.is_published
+      ? '<span class="badge bg-success">Published</span>'
+      : '<span class="badge bg-secondary">Unpublished</span>';
+    const un = p.username ? ` · @${p.username}` : '';
+    return `<tr>
+      <td class="text-muted">${i+1}</td>
+      <td><div class="d-flex align-items-center">${pic}<div>
+        <a href="https://www.facebook.com/${p.page_id}" target="_blank" rel="noopener" class="fw-semibold text-decoration-none text-dark">
+          ${p.page_name}<i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:10px"></i>
+        </a>
+        <div class="text-muted" style="font-size:11px">${p.page_id}${un}</div>
+      </div></div></td>
+      <td>${p.category || '—'}</td>
+      <td>${rel}</td>
+      <td>${pub}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="table table-bordered tbl-sm align-middle mb-0">
+    <thead><tr><th>#</th><th>Page</th><th>Danh mục</th><th>Loại</th><th>Trạng thái</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderAdAccTable(accounts) {
+  if (!accounts.length) return '<p class="text-muted small py-2 text-center">Không có tài khoản QC nào.</p>';
+  const STATUS = {1:['Hoạt động','success'],2:['Đã tắt','secondary'],3:['Chưa TT','danger'],7:['Xem xét','warning'],8:['Chờ TT','warning'],9:['Ân hạn','warning'],100:['Đã đóng','secondary'],101:['Hết hạn','danger'],201:['Chờ XL','warning']};
+  let rows = accounts.map((a, i) => {
+    const s = STATUS[a.account_status] || ['Không rõ','secondary'];
+    const rel = a.bm_relation === 'owned'
+      ? '<span class="badge badge-owned">Owned</span>'
+      : '<span class="badge badge-client">Client</span>';
+    return `<tr>
+      <td class="text-muted">${i+1}</td>
+      <td>
+        <a href="https://www.facebook.com/adsmanager/manage/?act=${a.account_id}" target="_blank" rel="noopener" class="fw-semibold text-decoration-none text-dark">
+          ${a.account_name}<i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:10px"></i>
+        </a>
+        <div class="text-muted" style="font-size:11px">${a.account_id}</div>
+      </td>
+      <td><span class="badge bg-${s[1]}">${s[0]}</span></td>
+      <td>${rel}</td>
+      <td>${a.currency || '—'}</td>
+      <td class="text-muted" style="font-size:12px">${a.timezone_name || '—'}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="table table-bordered tbl-sm align-middle mb-0">
+    <thead><tr><th>#</th><th>Tài khoản</th><th>Trạng thái</th><th>Loại</th><th>Tiền tệ</th><th>Timezone</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+async function loadBMData(bmId) {
+  if (_loadedBM[bmId]) return;
+  _loadedBM[bmId] = true;
+
+  const pagesHolder = document.querySelector(`.bm-pages-holder[data-bm="${bmId}"]`);
+  const adaccHolder = document.querySelector(`.bm-adacc-holder[data-bm="${bmId}"]`);
+
+  try {
+    const [pRes, aRes] = await Promise.all([
+      fetch(`/page-account/bm/${bmId}/pages`).then(r => r.json()),
+      fetch(`/page-account/bm/${bmId}/ad-accounts`).then(r => r.json()),
+    ]);
+    if (pagesHolder) pagesHolder.innerHTML = renderPagesTable(pRes);
+    if (adaccHolder) adaccHolder.innerHTML = renderAdAccTable(aRes);
+  } catch(e) {
+    if (pagesHolder) pagesHolder.innerHTML = '<p class="text-danger small py-2">Lỗi tải dữ liệu.</p>';
+    if (adaccHolder) adaccHolder.innerHTML = '<p class="text-danger small py-2">Lỗi tải dữ liệu.</p>';
+  }
+}
+
+function toggleBM(bmId) {
+  const body = document.getElementById(`body-${bmId}`);
+  const chev = document.getElementById(`chev-${bmId}`);
+  const isOpen = body.classList.contains('show');
+  body.classList.toggle('show', !isOpen);
+  if (chev) chev.style.transform = isOpen ? '' : 'rotate(180deg)';
+  // Only lazy-load BM data (not kiem-soat rows which are server-rendered)
+  if (!isOpen && !bmId.startsWith('ks-')) loadBMData(bmId);
+}
+
+// ── Map shop modal ────────────────────────────────────────────────────────────
+function openAssignModal(adAccountId, accountName, currentNvName) {
+  document.getElementById('assignAdAccountId').value = adAccountId;
+  document.getElementById('assignAdAccountName').value = accountName;
+  document.getElementById('assignAdAccountLabel').textContent = accountName + ' (' + adAccountId + ')';
+  // Reset NV + shop list
+  var sel = document.getElementById('assignUserSelect');
+  if (sel) sel.value = '';
+  var sl = document.getElementById('assignShopList');
+  if (sl) sl.innerHTML = '<div class="text-muted" style="font-size:12px">← Chọn NV trước, danh sách shop của NV sẽ hiện ở đây.</div>';
+  // Default assigned_from = hôm nay (IT có thể đổi bằng nút Đầu tháng / -7 / -30 / Đầu năm)
+  setAssignFromToday();
+  // Show / hide warning về NV hiện tại
+  var box = document.getElementById('assignCurrentNvBox');
+  if (currentNvName && currentNvName.length > 0) {
+    document.getElementById('assignCurrentNvName').textContent = currentNvName;
+    box.classList.remove('d-none');
+  } else {
+    box.classList.add('d-none');
+  }
+  new bootstrap.Modal(document.getElementById('modalAssignUser')).show();
+}
+
+// ── Date picker helpers cho "Áp dụng từ ngày" ──
+function _fmtDateLocal(d) {
+  var y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
+  return y + '-' + m + '-' + dd;
+}
+function setAssignFromToday() {
+  document.getElementById('assignFromDate').value = _fmtDateLocal(new Date());
+}
+function setAssignFromOffset(days) {
+  var d = new Date(); d.setDate(d.getDate() + days);
+  document.getElementById('assignFromDate').value = _fmtDateLocal(d);
+}
+function setAssignFromMonthStart() {
+  var d = new Date();
+  document.getElementById('assignFromDate').value = _fmtDateLocal(new Date(d.getFullYear(), d.getMonth(), 1));
+}
+function setAssignFromYearStart() {
+  var d = new Date();
+  document.getElementById('assignFromDate').value = _fmtDateLocal(new Date(d.getFullYear(), 0, 1));
+}
+
+function loadUserShopsForAssign() {
+  var userId = document.getElementById('assignUserSelect').value;
+  var listEl = document.getElementById('assignShopList');
+  if (!userId) {
+    listEl.innerHTML = '<div class="text-muted" style="font-size:12px">← Chọn NV trước.</div>';
+    return;
+  }
+  listEl.innerHTML = '<div class="text-muted" style="font-size:12px"><i class="bi bi-hourglass-split"></i> Đang tải shop của NV...</div>';
+  fetch('/page-account/api/user/' + userId + '/shops')
+    .then(r => r.json())
+    .then(data => {
+      var shops = data.shops || [];
+      if (shops.length === 0) {
+        listEl.innerHTML = '<div class="text-warning" style="font-size:12px">⚠ NV này chưa có shop nào trong <code>assigned_shops</code>. Vào trang Users gán shop trước.</div>';
+        return;
+      }
+      var html = '';
+      shops.forEach(function(s) {
+        html += '<div class="form-check"><input class="form-check-input" type="checkbox" name="shop_ids" value="' + s.shop_id + '" id="ash' + s.shop_id + '">';
+        html += '<label class="form-check-label" for="ash' + s.shop_id + '">' + s.shop_name + ' <span class="text-muted" style="font-size:11px">(' + s.shop_key + ')</span></label></div>';
+      });
+      listEl.innerHTML = html;
+    })
+    .catch(function(err) {
+      listEl.innerHTML = '<div class="text-danger" style="font-size:12px">Lỗi load shop: ' + err + '</div>';
+    });
+}
+
+function openSetShopsModal(adAccountId, accountName) {
+  document.getElementById('setShopsAdAccountId').value = adAccountId;
+  document.getElementById('setShopsAdAccountName').value = accountName;
+  document.getElementById('setShopsAdAccountLabel').textContent = accountName + ' (' + adAccountId + ')';
+  document.getElementById('setShopsNvLabel').textContent = '...';
+  var listEl = document.getElementById('setShopsList');
+  listEl.innerHTML = '<div class="text-muted" style="font-size:12px"><i class="bi bi-hourglass-split"></i> Đang tải...</div>';
+  new bootstrap.Modal(document.getElementById('modalSetShops')).show();
+  // Load: current shops của TK + NV phụ trách
+  fetch('/page-account/api/ad-account/' + encodeURIComponent(adAccountId) + '/shops')
+    .then(r => r.json())
+    .then(meta => {
+      var currentSet = new Set((meta.current_shop_ids || []).map(String));
+      var userId = meta.user_id;
+      document.getElementById('setShopsNvLabel').textContent = meta.user_name || '(chưa gán NV)';
+      if (!userId) {
+        listEl.innerHTML = '<div class="text-warning" style="font-size:12px">⚠ TK chưa có NV phụ trách. Gán NV trước khi sửa shop.</div>';
+        return;
+      }
+      // Load NV's allowed shops
+      return fetch('/page-account/api/user/' + userId + '/shops')
+        .then(r => r.json())
+        .then(data => {
+          var shops = data.shops || [];
+          if (shops.length === 0) {
+            listEl.innerHTML = '<div class="text-warning" style="font-size:12px">⚠ NV chưa có shop nào.</div>';
+            return;
+          }
+          var html = '';
+          shops.forEach(function(s) {
+            var checked = currentSet.has(String(s.shop_id)) ? 'checked' : '';
+            html += '<div class="form-check"><input class="form-check-input" type="checkbox" name="shop_ids" value="' + s.shop_id + '" id="ssh' + s.shop_id + '" ' + checked + '>';
+            html += '<label class="form-check-label" for="ssh' + s.shop_id + '">' + s.shop_name + ' <span class="text-muted" style="font-size:11px">(' + s.shop_key + ')</span></label></div>';
+          });
+          // Cảnh báo nếu current có shop không nằm trong NV's allowed (legacy)
+          var allowedIds = new Set(shops.map(function(s){return String(s.shop_id);}));
+          var orphans = [];
+          currentSet.forEach(function(sid){ if (!allowedIds.has(sid)) orphans.push(sid); });
+          if (orphans.length > 0) {
+            html += '<div class="text-warning mt-2" style="font-size:11px">⚠ Có ' + orphans.length + ' shop hiện đang map nhưng KHÔNG nằm trong assigned_shops của NV (legacy). Submit sẽ tự bỏ.</div>';
+          }
+          listEl.innerHTML = html;
+        });
+    })
+    .catch(function(err) {
+      listEl.innerHTML = '<div class="text-danger" style="font-size:12px">Lỗi: ' + err + '</div>';
+    });
+}
+
+function openMapModal(adAccountId, accountName) {
+  document.getElementById('mapAdAccountId').value = adAccountId;
+  document.getElementById('mapAccountName').value = accountName;
+  document.getElementById('mapAdAccountLabel').textContent = accountName + ' (' + adAccountId + ')';
+  new bootstrap.Modal(document.getElementById('modalMapShop')).show();
+}
+
+// ── Table search ──────────────────────────────────────────────────────────────
+function filterTable(tableId, query) {
+  const q = query.toLowerCase();
+  document.querySelectorAll(`#${tableId} tbody tr`).forEach(r => {
+    r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+let _accActiveOnly = false;
+
+function toggleActiveFilter(btn) {
+  _accActiveOnly = !_accActiveOnly;
+  btn.classList.toggle('btn-outline-success', !_accActiveOnly);
+  btn.classList.toggle('btn-success', _accActiveOnly);
+  filterAcc();
+}
+
+function filterAcc() {
+  const q = (document.getElementById('searchAcc')?.value || '').toLowerCase();
+  // Special mode: query "⚠" → chỉ hiện TK chưa có NV (data-nv="⚠" trên <td>)
+  const isNoNvMode = q === '⚠';
+  let total = 0, visible = 0;
+  document.querySelectorAll('#tblAcc tbody tr, #tblAccUnmapped tbody tr').forEach(r => {
+    total++;
+    let textMatch;
+    if (isNoNvMode) {
+      textMatch = !!r.querySelector('td[data-nv="⚠"]');
+    } else {
+      textMatch = !q || r.textContent.toLowerCase().includes(q);
+    }
+    const activeMatch = !_accActiveOnly || r.dataset.active === '1';
+    const show = textMatch && activeMatch;
+    r.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  const el = document.getElementById('accFilterCount');
+  if (el) el.textContent = (q || _accActiveOnly) ? `Hiển thị ${visible}/${total}` : '';
+}
+</script>
+<script>
+(function(){
+  var fab=document.getElementById('paFab'), sheet=document.getElementById('paSheet'),
+      slot=document.getElementById('paSheetSlot');
+  if(!fab||!sheet||!slot) return;
+  var moved=[], home=[];
+  function open(){
+    document.querySelectorAll('.pa-filt').forEach(function(el){
+      home.push([el, el.parentNode, el.nextSibling]);
+      slot.appendChild(el); el.classList.add('in-sheet'); moved.push(el);
+    });
+    sheet.classList.add('open'); document.body.style.overflow='hidden';
+  }
+  function close(){
+    moved.forEach(function(el){ el.classList.remove('in-sheet'); });
+    home.forEach(function(h){ h[1].insertBefore(h[0], h[2]); });
+    moved=[]; home=[]; sheet.classList.remove('open'); document.body.style.overflow='';
+  }
+  fab.addEventListener('click', open);
+  sheet.querySelector('.cs-x').addEventListener('click', close);
+  sheet.querySelector('.cs-bd').addEventListener('click', close);
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape'&&sheet.classList.contains('open')) close(); });
+})();
+</script>
+</body>
+</html>

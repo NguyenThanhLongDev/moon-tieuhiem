@@ -1,0 +1,1562 @@
+{% extends "cham_cong/base.html" %}
+{% block title %}Quản lý — Chấm công{% endblock %}
+{% set active_page = 'admin' %}
+
+{% block content %}
+<!-- Tabs -->
+<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px;">
+<ul class="nav nav-tabs mb-0" style="font-size:14px;font-weight:500;flex-wrap:nowrap;min-width:max-content;">
+  <li class="nav-item">
+    <a class="nav-link active" data-bs-toggle="tab" href="#tab-employees">
+      <i class="bi bi-people-fill"></i> Nhân viên
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-mark">
+      <i class="bi bi-calendar-check"></i> Chấm công hộ
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-report">
+      <i class="bi bi-calendar3"></i> Báo cáo tháng
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-task-report">
+      <i class="bi bi-clipboard2-data-fill"></i> Báo cáo CV
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-announce">
+      <i class="bi bi-megaphone-fill"></i> Thông báo
+    </a>
+  </li>
+  {% if user.role == 'admin' %}
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-settings">
+      <i class="bi bi-gear-fill"></i> Cài đặt
+    </a>
+  </li>
+  {% endif %}
+</ul>
+</div>
+
+<div class="tab-content">
+
+  <!-- Tab 1: Nhân viên -->
+  <div class="tab-pane fade show active" id="tab-employees">
+    <div class="cc-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <div class="cc-card-title" style="margin:0;"><i class="bi bi-people"></i> Quản lý nhân viên (<span id="empCountVisible">{{ merged_users|length }}</span>/{{ merged_users|length }})</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex:1;justify-content:center;min-width:280px;max-width:520px;">
+          <div style="position:relative;flex:1;min-width:160px;">
+            <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:13px;"></i>
+            <input id="empSearch" type="text" placeholder="Tìm theo tên, username, ID..."
+                   oninput="filterEmployees()"
+                   style="width:100%;padding:7px 10px 7px 30px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;">
+          </div>
+          <select id="empTeamFilter" onchange="filterEmployees()"
+                  style="padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;background:#fff;min-width:130px;cursor:pointer;">
+            <option value="">Tất cả team</option>
+            {% set _seen_teams = [] %}
+            {% for u in merged_users %}
+              {% set _t = (u.department or '').strip() %}
+              {% if _t and _t not in _seen_teams %}
+                {% if _seen_teams.append(_t) %}{% endif %}
+                <option value="{{ _t }}">{{ _t }}</option>
+              {% endif %}
+            {% endfor %}
+            <option value="__none__">— Chưa có team —</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <a href="?{% if show_resigned %}{% else %}show_resigned=1{% endif %}{% if year %}&year={{ year }}{% endif %}{% if month %}&month={{ month }}{% endif %}#tab-employees"
+             class="btn btn-sm fw-semibold"
+             style="background:{% if show_resigned %}#fef3c7;color:#b45309{% else %}#f1f5f9;color:#475569{% endif %};border-radius:8px;font-size:12px;text-decoration:none;">
+            <i class="bi bi-{% if show_resigned %}eye-slash{% else %}eye{% endif %}"></i>
+            {% if show_resigned %}Ẩn NV đã nghỉ{% else %}Hiện NV đã nghỉ{% endif %}
+          </a>
+          {# Nút "Thêm NV mới" + "Sửa NV" đã bỏ — tạo/sửa NV thống nhất ở Quản lý nhân sự → Nhân sự.
+             NV có tài khoản tự vào chấm công khi tạo; sửa vai trò CC dùng nút "Sửa" từng dòng bên dưới. #}
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-sm" style="font-size:13px;">
+          <thead style="background:#f8fafc;">
+            <tr>
+              <th>Username / ID</th>
+              <th>Tên đầy đủ</th>
+              <th>Vai trò CC</th>
+              <th class="d-none d-md-table-cell">Bộ phận</th>
+              <th class="d-none d-md-table-cell">SĐT</th>
+              <th>Hành động</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set ns_team = namespace(cur='__none__') %}
+            {% for u in merged_users %}
+            {% set _tk = (u.department or '') %}
+            {% if _tk != ns_team.cur %}
+            {% set ns_team.cur = _tk %}
+            <tr class="team-header-row" data-team="{{ _tk or '__none__' }}">
+              <td colspan="6" style="background:#eef2ff;color:#3730a3;font-weight:700;font-size:11px;letter-spacing:.5px;text-transform:uppercase;padding:6px 10px;border-top:2px solid #c7d2fe;">
+                <i class="bi bi-diagram-3 me-1"></i>{{ _tk or 'Chưa có team' }}
+                <span style="color:#6366f1;font-weight:500;margin-left:6px;">
+                  ({{ merged_users | selectattr('department', 'equalto', _tk) | list | length }})
+                </span>
+              </td>
+            </tr>
+            {% endif %}
+            <tr class="emp-row"
+                data-team="{{ _tk or '__none__' }}"
+                data-search="{{ (u.username ~ ' ' ~ (u.full_name or '') ~ ' ' ~ u.user_id)|lower }}"
+                {% if u.resigned_at %}style="background:#f8fafc;opacity:.72;"{% endif %}>
+              <td>
+                {% if u.user_id.startswith('emp-') %}
+                <span style="background:#dcfce7;color:#059669;font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;margin-right:4px;">Kho/Ngoài</span>
+                {% endif %}
+                <strong>{{ u.username }}</strong>
+                <span style="font-size:10px;color:#94a3b8;display:block;">{{ u.user_id }}</span>
+              </td>
+              <td>
+                {{ u.full_name or '—' }}
+                {% if u.resigned_at %}
+                  <div style="margin-top:4px;display:flex;flex-direction:column;gap:2px;">
+                    <span style="background:#fee2e2;color:#dc2626;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;display:inline-block;width:fit-content;"
+                          title="{{ u.resigned_note or '' }}">
+                      <i class="bi bi-person-dash"></i> Đã nghỉ · {{ u.resigned_at.strftime('%d/%m/%Y') if u.resigned_at.strftime is defined else u.resigned_at }}
+                    </span>
+                    {% if u.resigned_team or u.resigned_leader %}
+                    <span style="font-size:10px;color:#94a3b8;">
+                      {% if u.resigned_team %}<i class="bi bi-diagram-3"></i> {{ u.resigned_team }}{% endif %}
+                      {% if u.resigned_leader %} · {{ u.resigned_leader }}{% endif %}
+                    </span>
+                    {% endif %}
+                  </div>
+                {% endif %}
+              </td>
+              <td>
+                {% if u.cc_role %}
+                <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px;background:{{ cc_role_color_fn(u.cc_role) }}22;color:{{ cc_role_color_fn(u.cc_role) }};">
+                  <i class="bi {{ cc_role_icon_fn(u.cc_role) }}"></i> {{ cc_role_label_fn(u.cc_role) }}
+                </span>
+                {% else %}
+                <span style="color:#cbd5e1;font-size:12px;">Chưa cấu hình</span>
+                {% endif %}
+              </td>
+              <td class="d-none d-md-table-cell" style="color:#64748b;">{{ u.department or '—' }}</td>
+              <td class="d-none d-md-table-cell" style="color:#64748b;">{{ u.phone or '—' }}</td>
+              <td style="display:flex;gap:4px;flex-wrap:wrap;">
+                <button class="btn btn-sm" style="background:#ede9fe;color:#6366f1;border:none;font-size:11px;border-radius:6px;"
+                        data-uid="{{ u.user_id }}"
+                        data-uname="{{ u.username }}"
+                        data-fname="{{ u.full_name or '' }}"
+                        data-role="{{ u.cc_role or '' }}"
+                        data-webrole="{{ u.pos_role or '' }}"
+                        data-dept="{{ u.department or '' }}"
+                        data-phone="{{ u.phone or '' }}"
+                        data-pos="{{ u.position or '' }}"
+                        data-office="{{ u.office_id or '' }}"
+                        onclick="editEmployee(this)">
+                  <i class="bi bi-pencil"></i> Sửa
+                </button>
+                {% if u.resigned_at %}
+                <button class="btn btn-sm" style="background:#dcfce7;color:#16a34a;border:none;font-size:11px;border-radius:6px;font-weight:600;"
+                        data-uid="{{ u.user_id }}" data-fname="{{ u.full_name or u.username }}"
+                        onclick="restoreEmployee(this)">
+                  <i class="bi bi-arrow-counterclockwise"></i> Mở lại
+                </button>
+                {% else %}
+                <button class="btn btn-sm" style="background:#fff;color:#dc2626;border:1px solid #fecaca;font-size:11px;border-radius:6px;font-weight:600;"
+                        data-uid="{{ u.user_id }}" data-fname="{{ u.full_name or u.username }}"
+                        onclick="openResignModal(this)">
+                  <i class="bi bi-person-dash"></i> Nghỉ việc
+                </button>
+                {% endif %}
+                {% if u.user_id.startswith('emp-') %}
+                <button class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:none;font-size:11px;border-radius:6px;"
+                        data-uid="{{ u.user_id }}"
+                        data-fname="{{ u.full_name or u.username }}"
+                        onclick="deleteEmployee(this)">
+                  <i class="bi bi-trash"></i>
+                </button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 2: Chấm công hộ -->
+  <div class="tab-pane fade" id="tab-mark">
+    <div class="cc-card">
+      <div class="cc-card-title" style="margin-bottom:10px;"><i class="bi bi-calendar-check"></i> Chấm công hộ — chỉnh sửa ca làm việc của NV</div>
+      <div style="background:#fef3c7;border-left:3px solid #f59e0b;padding:8px 12px;border-radius:6px;font-size:12px;color:#78350f;margin-bottom:16px;">
+        <i class="bi bi-info-circle"></i> Chọn nhân viên + ngày → hệ thống tự nạp ca hiện có. Sửa giờ, thêm/xoá ca → bấm <strong>Ghi chấm công</strong>. Toàn bộ ca cũ của ngày đó sẽ được <strong>thay thế</strong> bằng dữ liệu mới.
+      </div>
+
+      <div style="max-width:640px;">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Chọn nhân viên <span style="color:red;">*</span></label>
+          <select id="mk-uid" data-cc-search class="form-select" onchange="loadMkSessions()">
+            {% for u in merged_users %}
+            <option value="{{ u.user_id }}">{{ u.full_name or u.username }}
+              {% if u.cc_role %} — {{ cc_role_label_fn(u.cc_role) }}{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Ngày <span style="color:red;">*</span></label>
+          <input type="date" id="mk-date" class="form-control" value="{{ today.isoformat() }}"
+                 onchange="loadMkSessions()">
+        </div>
+
+        <label class="form-label fw-semibold mb-1">Ca làm việc (có thể nhiều ca)</label>
+        <div id="mk-ca-list"></div>
+        <button type="button" class="btn-add-ca mt-1" onclick="addMkCa()"
+                style="background:#eff6ff;color:#1d4ed8;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;">
+          <i class="bi bi-plus-lg"></i> Thêm ca
+        </button>
+
+        <button class="btn fw-bold w-100 mt-3" style="background:var(--brand);color:#fff;border-radius:10px;padding:10px;"
+                onclick="submitMark()">
+          <i class="bi bi-check2-circle"></i> Ghi chấm công
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 3: Báo cáo tháng -->
+  <div class="tab-pane fade" id="tab-report">
+    <div class="cc-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <div class="cc-card-title" style="margin:0;"><i class="bi bi-calendar3"></i> Báo cáo chấm công — {{ month_name }}/{{ year }}</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <a href="?year={% if month == 1 %}{{ year-1 }}{% else %}{{ year }}{% endif %}&month={% if month == 1 %}12{% else %}{{ month-1 }}{% endif %}#tab-report"
+             style="text-decoration:none;color:var(--brand);font-size:20px;">‹</a>
+          <span style="font-size:13px;font-weight:600;">T{{ month }}/{{ year }}</span>
+          <a href="?year={% if month == 12 %}{{ year+1 }}{% else %}{{ year }}{% endif %}&month={% if month == 12 %}1{% else %}{{ month+1 }}{% endif %}#tab-report"
+             style="text-decoration:none;color:var(--brand);font-size:20px;">›</a>
+        </div>
+      </div>
+
+      {% if monthly_report %}
+      <div class="table-responsive">
+        <table class="table table-sm" style="font-size:13px;">
+          <thead style="background:#f8fafc;">
+            <tr>
+              <th class="d-none d-sm-table-cell">#</th>
+              <th>Nhân viên</th>
+              <th class="d-none d-sm-table-cell">Vai trò</th>
+              <th style="text-align:center;">Có mặt</th>
+              <th style="text-align:center;" class="d-none d-md-table-cell">Đủ ca</th>
+              <th style="text-align:center;" class="d-none d-md-table-cell">Giờ làm</th>
+              <th style="text-align:center;">Số công</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in monthly_report %}
+            <tr>
+              <td class="d-none d-sm-table-cell" style="color:#94a3b8;">{{ loop.index }}</td>
+              <td>
+                <strong>{{ r.full_name or r.user_id }}</strong>
+                {% if r.cc_role %}
+                <div class="d-sm-none mt-1">
+                  <span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:5px;background:{{ cc_role_color_fn(r.cc_role) }}22;color:{{ cc_role_color_fn(r.cc_role) }};">
+                    {{ cc_role_label_fn(r.cc_role) }}
+                  </span>
+                </div>
+                {% endif %}
+              </td>
+              <td class="d-none d-sm-table-cell">
+                {% if r.cc_role %}
+                <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;background:{{ cc_role_color_fn(r.cc_role) }}22;color:{{ cc_role_color_fn(r.cc_role) }};">
+                  {{ cc_role_label_fn(r.cc_role) }}
+                </span>
+                {% else %}—{% endif %}
+              </td>
+              <td style="text-align:center;">
+                <strong style="color:#059669;">{{ r.present_days }}</strong>
+                <span style="color:#94a3b8;font-size:11px;">/{{ r.total_days }}</span>
+              </td>
+              <td class="d-none d-md-table-cell" style="text-align:center;">
+                {% set full = r.full_days | int %}
+                {% set total = r.total_days | int %}
+                <div style="display:flex;align-items:center;gap:6px;justify-content:center;">
+                  <div style="background:#e2e8f0;border-radius:4px;height:6px;width:50px;overflow:hidden;">
+                    <div style="background:#6366f1;height:6px;width:{{ [(full/total*100) if total > 0 else 0, 100]|min }}%;"></div>
+                  </div>
+                  {{ full }}
+                </div>
+              </td>
+              <td class="d-none d-md-table-cell" style="text-align:center;font-weight:600;color:#2563eb;">
+                {% if r.cc_role == 'adser' %}
+                  <span style="color:#94a3b8;font-size:12px;">—</span>
+                {% else %}
+                  {{ '%.1f' % (r.total_hours | float) }}h
+                {% endif %}
+              </td>
+              <td style="text-align:center;">
+                {% if r.cc_role == 'adser' and r.total_cong is not none %}
+                  <span style="font-weight:700;color:#b45309;background:#fef3c7;padding:2px 10px;border-radius:12px;font-size:13px;">
+                    {{ r.total_cong }} công
+                  </span>
+                {% else %}
+                  <span style="color:#94a3b8;font-size:12px;">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr style="background:#f8fafc;font-weight:700;">
+              <td class="d-none d-sm-table-cell"></td>
+              <td>Tổng cộng</td>
+              <td class="d-none d-sm-table-cell"></td>
+              <td style="text-align:center;color:#059669;">{{ monthly_report | sum(attribute='present_days') | int }}</td>
+              <td class="d-none d-md-table-cell" style="text-align:center;color:#6366f1;">{{ monthly_report | sum(attribute='full_days') | int }}</td>
+              <td class="d-none d-md-table-cell" style="text-align:center;color:#2563eb;">
+                {{ '%.1f' % (monthly_report | selectattr('cc_role', 'ne', 'adser') | sum(attribute='total_hours') | float) }}h
+              </td>
+              <td style="text-align:center;color:#b45309;">
+                {{ monthly_report | selectattr('total_cong') | sum(attribute='total_cong') }} công
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:30px;color:#94a3b8;">
+        <i class="bi bi-calendar-x" style="font-size:32px;"></i>
+        <p style="margin-top:10px;">Không có dữ liệu chấm công tháng {{ month }}/{{ year }}.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Tab 4: Báo cáo công việc -->
+  <div class="tab-pane fade" id="tab-task-report">
+    <div class="cc-card">
+      <div class="cc-card-title" style="margin-bottom:16px;"><i class="bi bi-clipboard2-data"></i> Báo cáo công việc theo nhân viên</div>
+
+      {% set tr = task_report %}
+      {% set tr_total_tasks = tr | sum(attribute='total') | int %}
+      {% set tr_done = tr | sum(attribute='done_count') | int %}
+      {% set tr_inprog = tr | sum(attribute='in_progress_count') | int %}
+      {% set tr_todo = tr | sum(attribute='todo_count') | int %}
+
+      <!-- Summary cards -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px;">
+        <div style="background:#f0fdf4;border-radius:10px;padding:12px;text-align:center;border:1px solid #bbf7d0;">
+          <div style="font-size:22px;font-weight:700;color:#059669;">{{ tr_done }}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px;font-weight:500;">✅ Đã hoàn thành</div>
+        </div>
+        <div style="background:#eff6ff;border-radius:10px;padding:12px;text-align:center;border:1px solid #bfdbfe;">
+          <div style="font-size:22px;font-weight:700;color:#2563eb;">{{ tr_inprog }}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px;font-weight:500;">🔄 Đang làm</div>
+        </div>
+        <div style="background:#fefce8;border-radius:10px;padding:12px;text-align:center;border:1px solid #fde68a;">
+          <div style="font-size:22px;font-weight:700;color:#d97706;">{{ tr_todo }}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px;font-weight:500;">📋 Chờ làm</div>
+        </div>
+        <div style="background:#f8fafc;border-radius:10px;padding:12px;text-align:center;border:1px solid #e2e8f0;">
+          <div style="font-size:22px;font-weight:700;color:#334155;">{{ tr_total_tasks }}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px;font-weight:500;">📊 Tổng công việc</div>
+        </div>
+      </div>
+
+      <!-- Filter search -->
+      <div style="margin-bottom:12px;">
+        <input type="text" id="tr-search" class="form-control form-control-sm"
+               placeholder="🔍 Tìm tên nhân viên..."
+               style="max-width:280px;border-radius:8px;"
+               oninput="filterTaskReport()">
+      </div>
+
+      {% if tr %}
+      <div class="table-responsive">
+        <table class="table table-sm" style="font-size:13px;" id="tr-table">
+          <thead style="background:#f8fafc;">
+            <tr>
+              <th class="d-none d-sm-table-cell">#</th>
+              <th>Nhân viên</th>
+              <th class="d-none d-sm-table-cell">Vai trò</th>
+              <th style="text-align:center;color:#059669;">✅ Xong</th>
+              <th class="d-none d-md-table-cell" style="text-align:center;color:#2563eb;">🔄 Đang</th>
+              <th class="d-none d-md-table-cell" style="text-align:center;color:#d97706;">📋 Chờ</th>
+              <th style="text-align:center;">Tổng</th>
+              <th style="min-width:100px;">Hoàn thành %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in tr %}
+            <tr class="tr-row" data-name="{{ (r.full_name or r.user_id) | lower }}">
+              <td class="d-none d-sm-table-cell" style="color:#94a3b8;">{{ loop.index }}</td>
+              <td>
+                <strong>{{ r.full_name or r.user_id }}</strong>
+                {% if r.department %}
+                <span style="font-size:10px;color:#94a3b8;display:block;">{{ r.department }}</span>
+                {% endif %}
+                {% if r.cc_role %}
+                <div class="d-sm-none mt-1">
+                  <span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:5px;background:{{ cc_role_color_fn(r.cc_role) }}22;color:{{ cc_role_color_fn(r.cc_role) }};">
+                    {{ cc_role_label_fn(r.cc_role) }}
+                  </span>
+                </div>
+                {% endif %}
+              </td>
+              <td class="d-none d-sm-table-cell">
+                {% if r.cc_role %}
+                <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px;background:{{ cc_role_color_fn(r.cc_role) }}22;color:{{ cc_role_color_fn(r.cc_role) }};">
+                  {{ cc_role_label_fn(r.cc_role) }}
+                </span>
+                {% else %}
+                <span style="color:#cbd5e1;font-size:11px;">—</span>
+                {% endif %}
+              </td>
+              <td style="text-align:center;font-weight:600;color:#059669;">{{ r.done_count or 0 }}</td>
+              <td class="d-none d-md-table-cell" style="text-align:center;font-weight:600;color:#2563eb;">{{ r.in_progress_count or 0 }}</td>
+              <td class="d-none d-md-table-cell" style="text-align:center;font-weight:600;color:#d97706;">{{ r.todo_count or 0 }}</td>
+              <td style="text-align:center;color:#64748b;">{{ r.total or 0 }}</td>
+              <td>
+                {% set rate = r.completion_rate %}
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <div style="flex:1;background:#e2e8f0;border-radius:4px;height:8px;overflow:hidden;">
+                    <div style="width:{{ rate }}%;background:{% if rate >= 80 %}#10b981{% elif rate >= 50 %}#6366f1{% elif rate >= 20 %}#f59e0b{% else %}#e2e8f0{% endif %};height:100%;border-radius:4px;transition:width .3s;"></div>
+                  </div>
+                  <span style="font-size:11px;font-weight:600;color:#334155;min-width:30px;">{{ rate }}%</span>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot style="background:#f8fafc;font-weight:700;">
+            <tr>
+              <td class="d-none d-sm-table-cell"></td>
+              <td style="color:#64748b;">Tổng cộng</td>
+              <td class="d-none d-sm-table-cell"></td>
+              <td style="text-align:center;color:#059669;">{{ tr_done }}</td>
+              <td class="d-none d-md-table-cell" style="text-align:center;color:#2563eb;">{{ tr_inprog }}</td>
+              <td class="d-none d-md-table-cell" style="text-align:center;color:#d97706;">{{ tr_todo }}</td>
+              <td style="text-align:center;">{{ tr_total_tasks }}</td>
+              <td>
+                {% if tr_total_tasks > 0 %}
+                <span style="font-size:12px;font-weight:700;color:#6366f1;">
+                  {{ (tr_done / tr_total_tasks * 100) | round | int }}%
+                </span>
+                {% endif %}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:30px;color:#94a3b8;">
+        <i class="bi bi-clipboard-x" style="font-size:32px;"></i>
+        <p style="margin-top:10px;">Chưa có công việc nào được giao.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Tab 5: Thông báo -->
+  <div class="tab-pane fade" id="tab-announce">
+    <div class="cc-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <div class="cc-card-title" style="margin:0;"><i class="bi bi-megaphone"></i> Thông báo nội bộ</div>
+        <button class="btn btn-sm fw-bold" style="background:var(--brand);color:#fff;border-radius:8px;"
+                data-bs-toggle="modal" data-bs-target="#modalAnnounce">
+          <i class="bi bi-plus-lg"></i> Đăng thông báo
+        </button>
+      </div>
+
+      {% if announcements %}
+      {% for ann in announcements %}
+      <div style="border-radius:10px;border:1px solid #e2e8f0;padding:14px;margin-bottom:10px;background:{{ '#fffbeb' if ann.is_pinned else '#fff' }};">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+          <div>
+            {% if ann.is_pinned %}
+            <span style="background:#fef3c7;color:#d97706;font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px;margin-right:6px;">
+              <i class="bi bi-pin-fill"></i> Ghim
+            </span>
+            {% endif %}
+            {% if ann.target_role %}
+            <span style="background:#ede9fe;color:#6366f1;font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px;margin-right:6px;">
+              {{ cc_role_label_fn(ann.target_role) }}
+            </span>
+            {% endif %}
+            <strong style="font-size:14px;">{{ ann.title }}</strong>
+            {% if ann.content %}
+            <p style="font-size:13px;color:#475569;margin:6px 0 4px;">{{ ann.content }}</p>
+            {% endif %}
+            <div style="font-size:11px;color:#94a3b8;">
+              {{ ann.author_name or 'Admin' }} · {{ ann.created_at | hcm_time('%d/%m/%Y %H:%M') if ann.created_at else '' }}
+            </div>
+          </div>
+          <div style="display:flex;gap:4px;flex-shrink:0;">
+            <button style="background:#fef3c7;color:#d97706;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;"
+                    onclick='openEditAnn({{ ann.id }}, {{ ann.title|tojson }}, {{ (ann.content or "")|tojson }}, {{ (ann.target_role or "")|tojson }}, {{ "true" if ann.is_pinned else "false" }})'
+                    title="Sửa">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;"
+                    onclick="deleteAnn({{ ann.id }}, this)" title="Xoá">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div style="text-align:center;padding:30px;color:#94a3b8;">Chưa có thông báo nào.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Tab 6: Cài đặt (chỉ Admin) -->
+  {% if user.role == 'admin' %}
+  <div class="tab-pane fade" id="tab-settings">
+
+    <!-- Panel 1: Danh sách văn phòng -->
+    <div class="cc-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <div class="cc-card-title" style="margin:0;"><i class="bi bi-building"></i> Danh sách văn phòng / địa điểm</div>
+        <button class="btn btn-sm fw-bold" style="background:var(--brand);color:#fff;border-radius:8px;"
+                data-bs-toggle="modal" data-bs-target="#modalOffice" onclick="openOfficeModal()">
+          <i class="bi bi-plus-lg"></i> Thêm văn phòng
+        </button>
+      </div>
+      <div style="font-size:12px;color:#64748b;background:#f0f9ff;border-radius:8px;padding:8px 12px;margin-bottom:12px;">
+        <i class="bi bi-info-circle"></i>
+        Marketing check-in GPS — hệ thống so sánh vị trí nhân viên với văn phòng được gán.
+        Mỗi team/nhân viên có thể gán 1 văn phòng riêng.
+      </div>
+      {% if cc_offices %}
+      <div style="overflow:visible;">
+        <table class="table table-sm" style="font-size:13px;">
+          <thead style="background:#f8fafc;">
+            <tr>
+              <th>Tên văn phòng</th>
+              <th style="text-align:center;">Bán kính</th>
+              <th>Ghi chú</th>
+              <th style="text-align:center;">Gán cho team</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for o in cc_offices %}
+            <tr id="office-row-{{ o.id }}">
+              <td>
+                <strong>{{ o.name }}</strong>
+                <div style="font-size:11px;color:#94a3b8;">{{ o.lat }}, {{ o.lng }}</div>
+              </td>
+              <td style="text-align:center;">{{ o.radius_m }}m</td>
+              <td style="color:#64748b;">{{ o.note or '—' }}</td>
+              <td style="text-align:center;">
+                <!-- Team đã gán -->
+                {% if o.teams %}
+                <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-bottom:6px;">
+                  {% for t in o.teams %}
+                  <span style="display:inline-flex;align-items:center;gap:4px;background:#eef2ff;color:#4338ca;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;">
+                    {{ t.team_name }}
+                    <i class="bi bi-x" style="cursor:pointer;"
+                       onclick="unassignTeam({{ o.id }}, '{{ t.team_code }}', '{{ t.team_name }}')"></i>
+                  </span>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <div style="font-size:11px;color:#cbd5e1;margin-bottom:6px;">Chưa gán team</div>
+                {% endif %}
+                <!-- Dropdown gán theo team -->
+                <div style="display:flex;gap:4px;align-items:center;justify-content:center;flex-wrap:wrap;">
+                  <select class="form-select form-select-sm" data-cc-search id="dept-sel-{{ o.id }}" style="width:auto;font-size:12px;">
+                    <option value="">Chọn team…</option>
+                    {% for t in all_teams %}
+                    <option value="{{ t.team_code }}">{{ t.team_name }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn btn-sm" style="background:#6366f1;color:#fff;font-size:11px;padding:2px 8px;"
+                          onclick="assignTeam({{ o.id }}, '{{ o.name }}')">Gán</button>
+                </div>
+              </td>
+              <td>
+                <button class="btn btn-sm" style="background:#fef2f2;color:#dc2626;font-size:11px;"
+                        onclick="deleteOffice({{ o.id }}, '{{ o.name }}')">
+                  <i class="bi bi-trash"></i>
+                </button>
+                <button class="btn btn-sm ms-1" style="background:#f0f9ff;color:#2563eb;font-size:11px;"
+                        data-bs-toggle="modal" data-bs-target="#modalOffice"
+                        data-oid="{{ o.id }}"
+                        data-oname="{{ o.name }}"
+                        data-olat="{{ o.lat }}"
+                        data-olng="{{ o.lng }}"
+                        data-oradius="{{ o.radius_m }}"
+                        data-onote="{{ o.note or '' }}"
+                        onclick="openOfficeModalFromBtn(this)">
+                  <i class="bi bi-pencil"></i>
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:24px;color:#94a3b8;">
+        <i class="bi bi-building" style="font-size:28px;"></i>
+        <p style="margin-top:8px;">Chưa có văn phòng nào. Bấm <strong>+ Thêm văn phòng</strong> để tạo.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Panel 2: Cài đặt chung (giờ hành chính, số công) -->
+    <div class="cc-card">
+      <div class="cc-card-title"><i class="bi bi-clock"></i> Cài đặt giờ hành chính & tính công</div>
+      <div class="row g-3">
+        <div class="col-12 col-md-4">
+          <label class="form-label fw-600" style="font-size:13px;">Số giờ đủ ca = 1 công</label>
+          <input type="number" id="s-min-hours" step="0.5" min="1" max="12" class="form-control form-control-sm"
+                 value="{{ cc_settings.get('min_hours_cong', '9') }}" placeholder="9">
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Làm đủ số giờ này trong giờ HC = 1 công (đủ ca)</div>
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label fw-600" style="font-size:13px;">Số giờ = nửa công (0.5)</label>
+          <input type="number" id="s-half-hours" step="0.5" min="0" max="12" class="form-control form-control-sm"
+                 value="{{ cc_settings.get('half_hours_cong', '0') }}" placeholder="0 = tắt">
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Làm ≥ số giờ này (nhưng chưa đủ ca) = 0.5 công. Để 0 = không tính nửa công.</div>
+        </div>
+        <div class="col-12">
+          <button class="btn btn-sm fw-bold" style="background:var(--brand);color:#fff;border-radius:8px;"
+                  onclick="saveSettings()">
+            <i class="bi bi-floppy-fill"></i> Lưu cài đặt
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Modal: Thêm nhân viên mới -->
+<div class="modal fade" id="modalAddEmployee" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="border-radius:14px;">
+      <div class="modal-header" style="background:#f0fdf4;">
+        <h5 class="modal-title fw-bold" style="color:#059669;"><i class="bi bi-person-plus-fill"></i> Thêm nhân viên vào hệ thống CC</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- 2 tab lựa chọn -->
+        <ul class="nav nav-pills mb-3" id="addEmpTabs" style="gap:6px;">
+          <li class="nav-item">
+            <button class="nav-link active" id="tabPosBtn" onclick="switchAddTab('pos')" type="button"
+                    style="font-size:13px;font-weight:600;">
+              <i class="bi bi-person-check-fill"></i> Chọn từ phần mềm
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" id="tabExtBtn" onclick="switchAddTab('ext')" type="button"
+                    style="font-size:13px;font-weight:600;">
+              <i class="bi bi-person-plus"></i> Khai báo người ngoài
+            </button>
+          </li>
+        </ul>
+
+        <!-- Pane: Chọn từ phần mềm -->
+        <div id="panePos">
+          <p style="font-size:12px;color:#64748b;margin-bottom:12px;background:#f1f5f9;border-radius:8px;padding:10px;">
+            <i class="bi bi-info-circle"></i> Chọn nhân viên đã có tài khoản trong phần mềm POS, rồi gán vai trò CC cho họ.
+          </p>
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-semibold">Tìm & chọn nhân viên <span style="color:red;">*</span></label>
+              <input type="text" id="pos-search" class="form-control" placeholder="Nhập tên hoặc username để lọc..."
+                     oninput="filterPosUsers()" style="margin-bottom:6px;">
+              <select id="pos-uid" data-cc-search class="form-select" size="6" style="height:160px;"
+                      onchange="onPosSelect()">
+                {% for u in all_pos_users %}
+                <option value="{{ u.id }}"
+                        data-uname="{{ u.username }}"
+                        data-role="{{ u.cc_role }}">
+                  {{ u.username }}{% if u.cc_role %} — {{ cc_role_label_fn(u.cc_role) }}{% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Vai trò CC <span style="color:red;">*</span></label>
+              <select id="pos-role" class="form-select">
+                {% for role, info in CC_ROLES.items() %}
+                <option value="{{ role }}">{{ info[0] }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Bộ phận</label>
+              <input type="text" id="pos-dept" class="form-control" placeholder="Kho, Sale...">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">SĐT</label>
+              <input type="text" id="pos-phone" class="form-control" placeholder="0xxx">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Chức vụ</label>
+              <input type="text" id="pos-position" class="form-control" placeholder="Nhân viên kho">
+            </div>
+          </div>
+        </div>
+
+        <!-- Pane: Khai báo người ngoài -->
+        <div id="paneExt" style="display:none;">
+          <p style="font-size:12px;color:#64748b;margin-bottom:12px;background:#fff7ed;border-radius:8px;padding:10px;border-left:3px solid #f59e0b;">
+            <i class="bi bi-info-circle"></i> Nhân viên không có tài khoản đăng nhập POS — admin sẽ chấm công hộ hàng ngày.
+          </p>
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-semibold">Họ tên <span style="color:red;">*</span></label>
+              <input type="text" id="na-fullname" class="form-control" placeholder="Nguyễn Văn Kho">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Vai trò <span style="color:red;">*</span></label>
+              <select id="na-role" class="form-select">
+                {% for role, info in CC_ROLES.items() %}
+                <option value="{{ role }}" {% if role == 'packing' %}selected{% endif %}>{{ info[0] }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Số điện thoại</label>
+              <input type="text" id="na-phone" class="form-control" placeholder="0xxx">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Bộ phận</label>
+              <input type="text" id="na-dept" class="form-control" placeholder="Kho, Sale...">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Chức vụ</label>
+              <input type="text" id="na-position" class="form-control" placeholder="Nhân viên kho">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Huỷ</button>
+        <button class="btn btn-sm fw-bold" style="background:#10b981;color:#fff;" onclick="addEmployee()">
+          <i class="bi bi-person-plus-fill"></i> Thêm vào hệ thống
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Sửa nhân viên -->
+<div class="modal fade" id="modalEmployee" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="border-radius:14px;">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold"><i class="bi bi-person-gear"></i> Sửa nhân viên</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="e-uid">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Username / ID</label>
+            <input type="text" id="e-username" class="form-control" readonly
+                   style="background:#f8fafc;color:#64748b;">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Tên đầy đủ</label>
+            <input type="text" id="e-fullname" class="form-control" placeholder="Nguyễn Văn A">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Vai trò hệ thống (web)</label>
+            <select id="e-webrole-sel" class="form-select" style="display:none;">
+              <!-- options điền bằng JS theo role hiện tại -->
+            </select>
+            <input type="text" id="e-webrole" class="form-control" readonly
+                   style="background:#f1f5f9;color:#475569;font-weight:600;">
+            <small id="e-webrole-hint" style="color:#94a3b8;font-size:11px;">
+              <i class="bi bi-info-circle"></i>
+              Thay đổi role web sẽ tự đồng bộ "Vai trò CC" cho các vai trò cố định
+              (Admin/Leader/IT/Kế toán/Kho).
+            </small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Vai trò CC (chức năng)</label>
+            <select id="e-role" class="form-select">
+              {% for role, info in CC_ROLES.items() %}
+              <option value="{{ role }}">{{ info[0] }}</option>
+              {% endfor %}
+            </select>
+            <small id="e-role-hint" style="color:#94a3b8;font-size:11px;"></small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Bộ phận</label>
+            <input type="text" id="e-dept" class="form-control" placeholder="Kinh doanh, Kho...">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Số điện thoại</label>
+            <input type="text" id="e-phone" class="form-control" placeholder="0xxx">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Chức vụ</label>
+            <input type="text" id="e-position" class="form-control" placeholder="Nhân viên, Leader...">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Văn phòng chấm công</label>
+            <select id="e-office" class="form-select">
+              <option value="">— Giữ nguyên —</option>
+              {% for o in cc_offices %}
+              <option value="{{ o.id }}">{{ o.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6 d-flex align-items-end">
+            <div class="form-check" style="margin-bottom:8px;">
+              <input class="form-check-input" type="checkbox" id="e-wfh"
+                     onchange="document.getElementById('e-office').disabled=this.checked;">
+              <label class="form-check-label fw-semibold" for="e-wfh">
+                🏠 Làm tại nhà — không cần ở cty
+              </label>
+            </div>
+          </div>
+        </div>
+        <p style="font-size:11px;color:#94a3b8;margin-top:12px;">
+          <i class="bi bi-info-circle"></i> Chọn nhân viên cần sửa từ danh sách bằng nút <strong>✏</strong> trong bảng.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Huỷ</button>
+        <button class="btn btn-sm fw-bold" style="background:var(--brand);color:#fff;" onclick="saveEmployee()">
+          <i class="bi bi-save"></i> Lưu
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Thông báo -->
+<div class="modal fade" id="modalAnnounce" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="border-radius:14px;">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold" id="modalAnnounceTitle"><i class="bi bi-megaphone"></i> Đăng thông báo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <input type="hidden" id="an-id" value="">
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Tiêu đề <span style="color:red;">*</span></label>
+            <input type="text" id="an-title" class="form-control" placeholder="Nhắc nhở, thông báo...">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Nội dung</label>
+            <textarea id="an-content" class="form-control" rows="3" placeholder="Chi tiết..."></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Gửi đến nhóm</label>
+            <select id="an-role" class="form-select">
+              <option value="">— Tất cả —</option>
+              {% for role, info in CC_ROLES.items() %}
+              <option value="{{ role }}">{{ info[0] }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6 d-flex align-items-end">
+            <div class="form-check">
+              <input type="checkbox" id="an-pinned" class="form-check-input">
+              <label class="form-check-label fw-semibold" for="an-pinned">📌 Ghim thông báo</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Huỷ</button>
+        <button class="btn btn-sm fw-bold" style="background:var(--brand);color:#fff;" onclick="submitAnnounce()" id="btnSubmitAnnounce">
+          <i class="bi bi-megaphone"></i> Đăng
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Reset modal về trạng thái CREATE khi đóng
+document.getElementById('modalAnnounce').addEventListener('hidden.bs.modal', () => {
+  document.getElementById('an-id').value = '';
+  document.getElementById('an-title').value = '';
+  document.getElementById('an-content').value = '';
+  document.getElementById('an-role').value = '';
+  document.getElementById('an-pinned').checked = false;
+  document.getElementById('modalAnnounceTitle').innerHTML = '<i class="bi bi-megaphone"></i> Đăng thông báo';
+  document.getElementById('btnSubmitAnnounce').innerHTML = '<i class="bi bi-megaphone"></i> Đăng';
+});
+
+// Mở modal ở chế độ EDIT
+function openEditAnn(id, title, content, role, pinned) {
+  document.getElementById('an-id').value = id;
+  document.getElementById('an-title').value = title || '';
+  document.getElementById('an-content').value = content || '';
+  document.getElementById('an-role').value = role || '';
+  document.getElementById('an-pinned').checked = !!pinned;
+  document.getElementById('modalAnnounceTitle').innerHTML = '<i class="bi bi-pencil"></i> Sửa thông báo';
+  document.getElementById('btnSubmitAnnounce').innerHTML = '<i class="bi bi-save"></i> Lưu';
+  new bootstrap.Modal(document.getElementById('modalAnnounce')).show();
+}
+</script>
+
+<!-- Modal: Thêm/Sửa văn phòng -->
+<div class="modal fade" id="modalOffice" tabindex="-1">
+  <div class="modal-dialog modal-md">
+    <div class="modal-content" style="border-radius:14px;">
+      <div class="modal-header" style="background:#f0f9ff;">
+        <h5 class="modal-title fw-bold" style="color:#2563eb;"><i class="bi bi-building"></i> <span id="officeModalTitle">Thêm văn phòng</span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="o-id">
+        <div class="mb-3">
+          <label class="form-label fw-semibold" style="font-size:13px;">Tên văn phòng *</label>
+          <input type="text" id="o-name" class="form-control form-control-sm" placeholder="vd: VP Quận 1, VP Bình Dương…">
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label fw-semibold" style="font-size:13px;">Vĩ độ (Latitude) *</label>
+            <input type="number" id="o-lat" step="0.0000001" class="form-control form-control-sm" placeholder="10.7769">
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold" style="font-size:13px;">Kinh độ (Longitude) *</label>
+            <input type="number" id="o-lng" step="0.0000001" class="form-control form-control-sm" placeholder="106.7009">
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-semibold" style="font-size:13px;">Bán kính cho phép (mét)</label>
+          <input type="number" id="o-radius" step="10" min="50" class="form-control form-control-sm" value="300">
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-semibold" style="font-size:13px;">Ghi chú</label>
+          <input type="text" id="o-note" class="form-control form-control-sm" placeholder="Địa chỉ…">
+        </div>
+        <div style="margin-top:10px;">
+          <button class="btn btn-sm btn-outline-secondary" onclick="fillGpsFromHere()" style="border-radius:8px;">
+            <i class="bi bi-geo-alt"></i> Lấy toạ độ vị trí hiện tại
+          </button>
+          <span id="gpsTestResult" style="margin-left:10px;font-size:12px;color:#059669;"></span>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:8px;">
+          Hoặc: mở Google Maps → nhấp chuột phải vào địa điểm → sao chép toạ độ.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Huỷ</button>
+        <button class="btn btn-sm fw-bold" style="background:#2563eb;color:#fff;" onclick="submitOffice()">
+          <i class="bi bi-floppy-fill"></i> Lưu
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nghỉ việc -->
+<div class="modal fade" id="modalResign" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="background:#fef2f2;border-bottom:1px solid #fee2e2;">
+        <h5 class="modal-title fw-bold" style="color:#dc2626;">
+          <i class="bi bi-person-dash"></i> Đánh dấu nghỉ việc
+        </h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning" style="font-size:13px;border-radius:8px;">
+          <i class="bi bi-info-circle"></i>
+          Sau khi xác nhận: nhân viên bị ẩn ở các trang chấm công <strong>từ ngày nghỉ trở đi</strong> (ngày trước đó vẫn hiển thị).
+          Doanh thu shop phát sinh <strong>sau ngày nghỉ</strong> không tính KPI cho ai — quy về công ty.
+          Tài khoản đăng nhập bị khoá. Có thể "Mở lại" nếu lỡ nhầm.
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-semibold" style="font-size:13px;">Nhân viên</label>
+          <input type="text" class="form-control" id="rs-name" readonly style="background:#f1f5f9;font-weight:600;">
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-semibold" style="font-size:13px;">Ngày nghỉ</label>
+          <input type="date" class="form-control" id="rs-date" value="{{ today.isoformat() }}" max="{{ today.isoformat() }}">
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-semibold" style="font-size:13px;">Ghi chú / Lý do nghỉ</label>
+          <textarea class="form-control" id="rs-note" rows="3"
+                    placeholder="VD: Nghỉ theo nguyện vọng cá nhân, chuyển công ty..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid #f1f5f9;">
+        <button class="btn btn-light" data-bs-dismiss="modal">Huỷ</button>
+        <button class="btn fw-bold" style="background:#dc2626;color:#fff;" onclick="submitResign()">
+          <i class="bi bi-check2"></i> Xác nhận nghỉ việc
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const WEB_ROLE_LABELS = {
+  'admin':'Admin','manager':'Manager',
+  'leader':'Leader','staff':'Nhân viên','accountant':'Kế toán',
+  'kho':'Kho','it':'IT'
+};
+const WEB_TO_CC_HARD = {
+  'admin':'admin','manager':'admin',
+  'leader':'leader','it':'it','accountant':'accounting','kho':'packing'
+};
+// Quyền sửa role: admin-like = tất cả; leader = chỉ staff/leader.
+const CURRENT_USER_ROLE = {{ (user.role or '') | tojson }};
+const ADMIN_LIKE_ROLES = ['admin','manager','accountant','it'];
+const CAN_EDIT_ANY_ROLE = ADMIN_LIKE_ROLES.includes(CURRENT_USER_ROLE);
+const IS_LEADER_ROLE = (CURRENT_USER_ROLE === 'leader');
+
+function editEmployee(btn) {
+  const d = btn.dataset;
+  document.getElementById('e-uid').value      = d.uid   || '';
+  document.getElementById('e-username').value = d.uname || d.uid || '';
+  document.getElementById('e-fullname').value = d.fname || '';
+  document.getElementById('e-role').value     = d.role  || 'sale';
+  document.getElementById('e-dept').value     = d.dept  || '';
+  document.getElementById('e-phone').value    = d.phone || '';
+  document.getElementById('e-position').value = d.pos   || '';
+  document.getElementById('e-office').value    = d.office || '';
+  document.getElementById('e-office').disabled = false;
+  document.getElementById('e-wfh').checked     = false;
+
+  const wr = (d.webrole || '').toLowerCase();
+  const sel = document.getElementById('e-webrole-sel');
+  const txt = document.getElementById('e-webrole');
+  const webHint = document.getElementById('e-webrole-hint');
+  // Xác định danh sách role cho phép sửa
+  let allowed = null;
+  if (CAN_EDIT_ANY_ROLE) {
+    allowed = ['admin','manager','leader','staff','accountant','kho','it'];
+  } else if (IS_LEADER_ROLE) {
+    allowed = ['staff','leader'];
+  }
+  if (allowed && wr) {
+    sel.innerHTML = allowed.map(r =>
+      `<option value="${r}" ${r===wr?'selected':''}>${WEB_ROLE_LABELS[r] || r}</option>`
+    ).join('');
+    sel.style.display = '';
+    txt.style.display = 'none';
+    webHint.innerHTML = IS_LEADER_ROLE
+      ? '<i class="bi bi-info-circle"></i> Leader chỉ được đặt Nhân viên hoặc Leader (trong team mình).'
+      : '<i class="bi bi-info-circle"></i> Thay đổi role web sẽ tự đồng bộ "Vai trò CC" cho vai trò cố định.';
+  } else {
+    sel.style.display = 'none';
+    txt.style.display = '';
+    txt.value = wr ? (WEB_ROLE_LABELS[wr] || wr) : '(Không có tài khoản web)';
+    webHint.innerHTML = '<i class="bi bi-info-circle"></i> Bạn không có quyền sửa vai trò hệ thống.';
+  }
+
+  const roleSel = document.getElementById('e-role');
+  const hint = document.getElementById('e-role-hint');
+  if (wr && WEB_TO_CC_HARD[wr]) {
+    roleSel.value = WEB_TO_CC_HARD[wr];
+    roleSel.disabled = true;
+    hint.innerHTML = '<i class="bi bi-lock-fill"></i> Khoá theo vai trò web.';
+  } else if (wr === 'staff') {
+    roleSel.disabled = false;
+    hint.innerHTML = '<i class="bi bi-info-circle"></i> Nhân viên: chọn đúng chức năng (Sale/Ads/Đóng hàng/Mua hàng).';
+  } else {
+    roleSel.disabled = false;
+    hint.textContent = '';
+  }
+
+  // Đồng bộ cc_role theo dropdown web role khi đổi
+  sel.onchange = () => {
+    const nw = sel.value;
+    if (WEB_TO_CC_HARD[nw]) {
+      roleSel.value = WEB_TO_CC_HARD[nw];
+      roleSel.disabled = true;
+      hint.innerHTML = '<i class="bi bi-lock-fill"></i> Khoá theo vai trò web.';
+    } else if (nw === 'staff') {
+      roleSel.disabled = false;
+      hint.innerHTML = '<i class="bi bi-info-circle"></i> Nhân viên: chọn đúng chức năng.';
+    }
+  };
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEmployee')).show();
+}
+
+async function saveEmployee() {
+  const sel = document.getElementById('e-webrole-sel');
+  const webRole = (sel && sel.style.display !== 'none') ? sel.value : '';
+  const r = await ccPost('/cham-cong/api/employee/save', {
+    user_id:   document.getElementById('e-uid').value,
+    full_name: document.getElementById('e-fullname').value,
+    cc_role:   document.getElementById('e-role').value,
+    department:document.getElementById('e-dept').value,
+    phone:     document.getElementById('e-phone').value,
+    position:  document.getElementById('e-position').value,
+    web_role:  webRole,
+    office_id: document.getElementById('e-office').value,
+    wfh:       document.getElementById('e-wfh').checked ? '1' : '',
+  });
+  if (r.ok) {
+    ccToast('✅ ' + r.msg);
+    bootstrap.Modal.getInstance(document.getElementById('modalEmployee')).hide();
+    setTimeout(() => location.reload(), 700);
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+  }
+}
+
+// ── Tab switch cho modal thêm NV ──────────────────────────
+let _addTab = 'pos';
+function switchAddTab(tab) {
+  _addTab = tab;
+  document.getElementById('panePos').style.display = tab === 'pos' ? '' : 'none';
+  document.getElementById('paneExt').style.display = tab === 'ext' ? '' : 'none';
+  document.getElementById('tabPosBtn').classList.toggle('active', tab === 'pos');
+  document.getElementById('tabExtBtn').classList.toggle('active', tab === 'ext');
+}
+
+// Lọc danh sách nhân viên POS theo từ khoá
+function filterPosUsers() {
+  const q = (document.getElementById('pos-search').value || '').toLowerCase();
+  const sel = document.getElementById('pos-uid');
+  Array.from(sel.options).forEach(opt => {
+    opt.style.display = opt.text.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+// Khi chọn NV POS → tự điền vai trò hiện tại
+function onPosSelect() {
+  const sel = document.getElementById('pos-uid');
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt) return;
+  const role = opt.dataset.role;
+  if (role) document.getElementById('pos-role').value = role;
+}
+
+async function addEmployee() {
+  if (_addTab === 'pos') {
+    // Chọn từ phần mềm
+    const sel = document.getElementById('pos-uid');
+    const uid = sel.value;
+    const opt = sel.options[sel.selectedIndex];
+    if (!uid) { ccToast('Chọn một nhân viên!', 'error'); return; }
+    const uname = opt ? opt.dataset.uname : uid;
+    const r = await ccPost('/cham-cong/api/employee/save', {
+      user_id:    uid,
+      full_name:  uname,
+      cc_role:    document.getElementById('pos-role').value,
+      department: document.getElementById('pos-dept').value,
+      phone:      document.getElementById('pos-phone').value,
+      position:   document.getElementById('pos-position').value,
+    });
+    if (r.ok) {
+      ccToast('✅ ' + r.msg);
+      bootstrap.Modal.getInstance(document.getElementById('modalAddEmployee')).hide();
+      setTimeout(() => location.reload(), 700);
+    } else {
+      ccToast(r.msg || 'Lỗi', 'error');
+    }
+  } else {
+    // Khai báo người ngoài
+    const name = document.getElementById('na-fullname').value.trim();
+    if (!name) { ccToast('Nhập họ tên!', 'error'); return; }
+    const r = await ccPost('/cham-cong/api/employee/create', {
+      full_name:  name,
+      cc_role:    document.getElementById('na-role').value,
+      phone:      document.getElementById('na-phone').value,
+      department: document.getElementById('na-dept').value,
+      position:   document.getElementById('na-position').value,
+    });
+    if (r.ok) {
+      ccToast('✅ ' + r.msg);
+      bootstrap.Modal.getInstance(document.getElementById('modalAddEmployee')).hide();
+      setTimeout(() => location.reload(), 700);
+    } else {
+      ccToast(r.msg || 'Lỗi', 'error');
+    }
+  }
+}
+
+// ── Tìm kiếm + Lọc team (client-side, nhanh, không reload) ─
+function filterEmployees() {
+  const q = (document.getElementById('empSearch')?.value || '').trim().toLowerCase();
+  const team = document.getElementById('empTeamFilter')?.value || '';
+  const empRows = document.querySelectorAll('tr.emp-row');
+  const headerRows = document.querySelectorAll('tr.team-header-row');
+  const teamVisible = {};
+  let total = 0;
+  empRows.forEach(r => {
+    const rTeam = r.dataset.team || '__none__';
+    const rText = r.dataset.search || '';
+    const matchTeam = !team || rTeam === team;
+    const matchSearch = !q || rText.includes(q);
+    const show = matchTeam && matchSearch;
+    r.style.display = show ? '' : 'none';
+    if (show) {
+      total++;
+      teamVisible[rTeam] = (teamVisible[rTeam] || 0) + 1;
+    }
+  });
+  // Ẩn header team nếu không có NV nào hiện trong team đó
+  headerRows.forEach(h => {
+    const t = h.dataset.team || '__none__';
+    h.style.display = teamVisible[t] ? '' : 'none';
+  });
+  const cnt = document.getElementById('empCountVisible');
+  if (cnt) cnt.textContent = total;
+}
+
+// ── Nghỉ việc / Mở lại ───────────────────────────────────
+let _resignUid = null;
+function openResignModal(btn) {
+  _resignUid = btn.dataset.uid;
+  document.getElementById('rs-name').value = btn.dataset.fname || '';
+  document.getElementById('rs-note').value = '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalResign')).show();
+}
+async function submitResign() {
+  if (!_resignUid) return;
+  const note = document.getElementById('rs-note').value.trim();
+  const date = document.getElementById('rs-date').value;
+  const r = await fetch(`/cham-cong/api/employee/${_resignUid}/resign`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({note, date})
+  }).then(x=>x.json()).catch(()=>({ok:false,msg:'Lỗi mạng'}));
+  if (r.ok) {
+    bootstrap.Modal.getInstance(document.getElementById('modalResign'))?.hide();
+    ccToast('✅ ' + r.msg);
+    setTimeout(() => location.reload(), 700);
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+  }
+}
+async function restoreEmployee(btn) {
+  const uid = btn.dataset.uid;
+  const name = btn.dataset.fname;
+  if (!confirm(`Mở lại nhân viên "${name}"?\nXoá thông tin nghỉ và bật lại đăng nhập.`)) return;
+  btn.disabled = true;
+  const r = await fetch(`/cham-cong/api/employee/${uid}/restore`, {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'
+  }).then(x=>x.json()).catch(()=>({ok:false,msg:'Lỗi mạng'}));
+  if (r.ok) { ccToast('✅ ' + r.msg); setTimeout(() => location.reload(), 700); }
+  else { ccToast(r.msg || 'Lỗi', 'error'); btn.disabled = false; }
+}
+
+async function deleteEmployee(btn) {
+  const uid  = btn.dataset.uid;
+  const name = btn.dataset.fname;
+  if (!confirm(`Xoá nhân viên "${name}"?\nDữ liệu chấm công của họ vẫn được giữ lại.`)) return;
+  btn.disabled = true;
+  const r = await fetch(`/cham-cong/api/employee/delete/${uid}`, {method:'DELETE',headers:{'X-Requested-With':'XMLHttpRequest'}}).then(x=>x.json()).catch(()=>({ok:false,msg:'Lỗi mạng'}));
+  if (r.ok) {
+    ccToast('🗑 Đã xoá!');
+    setTimeout(() => location.reload(), 600);
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+    btn.disabled = false;
+  }
+}
+
+// ── Chấm công hộ (multi-ca, gõ tay, auto-fill ca hiện có) ──
+function mkCaRowHtml(ciStr, coStr) {
+  const inp = (cls, ph, max, val) =>
+    `<input type="text" inputmode="numeric" maxlength="2" class="tnum ${cls}" placeholder="${ph}" data-max="${max}" value="${val||''}"
+            style="width:54px;padding:9px 8px;border:1px solid #cbd5e1;border-radius:9px;font-size:16px;font-weight:600;color:#1e293b;background:#fff;text-align:center;">`;
+  const [ih, im] = (ciStr || '').split(':');
+  const [oh, om] = (coStr || '').split(':');
+  return `<div class="mk-ca-row" style="position:relative;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:10px;">
+    <span class="mk-ca-no" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;display:block;margin-bottom:8px;"><i class="bi bi-clock-history"></i> Ca làm việc</span>
+    <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <span style="font-size:11px;font-weight:600;color:#475569;">Giờ vào</span>
+        <div style="display:flex;align-items:center;gap:4px;">
+          ${inp('mk-in-h','08',23,ih||'')}<span style="color:#94a3b8;font-weight:700;">:</span>${inp('mk-in-m','00',59,im||'')}
+        </div>
+      </div>
+      <span style="align-self:center;color:#cbd5e1;font-size:18px;padding:0 2px;margin-top:14px;"><i class="bi bi-arrow-right"></i></span>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <span style="font-size:11px;font-weight:600;color:#475569;">Giờ ra</span>
+        <div style="display:flex;align-items:center;gap:4px;">
+          ${inp('mk-out-h','17',23,oh||'')}<span style="color:#94a3b8;font-weight:700;">:</span>${inp('mk-out-m','30',59,om||'')}
+        </div>
+      </div>
+      <button type="button" onclick="this.closest('.mk-ca-row').remove(); mkRenumber();"
+              title="Xoá ca"
+              style="margin-left:auto;align-self:center;margin-top:14px;background:#fff;color:#dc2626;border:1px solid #fecaca;border-radius:9px;width:38px;height:38px;cursor:pointer;">
+        <i class="bi bi-trash"></i>
+      </button>
+    </div>
+  </div>`;
+}
+function mkRenumber() {
+  document.querySelectorAll('#mk-ca-list .mk-ca-row').forEach((row, i) => {
+    const lbl = row.querySelector('.mk-ca-no');
+    if (lbl) lbl.innerHTML = `<i class="bi bi-clock-history"></i> Ca ${i + 1}`;
+  });
+}
+function addMkCa(ci, co) {
+  document.getElementById('mk-ca-list').insertAdjacentHTML('beforeend', mkCaRowHtml(ci, co));
+  mkRenumber();
+}
+// Gõ giờ phút: chỉ số, tự nhảy ô, tự đệm 0
+document.addEventListener('DOMContentLoaded', () => {
+  const list = document.getElementById('mk-ca-list');
+  if (!list) return;
+  list.addEventListener('input', (e) => {
+    const el = e.target;
+    if (!el.classList.contains('tnum')) return;
+    el.value = el.value.replace(/[^0-9]/g, '').slice(0, 2);
+    const max = parseInt(el.dataset.max, 10);
+    if (el.value.length === 2) {
+      if (parseInt(el.value, 10) > max) el.value = String(max).padStart(2, '0');
+      const inputs = [...el.closest('.mk-ca-row').querySelectorAll('.tnum')];
+      const next = inputs[inputs.indexOf(el) + 1];
+      if (next) next.focus();
+    }
+  });
+  list.addEventListener('blur', (e) => {
+    const el = e.target;
+    if (!el.classList || !el.classList.contains('tnum') || el.value === '') return;
+    let n = parseInt(el.value, 10);
+    const max = parseInt(el.dataset.max, 10);
+    if (isNaN(n) || n < 0) n = 0;
+    if (n > max) n = max;
+    el.value = String(n).padStart(2, '0');
+  }, true);
+});
+
+async function loadMkSessions() {
+  const uid = document.getElementById('mk-uid').value;
+  const date = document.getElementById('mk-date').value;
+  const list = document.getElementById('mk-ca-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!uid || !date) { addMkCa('08:00','17:30'); return; }
+  try {
+    const r = await fetch(`/cham-cong/api/attendance/sessions?user_id=${encodeURIComponent(uid)}&date=${encodeURIComponent(date)}`);
+    const j = await r.json();
+    if (j.ok && Array.isArray(j.sessions) && j.sessions.length) {
+      j.sessions.forEach(s => addMkCa(s.check_in || '', s.check_out || ''));
+    } else {
+      addMkCa('08:00','17:30');
+    }
+  } catch {
+    addMkCa('08:00','17:30');
+  }
+}
+
+async function submitMark() {
+  const uid = document.getElementById('mk-uid').value;
+  const date = document.getElementById('mk-date').value;
+  if (!uid || !date) { ccToast('Chọn nhân viên và ngày!', 'error'); return; }
+  const pad2 = v => (v === '' ? '' : String(parseInt(v, 10)).padStart(2, '0'));
+  const rows = document.querySelectorAll('#mk-ca-list .mk-ca-row');
+  const sessions = [];
+  for (const row of rows) {
+    const ih = pad2(row.querySelector('.mk-in-h').value), im = pad2(row.querySelector('.mk-in-m').value);
+    const oh = pad2(row.querySelector('.mk-out-h').value), om = pad2(row.querySelector('.mk-out-m').value);
+    if (ih === '' || im === '') {
+      if (ih !== '' || im !== '') { ccToast('Giờ vào phải nhập đủ giờ và phút!', 'error'); return; }
+      continue;
+    }
+    const ci = `${ih}:${im}`;
+    let co = '';
+    if (oh !== '' && om !== '') co = `${oh}:${om}`;
+    else if (oh !== '' || om !== '') { ccToast('Giờ ra phải nhập đủ giờ và phút!', 'error'); return; }
+    sessions.push({check_in: ci, check_out: co});
+  }
+  // Cho phép sessions rỗng → xoá hết ca ngày đó (xác nhận)
+  if (!sessions.length && !confirm('Không có ca nào — XOÁ hết chấm công ngày này?')) return;
+  const r = await ccPost('/cham-cong/api/attendance/admin-mark', {
+    user_id: uid, date, sessions
+  });
+  if (r.ok) {
+    ccToast('✅ ' + r.msg);
+    setTimeout(loadMkSessions, 400); // reload để hiện số ca chuẩn
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+  }
+}
+
+// Khởi tạo 1 ca mặc định khi tab mở lần đầu
+document.addEventListener('DOMContentLoaded', () => {
+  // Nếu mở tab này từ URL hash → tự nạp ca hiện có
+  if (location.hash === '#tab-mark') loadMkSessions();
+  else {
+    // Vẫn tạo 1 ca trống để form sẵn sàng khi user click tab
+    const list = document.getElementById('mk-ca-list');
+    if (list && !list.children.length) addMkCa('08:00','17:30');
+  }
+  // Khi user click tab Chấm công hộ → load sessions
+  const tab = document.querySelector('[data-bs-target="#tab-mark"], [href="#tab-mark"]');
+  if (tab) tab.addEventListener('shown.bs.tab', loadMkSessions);
+});
+
+async function submitAnnounce() {
+  const title = document.getElementById('an-title').value.trim();
+  if (!title) { ccToast('Nhập tiêu đề!', 'error'); return; }
+  const editId = document.getElementById('an-id').value;
+  const payload = {
+    title,
+    content:     document.getElementById('an-content').value,
+    target_role: document.getElementById('an-role').value || null,
+    is_pinned:   document.getElementById('an-pinned').checked,
+  };
+  let r;
+  if (editId) {
+    // UPDATE
+    r = await fetch(`/cham-cong/api/announcements/${editId}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    }).then(x => x.json());
+  } else {
+    // CREATE
+    r = await ccPost('/cham-cong/api/announcements', payload);
+  }
+  if (r.ok) {
+    ccToast('✅ ' + r.msg);
+    bootstrap.Modal.getInstance(document.getElementById('modalAnnounce')).hide();
+    setTimeout(() => location.reload(), 700);
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+  }
+}
+
+async function deleteAnn(id, btn) {
+  if (!confirm('Xoá thông báo này?')) return;
+  btn.disabled = true;
+  const r = await ccDelete(`/cham-cong/api/announcements/${id}`);
+  if (r.ok) {
+    ccToast('🗑 Đã xoá');
+    btn.closest('div[style]').remove();
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+    btn.disabled = false;
+  }
+}
+
+// Tìm kiếm trong báo cáo công việc
+function filterTaskReport() {
+  const q = document.getElementById('tr-search').value.toLowerCase().trim();
+  document.querySelectorAll('#tr-table .tr-row').forEach(row => {
+    const name = row.getAttribute('data-name') || '';
+    row.style.display = (!q || name.includes(q)) ? '' : 'none';
+  });
+}
+
+// Restore active tab from hash
+const hash = location.hash;
+if (hash) {
+  const tab = document.querySelector(`[href="${hash}"]`);
+  if (tab) bootstrap.Tab.getOrCreateInstance(tab).show();
+}
+
+// ── Settings: cài đặt giờ hành chính / số công ──
+async function saveSettings() {
+  const payload = {
+    min_hours_cong:  document.getElementById('s-min-hours')?.value,
+    half_hours_cong: document.getElementById('s-half-hours')?.value,
+  };
+  const r = await ccPost('/cham-cong/api/cai-dat/van-phong', payload);
+  if (r.ok) ccToast('✅ ' + r.msg);
+  else ccToast(r.msg || 'Lỗi lưu cài đặt', 'error');
+}
+
+// ── Office Modal ──
+function openOfficeModalFromBtn(btn) {
+  openOfficeModal(
+    btn.dataset.oid,
+    btn.dataset.oname,
+    parseFloat(btn.dataset.olat),
+    parseFloat(btn.dataset.olng),
+    parseInt(btn.dataset.oradius) || 300,
+    btn.dataset.onote || ''
+  );
+}
+
+function openOfficeModal(id, name, lat, lng, radius, note) {
+  document.getElementById('officeModalTitle').textContent = id ? 'Sửa văn phòng' : 'Thêm văn phòng';
+  document.getElementById('o-id').value    = id    || '';
+  document.getElementById('o-name').value  = name  || '';
+  document.getElementById('o-lat').value   = lat   || '';
+  document.getElementById('o-lng').value   = lng   || '';
+  document.getElementById('o-radius').value= radius || 300;
+  document.getElementById('o-note').value  = note  || '';
+  document.getElementById('gpsTestResult').textContent = '';
+}
+
+async function submitOffice() {
+  const payload = {
+    id:       document.getElementById('o-id').value || null,
+    name:     document.getElementById('o-name').value.trim(),
+    lat:      parseFloat(document.getElementById('o-lat').value),
+    lng:      parseFloat(document.getElementById('o-lng').value),
+    radius_m: parseInt(document.getElementById('o-radius').value) || 300,
+    note:     document.getElementById('o-note').value.trim(),
+  };
+  if (!payload.name || !payload.lat || !payload.lng) {
+    ccToast('Vui lòng điền tên và toạ độ văn phòng', 'error'); return;
+  }
+  const r = await ccPost('/cham-cong/api/offices', payload);
+  if (r.ok) {
+    ccToast('✅ ' + r.msg);
+    bootstrap.Modal.getInstance(document.getElementById('modalOffice'))?.hide();
+    setTimeout(() => location.reload(), 1000);
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+  }
+}
+
+async function deleteOffice(id, name) {
+  if (!confirm(`Xoá văn phòng "${name}"? Nhân viên đã gán sẽ bị bỏ gán.`)) return;
+  const r = await fetch(`/cham-cong/api/offices/${id}`, { method: 'DELETE' }).then(x => x.json());
+  if (r.ok) { ccToast('Đã xoá!'); document.getElementById(`office-row-${id}`)?.remove(); }
+  else ccToast(r.msg || 'Lỗi', 'error');
+}
+
+async function assignTeam(officeId, officeName) {
+  const sel = document.getElementById(`dept-sel-${officeId}`);
+  const dept = sel?.value;
+  if (!dept) { ccToast('Chọn team trước', 'error'); return; }
+  const r = await ccPost('/cham-cong/api/offices/assign', { office_id: officeId, department: dept });
+  if (r.ok) { ccToast('✅ ' + r.msg); setTimeout(() => location.reload(), 800); }
+  else ccToast(r.msg || 'Lỗi', 'error');
+}
+
+async function unassignTeam(officeId, teamCode, teamName) {
+  if (!confirm(`Bỏ gán team "${teamName}" khỏi văn phòng này?`)) return;
+  const r = await ccPost('/cham-cong/api/offices/assign', { office_id: null, department: teamCode });
+  if (r.ok) { ccToast('Đã bỏ gán team!'); setTimeout(() => location.reload(), 800); }
+  else ccToast(r.msg || 'Lỗi', 'error');
+}
+
+function fillGpsFromHere() {
+  const el = document.getElementById('gpsTestResult');
+  if (!navigator.geolocation) { el.textContent = 'Không hỗ trợ GPS'; return; }
+  el.textContent = 'Đang lấy vị trí…';
+  navigator.geolocation.getCurrentPosition(pos => {
+    const lat = pos.coords.latitude.toFixed(7);
+    const lng = pos.coords.longitude.toFixed(7);
+    const acc = Math.round(pos.coords.accuracy);
+    document.getElementById('o-lat').value = lat;
+    document.getElementById('o-lng').value = lng;
+    el.textContent = `✅ ${lat}, ${lng} (±${acc}m)`;
+  }, () => { el.textContent = 'Không lấy được vị trí'; }, { enableHighAccuracy: true, timeout: 10000 });
+}
+</script>
+{% endblock %}

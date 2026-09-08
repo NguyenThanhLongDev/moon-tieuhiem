@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bắt sale gian lận</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+html,body{background:#f5f6fa;font-family:'Segoe UI',sans-serif;font-size:14px}
+.wrap{max-width:1280px;margin:18px auto;padding:0 16px}
+.stat{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px 18px;flex:1;min-width:150px}
+.stat .n{font-size:24px;font-weight:800}
+.toolbar{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 16px;margin:14px 0;display:flex;gap:12px;align-items:end;flex-wrap:wrap}
+.toolbar label{font-size:11px;color:#64748b;font-weight:600;display:block;margin-bottom:3px}
+.toolbar select,.toolbar input{padding:7px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px}
+.tbl{width:100%;background:#fff;border:1px solid #e5e7eb;border-radius:12px;border-collapse:separate;border-spacing:0;overflow:hidden;font-size:13px}
+.tbl th{background:#f8fafc;color:#64748b;font-weight:600;text-align:left;padding:10px 12px;font-size:12px}
+.tbl td{padding:10px 12px;border-top:1px solid #f1f5f9}
+.badge-del{background:#fee2e2;color:#991b1b;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-blk{background:#fef3c7;color:#92400e;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-cut{background:#e0e7ff;color:#3730a3;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.sale-tag{background:#dbeafe;color:#1e40af;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:600}
+</style>
+</head>
+<body>
+{% include "_main_nav.html" %}
+<div class="wrap">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div>
+      <h4 class="fw-bold mb-1"><i class="bi bi-shield-exclamation text-danger me-2"></i>Bắt sale gian lận <span class="badge bg-danger" style="font-size:10px;vertical-align:middle">beta</span></h4>
+      <p class="text-muted mb-3" style="font-size:13px">Phát hiện sale <strong>lấy đơn → xoá tin nhắn → chặn khách</strong>. Tin nhắn được chụp & lưu bản riêng nên sale xoá vẫn còn để đối chiếu.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('fraud_detect.conversations') }}" class="btn btn-sm btn-outline-dark"><i class="bi bi-chat-square-text me-1"></i>Xem tất cả hội thoại</a>
+      <form method="post" action="{{ url_for('fraud_detect.sync_facebook') }}"><button class="btn btn-sm btn-primary"><i class="bi bi-facebook me-1"></i>Kéo từ Facebook ngay</button></form>
+    </div>
+  </div>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+    <div class="alert alert-{{ cat if cat in ['success','danger','warning','info'] else 'secondary' }} py-2 px-3 mb-2" style="font-size:13px">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+  <div class="alert alert-info py-2 px-3 mb-3" style="font-size:12.5px"><i class="bi bi-info-circle me-1"></i>Nguồn: <strong>Facebook trực tiếp</strong> — page nào token là admin + có quyền <code>pages_messaging</code> thì tự kéo về. Tin nhắn được <strong>chụp &amp; lưu bản riêng</strong>: sale xoá trên FB, bản chụp vẫn còn. <strong>Bấm vào dòng nghi vấn</strong> để xem nguyên cuộc hội thoại.</div>
+
+  {% if captured and captured.conv %}
+  <div class="alert alert-success py-2 px-3 mb-3 d-flex align-items-center flex-wrap gap-2" style="font-size:13px">
+    <i class="bi bi-camera-fill me-1"></i>
+    Đã chụp <strong>{{ '{:,}'.format(captured.conv) }} hội thoại</strong> · <strong>{{ '{:,}'.format(captured.msg) }} tin nhắn</strong> từ <strong>{{ captured.pages }} page</strong>.
+    {% if not counts.total %}<span class="text-muted">Chưa phát hiện xoá/chặn — hệ thống cần <strong>≥2 lần sync</strong> để so sánh (lần đầu chỉ chụp bản gốc).</span>{% endif %}
+    <a href="{{ url_for('fraud_detect.conversations') }}" class="btn btn-sm btn-success ms-auto"><i class="bi bi-chat-square-text me-1"></i>Xem tất cả hội thoại →</a>
+  </div>
+  {% endif %}
+
+  <div class="d-flex gap-3 flex-wrap mb-2">
+    <div class="stat"><div class="text-muted" style="font-size:12px">🔴 Xoá tin nhắn</div><div class="n text-danger">{{ counts.deleted_msg }}</div></div>
+    <div class="stat"><div class="text-muted" style="font-size:12px">🟡 Chặn khách</div><div class="n text-warning">{{ counts.blocked }}</div></div>
+    <div class="stat"><div class="text-muted" style="font-size:12px">🔵 Cắt liên lạc</div><div class="n text-primary">{{ counts.cut_contact }}</div></div>
+    <div class="stat"><div class="text-muted" style="font-size:12px">Tổng nghi vấn (mới)</div><div class="n">{{ counts.total }}</div></div>
+  </div>
+
+  <form method="get" class="toolbar" data-mfilter>
+    <div class="dr-picker-host">
+      {% set date_from = date_from %}{% set date_to = date_to %}
+      {% include "_date_range_picker.html" %}
+    </div>
+    <div><label>Loại cờ</label>
+      <select name="flag_type">
+        <option value="">— Tất cả —</option>
+        <option value="deleted_msg" {% if f_type=='deleted_msg' %}selected{% endif %}>🔴 Xoá tin nhắn</option>
+        <option value="blocked" {% if f_type=='blocked' %}selected{% endif %}>🟡 Chặn khách</option>
+        <option value="cut_contact" {% if f_type=='cut_contact' %}selected{% endif %}>🔵 Cắt liên lạc</option>
+      </select>
+    </div>
+    <div><label>Sale</label><input type="search" name="sale" value="{{ f_sale }}" placeholder="username sale..."></div>
+    <div><label>Trạng thái</label>
+      <select name="status">
+        <option value="new" {% if f_status=='new' %}selected{% endif %}>Mới</option>
+        <option value="confirmed" {% if f_status=='confirmed' %}selected{% endif %}>Đã xác nhận</option>
+        <option value="dismissed" {% if f_status=='dismissed' %}selected{% endif %}>Đã bỏ qua</option>
+        <option value="all" {% if f_status=='all' %}selected{% endif %}>Tất cả</option>
+      </select>
+    </div>
+    <button class="btn btn-danger fw-semibold"><i class="bi bi-funnel"></i> Lọc</button>
+  </form>
+
+  <table class="tbl">
+    <thead><tr>
+      <th>Phát hiện</th><th>Loại</th><th>Sale</th><th>Khách</th><th>Page</th>
+      <th>Chi tiết</th><th>Đơn</th><th>Xử lý</th>
+    </tr></thead>
+    <tbody>
+      {% for f in flags %}
+      <tr class="flag-row" data-conv="{{ f.conv_key }}" style="cursor:pointer" title="Bấm để xem nguyên cuộc hội thoại">
+        <td style="white-space:nowrap;color:#64748b">{{ f.detected_at.strftime('%d/%m %H:%M') if f.detected_at else '—' }}</td>
+        <td>
+          {% if f.flag_type=='deleted_msg' %}<span class="badge-del">Xoá tin</span>
+          {% elif f.flag_type=='blocked' %}<span class="badge-blk">Chặn khách</span>
+          {% else %}<span class="badge-cut">Cắt liên lạc</span>{% endif %}
+        </td>
+        <td>{% if f.sale %}<span class="sale-tag">{{ f.sale }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td>
+          <span class="d-inline-flex align-items-center gap-2">
+            {% if f.customer_avatar %}
+            <img src="{{ f.customer_avatar }}" alt="" style="width:26px;height:26px;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">
+            {% endif %}
+            {{ f.customer_name or '—' }}
+          </span>
+        </td>
+        <td style="color:#64748b">{{ f.page_name or f.page_id or '—' }}</td>
+        <td>{{ f.detail or '' }}</td>
+        <td>{{ f.order_ref or '—' }}</td>
+        <td style="white-space:nowrap">
+          {% if f.review_status=='new' %}
+          <form method="post" action="{{ url_for('fraud_detect.review', fid=f.id, action='confirm') }}" class="d-inline">
+            <button class="btn btn-sm btn-outline-danger" title="Xác nhận gian lận"><i class="bi bi-check-lg"></i></button>
+          </form>
+          <form method="post" action="{{ url_for('fraud_detect.review', fid=f.id, action='dismiss') }}" class="d-inline">
+            <button class="btn btn-sm btn-outline-secondary" title="Bỏ qua (không phải gian lận)"><i class="bi bi-x-lg"></i></button>
+          </form>
+          {% else %}
+          <span class="badge bg-{{ 'danger' if f.review_status=='confirmed' else 'secondary' }}">{{ 'Đã xác nhận' if f.review_status=='confirmed' else 'Bỏ qua' }}</span>
+          <form method="post" action="{{ url_for('fraud_detect.review', fid=f.id, action='reopen') }}" class="d-inline">
+            <button class="btn btn-sm btn-link p-0 ms-1" title="Mở lại" style="font-size:11px">mở lại</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" style="padding:24px;text-align:center;color:#94a3b8">Chưa có nghi vấn nào. (Cần cắm nguồn hội thoại — Pancake Chat hoặc Webhook — để bắt đầu chụp & phát hiện.)</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<!-- Modal: xem nguyên cuộc hội thoại (bản chụp — tin xoá tô đỏ) -->
+<div class="modal fade" id="convModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="cvTitle"><i class="bi bi-chat-dots me-1"></i>Hội thoại</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="background:#f1f5f9">
+        <div id="cvInfo" class="mb-2" style="font-size:12.5px;color:#475569"></div>
+        <div id="cvLoading" class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> Đang tải...</div>
+        <div id="cvBody"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+.cv-msg { max-width:75%; padding:7px 12px; border-radius:14px; margin:4px 0; font-size:13px; word-break:break-word; }
+.cv-in  { background:#fff; border:1px solid #e2e8f0; margin-right:auto; }
+.cv-out { background:#2563eb; color:#fff; margin-left:auto; }
+.cv-del { background:#fee2e2 !important; color:#991b1b !important; border:1px dashed #dc2626 !important; }
+.cv-time { font-size:10px; opacity:.65; margin-top:2px; }
+.cv-delbadge { display:inline-block; background:#dc2626; color:#fff; font-size:9.5px; font-weight:700; padding:0 6px; border-radius:6px; margin-bottom:2px; }
+</style>
+<script>
+(function(){
+  let modal;
+  function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+  async function openConv(convKey){
+    if(!modal) modal = new bootstrap.Modal(document.getElementById('convModal'));
+    document.getElementById('cvLoading').style.display='';
+    document.getElementById('cvBody').innerHTML='';
+    document.getElementById('cvInfo').innerHTML='';
+    modal.show();
+    try{
+      const res = await fetch('/bat-gian-lan/conv/'+encodeURIComponent(convKey));
+      const data = await res.json();
+      if(data.error) throw new Error(data.error);
+      const c = data.conv;
+      document.getElementById('cvTitle').innerHTML = '<i class="bi bi-chat-dots me-1"></i>Hội thoại — '+esc(c.customer_name||'Khách');
+      document.getElementById('cvInfo').innerHTML =
+        (c.customer_avatar?'<img src="'+c.customer_avatar+'" style="width:30px;height:30px;border-radius:50%;object-fit:cover;margin-right:6px" onerror="this.style.display=\'none\'">':'')+
+        '<b>'+esc(c.customer_name||'—')+'</b>'+
+        ' · Page: <b>'+esc(c.page_name||c.page_id||'—')+'</b>'+
+        (c.sale?' · Sale: <span class="sale-tag">'+esc(c.sale)+'</span>':'')+
+        (c.status==='blocked'?' · <span class="badge-blk">ĐANG CHẶN KHÁCH</span>':'')+
+        ' · '+data.messages.length+' tin (bản chụp)';
+      let html='';
+      let delCount=0;
+      data.messages.forEach(m=>{
+        const del = !!m.deleted_at; if(del) delCount++;
+        const t = m.sent_at ? m.sent_at.replace('T',' ').slice(0,16) : '';
+        html += '<div class="cv-msg cv-'+(m.direction==='out'?'out':'in')+(del?' cv-del':'')+'">'+
+          (del?'<div><span class="cv-delbadge">ĐÃ BỊ XOÁ — bản chụp cpqc</span></div>':'')+
+          esc(m.content)+
+          '<div class="cv-time">'+t+(m.direction==='out'?' · shop':' · khách')+'</div>'+
+        '</div>';
+      });
+      if(delCount) html = '<div class="alert alert-danger py-1 px-2 mb-2" style="font-size:12px">⚠ '+delCount+' tin trong hội thoại này đã bị xoá trên nguồn — nội dung dưới đây là bản chụp của hệ thống.</div>'+html;
+      document.getElementById('cvBody').innerHTML = html || '<div class="text-center text-muted py-3">Chưa chụp được tin nhắn nào.</div>';
+    }catch(e){
+      document.getElementById('cvBody').innerHTML='<div class="text-danger">Lỗi: '+esc(e.message||e)+'</div>';
+    }
+    document.getElementById('cvLoading').style.display='none';
+  }
+  document.querySelectorAll('.flag-row').forEach(tr=>{
+    tr.addEventListener('click', ev=>{
+      if(ev.target.closest('form,button,a')) return;  // không chặn nút Xử lý
+      const k = tr.dataset.conv; if(k) openConv(k);
+    });
+  });
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

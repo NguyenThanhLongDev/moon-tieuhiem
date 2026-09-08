@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Hướng dẫn nối LadiPage → POS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.min.css">
+<style>
+  :root{
+    --ink:#1A2130; --muted:#5A6474; --line:#E3E7EE;
+    --accent:#3A56D4; --accent-soft:#EAEEFF;
+    --pos:#15A34A; --pos-soft:#E7F6ED; --sheet:#0F9D58;
+    --warn:#B7791F; --warn-soft:#FBF3E2;
+    --shadow:0 1px 2px rgba(20,30,60,.05),0 6px 20px rgba(20,30,60,.06);
+  }
+  body{ background:#f5f6fa; color:var(--ink); font-size:14.5px; line-height:1.6; }
+  .page{max-width:720px; margin:0 auto; padding:26px 16px 80px}
+  .eyebrow{font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin:0 0 10px}
+  h1{font-size:clamp(24px,5vw,32px); line-height:1.15; font-weight:800; letter-spacing:-.02em; margin:0 0 12px}
+  .lede{font-size:16px; color:var(--muted); margin:0 0 24px; max-width:60ch}
+  .banner{display:flex; gap:12px; align-items:flex-start; background:var(--pos-soft);
+    border:1px solid #b7e2c7; border-radius:14px; padding:14px 16px; margin:0 0 30px; font-size:14px}
+  .banner .dot{color:var(--pos); font-weight:800; flex:none}
+  h2.big{font-size:19px; letter-spacing:-.01em; color:var(--ink); font-weight:800; margin:36px 0 4px;
+    padding-bottom:10px; border-bottom:1px solid var(--line)}
+  .sub{color:var(--muted); font-size:13.5px; margin:8px 0 18px}
+  ol.steps{list-style:none; counter-reset:s; margin:16px 0 0; padding:0}
+  ol.steps>li{counter-increment:s; position:relative; padding:0 0 20px 52px; margin:0}
+  ol.steps>li::before{content:counter(s); position:absolute; left:0; top:-2px; width:34px; height:34px;
+    border-radius:10px; background:var(--accent); color:#fff; font-weight:800; font-size:15px;
+    display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow)}
+  ol.steps>li::after{content:""; position:absolute; left:16.5px; top:36px; bottom:2px; width:2px; background:var(--line)}
+  ol.steps>li:last-child::after{display:none}
+  ol.steps .st{font-weight:600}
+  ol.steps .note{color:var(--muted); font-size:13px; margin-top:3px}
+  kbd{font-family:inherit; font-weight:700; font-size:12.5px; background:var(--accent-soft); color:var(--accent);
+    padding:2px 8px; border-radius:6px; white-space:nowrap; border:1px solid #ccd6ff}
+  kbd.pos{background:var(--pos-soft); color:var(--pos); border-color:#b7e2c7}
+  .done{display:flex; gap:10px; background:var(--pos-soft); border:1px solid #b7e2c7;
+    border-radius:12px; padding:12px 14px; margin-top:6px; font-size:13.5px}
+  .done b{color:var(--pos)}
+  .cardx{background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px 20px;
+    box-shadow:var(--shadow); margin-top:16px}
+  .warnx{display:flex; gap:12px; align-items:flex-start; background:var(--warn-soft);
+    border:1px solid #ecd9a8; border-radius:12px; padding:13px 15px; margin-top:16px; font-size:13.5px}
+  .warnx .dot{color:var(--warn); font-weight:800; flex:none}
+  .shot{margin-top:10px; background:#fff; border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px; font-size:13px; box-shadow:var(--shadow); max-width:430px}
+  .shot .mi{padding:5px 10px; border-radius:7px; color:var(--muted)}
+  .shot .mi.on{background:var(--accent-soft); color:var(--accent); font-weight:700}
+  .shot-row{display:flex; align-items:center; gap:10px; padding:7px 8px; border-bottom:1px dashed var(--line); font-weight:600}
+  .shot-row:last-child{border-bottom:none}
+  .shot-row .dim{color:var(--muted); font-weight:400; margin-left:auto}
+  .shot-row .keep{font-size:11px; color:var(--sheet); font-weight:700; white-space:nowrap}
+  .shot-row.add{background:var(--pos-soft); border-radius:8px}
+  .shot-row .pick{color:var(--pos); font-weight:800; white-space:nowrap}
+  .shot-menu{margin:6px 0 0 auto; width:150px; border:1px solid var(--line); border-radius:9px; overflow:hidden; font-size:13px}
+  .shot-menu>div{padding:6px 12px; color:var(--muted)}
+  .shot-menu>div.on{background:var(--accent-soft); color:var(--accent); font-weight:700}
+  .shot-menu>div.red{color:#C0392B}
+  .chip{display:inline-block; font-size:12.5px; font-weight:600; padding:4px 12px; border-radius:20px;
+    background:var(--accent-soft); color:var(--accent); border:1px solid #ccd6ff; margin:3px 4px 0 0}
+  .ref dl{display:grid; grid-template-columns:auto 1fr; gap:2px 18px; margin:14px 0 0; font-size:13.5px}
+  .ref dt{color:var(--muted); white-space:nowrap}
+  .ref dd{margin:0; font-weight:600; word-break:break-all}
+  .foot{margin-top:40px; padding-top:16px; border-top:1px solid var(--line); color:var(--muted); font-size:12.5px}
+</style>
+</head>
+<body>
+{% include "_main_nav.html" %}
+
+<div class="page">
+  <p class="eyebrow"><a href="{{ url_for('ladipage.index') }}" style="text-decoration:none;color:inherit"><i class="bi bi-arrow-left"></i> Đơn Ladi</a> · Hướng dẫn</p>
+  <h1>Cho đơn LadiPage tự nhảy vào POS</h1>
+  <p class="lede">Khách đặt hàng trên ladipage là đơn tự vào Pancake POS — <b>vẫn giữ nguyên Google Sheet</b>. Không copy tay, không mất đơn.</p>
+
+  <div class="banner"><span class="dot">✓</span>
+    <div><b>Đã chạy thật &amp; kiểm chứng.</b> Điền form trên trang thật → đơn tự vào POS ở trạng thái "Mới", đủ tên · SĐT · địa chỉ (tự tách tỉnh/quận) · size · màu · combo. Việc còn lại chỉ là bật cho từng form.</div>
+  </div>
+
+  <h2 class="big">Cách A · Bật POS cho form đang chạy</h2>
+  <p class="sub">Thêm POS vào cấu hình sẵn có — Google Sheet giữ nguyên. Làm ~30 giây/form. Làm trong <b>app.ladipage.com</b>.</p>
+
+  <ol class="steps">
+    <li>
+      <div class="st">Vào <kbd>Landing Pages</kbd> → <kbd>Cấu hình Form</kbd></div>
+      <div class="note">Menu bên trái trong LadiPage.</div>
+      <div class="shot">
+        <div class="mi">Trang</div><div class="mi">Thư viện mẫu</div>
+        <div class="mi on">Cấu hình Form ←</div><div class="mi">Quản lý Tags</div><div class="mi">Data Leads</div>
+      </div>
+    </li>
+    <li>
+      <div class="st">Tìm cấu hình của form cần bật</div>
+      <div class="note">Mỗi form có 1 cấu hình riêng (thường trùng tên trang). Cột "Số tài khoản liên kết" = <b>1</b> nghĩa là mới chỉ có Google Sheet.</div>
+    </li>
+    <li>
+      <div class="st">Bấm <kbd>⋯</kbd> cuối dòng → <kbd>Chỉnh sửa</kbd></div>
+      <div class="shot">
+        <div class="shot-row"><span>polo0508</span><span class="dim">1 · Form Data</span><span style="font-weight:800;color:var(--muted)">⋯</span></div>
+        <div class="shot-menu"><div class="on">✎ Chỉnh sửa ←</div><div>Phân quyền</div><div>Blacklist IP</div><div class="red">Xóa</div></div>
+      </div>
+    </li>
+    <li>
+      <div class="st">Bấm <kbd>⊕ Thêm tài khoản liên kết</kbd></div>
+      <div class="note">Trong danh sách, tìm dòng <kbd class="pos">POS Moon Test | Gửi API qua LadiPage</kbd> → bấm <kbd>Chọn</kbd>. <i>(Đã tạo sẵn — không phải tạo lại, không cần điền gì.)</i></div>
+      <div class="shot">
+        <div class="shot-row"><span>nguyendoanduc…@gmail.com</span><span class="dim">Google Sheets</span><span class="keep">giữ nguyên</span></div>
+        <div class="shot-row add"><span>POS Moon Test | Gửi API qua LadiPage</span><span class="dim">API</span><span class="pick">Chọn ←</span></div>
+      </div>
+    </li>
+    <li>
+      <div class="st">Bấm <kbd>Hoàn tất</kbd></div>
+      <div class="done"><b>✓ Xong.</b><span>Cấu hình giờ có <b>2 nơi nhận</b>: Google Sheet + POS. Đơn tự về cả hai — áp dụng ngay, khỏi xuất bản lại trang.</span></div>
+    </li>
+  </ol>
+
+  <div class="warnx"><span class="dot">!</span>
+    <div>1 cấu hình chứa <b>tối đa 3 nơi nhận</b> → cứ thêm POS thoải mái mà <b>không mất</b> Google Sheet. Nếu bấm nhầm, xoá dòng POS Moon Test bằng biểu tượng thùng rác là về như cũ.</div>
+  </div>
+
+  <h2 class="big">Áp dụng cho cả ~40 ladipage</h2>
+  <p class="sub">LadiPage không có nút bật hàng loạt — nhưng mỗi form chỉ ~30 giây, làm 1 lần là xong vĩnh viễn.</p>
+  <div class="cardx">
+    <b>Kế hoạch 1 buổi (~20–30 phút):</b>
+    <ol style="margin:10px 0 0; padding-left:20px">
+      <li>Mở <kbd>Cấu hình Form</kbd> — thấy toàn bộ danh sách (mỗi ladipage 1 dòng).</li>
+      <li>Đi từ trên xuống, mỗi dòng lặp lại đúng <b>Cách A</b>.</li>
+      <li>Dòng nào cột "Số tài khoản liên kết" nhảy lên <b>2</b> = dòng đó xong. Hết danh sách là phủ 100%.</li>
+    </ol>
+    <div style="margin-top:10px">
+      <span class="chip">Ưu tiên: form đang ra đơn</span><span class="chip">len tồn</span>
+      <span class="chip">Minh Phương 2</span><span class="chip">cherry</span>
+      <span class="chip">polo nam tồn</span><span class="chip">Test mẫu nữ 4/8</span><span class="chip">28 sm</span>
+    </div>
+  </div>
+
+  <h2 class="big">Cách B · Form mới (mỗi ngày)</h2>
+  <p class="sub">Để form mới tự có POS mà khỏi làm lại.</p>
+  <div class="cardx">
+    <b>Nhân bản (clone) một ladipage đã bật POS.</b> Khi clone, cấu hình đi theo → form mới tự đẩy POS + Sheet. Chọn 1 trang đã làm Cách A làm "trang mẫu", sau này cứ clone trang đó ra chỉnh nội dung.
+    <div style="margin-top:8px; color:var(--muted); font-size:13px">Hoặc: dựng form mới xong thì làm lại <b>Cách A</b> cho nó.</div>
+  </div>
+
+  <h2 class="big">Kiểm tra đã chạy chưa</h2>
+  <div class="cardx">
+    <ol style="margin:0; padding-left:20px">
+      <li>Mở trang <a href="{{ url_for('ladipage.index') }}"><b>Đơn Ladi</b></a> (chính là trang theo dõi).</li>
+      <li>Vào ladipage vừa bật, điền thử 1 đơn (ghi tên "TEST – xoá giúp").</li>
+      <li>Trong vài giây, đơn hiện ở Đơn Ladi với nhãn <kbd class="pos">✓ Đã vào POS</kbd> là chuẩn. Xoá đơn test trong POS sau.</li>
+    </ol>
+    <div class="warnx" style="margin-top:14px"><span class="dot">↻</span>
+      <div>Nếu đơn hiện <b>✗ POS lỗi</b> (POS thỉnh thoảng nghẽn) → bấm <b>"Đẩy lại"</b>. Vẫn lỗi thì nhìn đủ thông tin để bấm tay, rồi bấm <b>"Đã bấm tay"</b>. <b>Không đơn nào bị mất.</b></div>
+    </div>
+  </div>
+
+  <div class="cardx ref">
+    <div style="font-weight:800; font-size:15px">Thông tin cần nhớ</div>
+    <dl>
+      <dt>Tài khoản cần chọn</dt><dd>POS Moon Test | Gửi API qua LadiPage</dd>
+      <dt>Trang theo dõi đơn</dt><dd>menu "Đơn Ladi" — moon.tieuhiem.com/ladipage/</dd>
+      <dt>Đơn vào POS ở</dt><dd>trạng thái "Mới" → NV gắn sản phẩm + chọn ĐVVC như thường</dd>
+    </dl>
+  </div>
+
+  <p class="foot">Cơ chế: form ladipage bật "Gửi API qua LadiPage" → LadiPage tự bắn đơn về moon → moon lưu lại rồi tạo đơn trong POS. Google Sheet và POS chạy song song, độc lập.</p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

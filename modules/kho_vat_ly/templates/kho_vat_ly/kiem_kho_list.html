@@ -1,0 +1,89 @@
+{% extends "kho_vat_ly/base.html" %}
+{% block title %}Kiểm Kho{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div>
+    <h1><i class="bi bi-clipboard-check me-2"></i>Kiểm Kho</h1>
+    <p class="text-muted mb-0">So sánh tồn kho thực tế với hệ thống và POS</p>
+  </div>
+  <a href="{{ url_for('kho_vat_ly.kiem_kho_moi') }}" class="btn btn-primary btn-lg">
+    <i class="bi bi-plus-circle me-1"></i> Tạo phiếu kiểm kho mới
+  </a>
+</div>
+
+{% if not stocktakes %}
+<div class="card">
+  <div class="card-body text-center py-5 text-muted">
+    <i class="bi bi-clipboard-x" style="font-size:3rem;opacity:.3;"></i>
+    <p class="mt-3">Chưa có phiếu kiểm kho nào.<br>Nhấn nút để tạo phiếu đầu tiên.</p>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Mã phiếu</th>
+          <th>Trạng thái</th>
+          <th class="text-center d-none d-sm-table-cell">Số SP</th>
+          <th class="text-center">Chênh lệch</th>
+          <th class="d-none d-lg-table-cell">Ghi chú</th>
+          <th class="d-none d-md-table-cell">Người tạo</th>
+          <th class="d-none d-md-table-cell">Ngày tạo</th>
+          <th class="d-none d-lg-table-cell">Người XN</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for st in stocktakes %}
+        <tr>
+          <td>
+            <strong>{{ st.stocktake_code }}</strong>
+            <div class="d-md-none small text-muted mt-1">{{ fmt_hcm(st.created_at, '%d/%m/%Y') if st.created_at else '—' }} · {{ st.created_by or '—' }}</div>
+          </td>
+          <td>
+            {% if st.status == 'confirmed' %}
+              <span class="badge bg-success">Đã xác nhận</span>
+            {% elif st.status == 'cancelled' %}
+              <span class="badge bg-secondary">Đã huỷ</span>
+            {% else %}
+              <span class="badge bg-warning text-dark">Nháp</span>
+            {% endif %}
+          </td>
+          <td class="text-center d-none d-sm-table-cell">{{ st.item_count or 0 }}</td>
+          <td class="text-center">
+            {% if st.total_diff %}
+              <span class="badge bg-danger">± {{ fmt_qty(st.total_diff) }}</span>
+            {% else %}
+              <span class="text-success">✓ Khớp</span>
+            {% endif %}
+          </td>
+          <td class="text-muted small d-none d-lg-table-cell">{{ st.note or '—' }}</td>
+          <td class="small d-none d-md-table-cell">{{ st.created_by or '—' }}</td>
+          <td class="small text-muted d-none d-md-table-cell">{{ fmt_hcm(st.created_at, '%d/%m/%Y %H:%M') if st.created_at else '—' }}</td>
+          <td class="small d-none d-lg-table-cell">{{ st.confirmed_by or '—' }}</td>
+          <td class="d-flex gap-1">
+            <a href="{{ url_for('kho_vat_ly.kiem_kho_detail', st_id=st.id) }}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-eye"></i><span class="d-none d-sm-inline ms-1">Xem</span>
+            </a>
+            {% if st.status in ['draft','cancelled'] %}
+            <form method="POST" action="{{ url_for('kho_vat_ly.kiem_kho_xoa', st_id=st.id) }}"
+                  onsubmit="return confirm('Xoá hẳn phiếu {{ st.stocktake_code }}?\nHành động không hoàn tác.')">
+              <button type="submit" class="btn btn-sm btn-outline-danger" title="Xoá phiếu">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,219 @@
+{% extends "kho_vat_ly/base.html" %}
+{% block title %}Chi tiết sản phẩm — {{ prod.sku }}{% endblock %}
+
+{% block content %}
+<style>
+.xem-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:18px; }
+.xem-header { background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:12px 18px; display:flex; align-items:center; gap:10px; }
+.xem-header .title { font-weight:700; font-size:14px; color:#1e293b; }
+.xem-header .sub   { font-size:12px; color:#64748b; margin-left:auto; }
+.info-row { display:flex; flex-wrap:wrap; gap:0; border-bottom:1px solid #f1f5f9; }
+.info-row:last-child { border-bottom:none; }
+.info-cell { padding:10px 18px; min-width:140px; flex:1; }
+.info-cell .lbl { font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; }
+.info-cell .val { font-size:14px; color:#1e293b; font-weight:500; }
+.var-row { display:flex; align-items:center; gap:14px; padding:12px 18px; border-bottom:1px solid #f1f5f9; }
+.var-row:last-child { border-bottom:none; }
+.var-idx { width:28px; min-width:28px; height:28px; border-radius:50%; background:#ede9fe; color:#5b21b6; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+.var-name { font-size:14px; font-weight:600; color:#1e293b; min-width:120px; flex:1; }
+.var-name.unnamed { color:#94a3b8; font-weight:400; font-style:italic; }
+.qty-pill { display:flex; align-items:center; gap:5px; border-radius:8px; padding:6px 12px; font-size:13px; font-weight:700; min-width:80px; justify-content:center; }
+.pill-pos { background:#e8f5e9; color:#2e7d32; }
+.pill-vl  { background:#ede9fe; color:#5b21b6; }
+.pill-lbl { font-size:10px; font-weight:500; opacity:.75; margin-top:1px; }
+.qty-block { text-align:center; }
+.stat-big { font-size:22px; font-weight:800; line-height:1; }
+.wh-row { display:flex; align-items:center; justify-content:space-between; padding:8px 18px; border-bottom:1px solid #f8fafc; font-size:13px; }
+.wh-row:last-child { border-bottom:none; }
+</style>
+
+<div style="max-width:800px;margin:0 auto;padding:16px">
+
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb" style="font-size:13px">
+      <li class="breadcrumb-item"><a href="{{ url_for('.san_pham_list') }}">Sản phẩm</a></li>
+      <li class="breadcrumb-item active">{{ prod.sku }}</li>
+    </ol>
+  </nav>
+
+  {# Thanh tồn tổng + nút Sửa #}
+  <div style="display:flex;align-items:stretch;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+    <div class="xem-card" style="flex:1;min-width:220px;padding:16px 22px">
+      <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+        <div class="qty-block">
+          <div class="stat-big text-success">{{ qty_vl_total | int }}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:3px">Tồn vật lý</div>
+        </div>
+        <div style="width:1px;height:40px;background:#e2e8f0;flex-shrink:0"></div>
+        <div class="qty-block">
+          <div class="stat-big text-primary">{{ qty_pos_total | int }}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:3px">Tồn POS</div>
+        </div>
+        {% if variants|length > 1 %}
+        <div style="width:1px;height:40px;background:#e2e8f0;flex-shrink:0"></div>
+        <div class="qty-block">
+          <div class="stat-big" style="color:#7c3aed">{{ variants|length }}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:3px">Mẫu mã</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <div style="display:flex;align-items:center">
+      <a href="{{ url_for('.san_pham_sua', product_id=prod.id) }}"
+         class="btn btn-outline-primary btn-sm" style="font-size:13px;padding:8px 18px;white-space:nowrap">
+        <i class="bi bi-pencil me-1"></i>Sửa sản phẩm
+      </a>
+    </div>
+  </div>
+
+  {# THÔNG TIN CƠ BẢN #}
+  <div class="xem-card">
+    <div class="xem-header">
+      <i class="bi bi-info-circle-fill" style="color:#3b82f6"></i>
+      <span class="title">Thông tin cơ bản</span>
+      <span class="sub">ID: {{ prod.id }}</span>
+    </div>
+    <div class="info-row">
+      <div class="info-cell">
+        <div class="lbl">Tên sản phẩm</div>
+        <div class="val">{{ prod.name }}</div>
+      </div>
+      <div class="info-cell">
+        <div class="lbl">SKU</div>
+        <div class="val" style="font-family:monospace;font-weight:700">{{ prod.sku }}</div>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="info-cell">
+        <div class="lbl">Đơn vị tính</div>
+        <div class="val">{{ prod.unit or '—' }}</div>
+      </div>
+      <div class="info-cell">
+        <div class="lbl">Danh mục</div>
+        <div class="val">{{ prod.category or '—' }}</div>
+      </div>
+      <div class="info-cell">
+        <div class="lbl">Tồn tối thiểu</div>
+        <div class="val">{{ prod.min_qty or 0 }}</div>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="info-cell">
+        <div class="lbl">Giá nhập</div>
+        <div class="val text-success">{{ "{:,.0f}".format(prod.gia_nhap or 0) }} đ</div>
+      </div>
+      <div class="info-cell">
+        <div class="lbl">Giá bán</div>
+        <div class="val text-primary">{{ "{:,.0f}".format(prod.gia_ban or 0) }} đ</div>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="info-cell" style="flex:none;width:100%">
+        <div class="lbl">Mã SKU</div>
+        <div class="val" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <strong>{{ prod.sku or '—' }}</strong>
+          {# Hiển thị các shop có bán sản phẩm này #}
+          {% set seen_shops = [] %}
+          {% for v in variants %}
+            {% if v.shop_name and v.shop_name not in seen_shops %}
+              {% if seen_shops.append(v.shop_name) %}{% endif %}
+              {% if v.pos_shop_id %}
+              <a href="https://pos.pancake.vn/shop/{{ v.pos_shop_id }}/overview" target="_blank" rel="noopener"
+                 style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:#0369a1;
+                        background:#e0f2fe;border:1px solid #bae6fd;padding:1px 8px;border-radius:10px;text-decoration:none">
+                <i class="bi bi-shop"></i>{{ v.shop_name }}<i class="bi bi-box-arrow-up-right" style="font-size:10px;opacity:.7"></i>
+              </a>
+              {% else %}
+              <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#64748b;
+                           background:#f1f5f9;border:1px solid #e2e8f0;padding:1px 8px;border-radius:10px">
+                <i class="bi bi-shop"></i>{{ v.shop_name }}
+              </span>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# BIẾN THỂ — chỉ hiển thị khi có nhiều hơn 1 biến thể thực sự #}
+  {% if variants|length > 1 %}
+  <div class="xem-card">
+    <div class="xem-header">
+      <i class="bi bi-layers-fill" style="color:#7c3aed"></i>
+      <span class="title">Mẫu mã ({{ variants|length }})</span>
+      <span class="sub" style="font-size:11px;color:#94a3b8">Tồn POS = Pancake · Tồn VL = Kho nội bộ</span>
+    </div>
+    {% for v in variants %}
+    <div class="var-row">
+      <div class="var-idx">{{ loop.index }}</div>
+      <div class="var-name {% if not v.variant_name %}unnamed{% endif %}">
+        {{ v.display_name }}
+        {% if not v.variant_name %}
+        <span style="font-size:10px;color:#f59e0b;font-style:normal;margin-left:4px">
+          <i class="bi bi-exclamation-circle me-1"></i>Chưa có tên
+        </span>
+        {% endif %}
+        {% if v.shop_name %}
+        <div style="margin-top:3px">
+          {% if v.pos_shop_id %}
+          <a href="https://pos.pancake.vn/shop/{{ v.pos_shop_id }}/overview" target="_blank" rel="noopener"
+             style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:#0369a1;
+                    background:#e0f2fe;border:1px solid #bae6fd;padding:1px 8px;border-radius:10px;text-decoration:none">
+            <i class="bi bi-shop"></i>{{ v.shop_name }}<i class="bi bi-box-arrow-up-right" style="font-size:10px;opacity:.7"></i>
+          </a>
+          {% else %}
+          <span style="display:inline-block;font-size:11px;font-weight:600;color:#0369a1;
+                       background:#e0f2fe;border:1px solid #bae6fd;padding:1px 8px;border-radius:10px">
+            <i class="bi bi-shop me-1"></i>{{ v.shop_name }}
+          </span>
+          {% endif %}
+        </div>
+        {% else %}
+        <div style="margin-top:3px">
+          <span style="display:inline-block;font-size:11px;color:#94a3b8;font-style:italic">
+            <i class="bi bi-question-circle me-1"></i>Chưa xác định shop
+          </span>
+        </div>
+        {% endif %}
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div class="qty-pill pill-pos">
+          <div>
+            <div style="font-size:18px;font-weight:800;line-height:1">{{ v.pos_remain_qty | int }}</div>
+            <div class="pill-lbl">Tồn POS</div>
+          </div>
+        </div>
+        <div class="qty-pill pill-vl">
+          <div>
+            <div style="font-size:18px;font-weight:800;line-height:1">{{ v.qty_vl | int }}</div>
+            <div class="pill-lbl">Tồn VL</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# TỒN THEO KHO #}
+  {% set wh_has = wh_stock | selectattr('qty', '>', 0) | list %}
+  {% if wh_has %}
+  <div class="xem-card">
+    <div class="xem-header">
+      <i class="bi bi-building" style="color:#0ea5e9"></i>
+      <span class="title">Tồn theo kho vật lý</span>
+    </div>
+    {% for w in wh_stock %}
+    {% if w.qty > 0 %}
+    <div class="wh-row">
+      <span style="color:#334155">{{ w.wh_name }}</span>
+      <span style="font-weight:700;color:#0ea5e9">{{ w.qty | int }}</span>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

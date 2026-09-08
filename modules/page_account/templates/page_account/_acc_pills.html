@@ -1,0 +1,20 @@
+{# ── Nút chuyển chế độ cho mục gộp "Tài khoản QC" (TK QC · Chi phí hôm nay) ──
+   Cách dùng: {% set acc_view = 'accounts'|'chiphi' %}{% include "page_account/_acc_pills.html" %} #}
+<style>
+  .accv-pills { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 14px; }
+  .accv-pill { padding:7px 16px; border-radius:20px; font-size:13px; font-weight:600; text-decoration:none;
+               color:#475569; background:#fff; border:1px solid #e2e8f0; display:inline-flex; align-items:center; gap:6px;
+               box-shadow:0 1px 3px rgba(0,0,0,.04); transition:.15s; }
+  .accv-pill:hover { border-color:#F59E0B; color:#b45309; }
+  .accv-pill.active { background:#F59E0B; color:#fff; border-color:#F59E0B; }
+</style>
+<div class="accv-pills">
+  <a class="accv-pill {% if acc_view == 'accounts' %}active{% endif %}"
+     href="{{ url_for('page_account.all_ad_accounts') }}">
+    <i class="bi bi-graph-up-arrow"></i>Tài khoản QC
+  </a>
+  <a class="accv-pill {% if acc_view == 'chiphi' %}active{% endif %}"
+     href="{{ url_for('page_account.chi_phi_hom_nay') }}">
+    <i class="bi bi-currency-dollar"></i>Chi phí hôm nay
+  </a>
+</div>

@@ -1,0 +1,176 @@
+{% extends "hr/_base.html" %}
+{% block title %}{{ profile.full_name or profile.username }} — HR{% endblock %}
+{% block content %}
+
+{% set status = profile.status or 'draft' %}
+{% set status_label = {
+  'draft': '📝 Bản nháp',
+  'submitted': '⏳ Chờ duyệt',
+  'approved': '✅ Đã duyệt',
+  'rejected': '⚠️ Cần bổ sung'
+}[status] %}
+
+<div class="d-flex align-items-center gap-2 mb-3">
+  <a href="{{ url_for('hr.employees_list') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Danh sách
+  </a>
+  <h5 class="mb-0" style="flex:1">
+    <i class="bi bi-person-vcard text-warning"></i>
+    {{ profile.full_name or '(chưa có tên)' }}
+    <small class="text-muted">— {{ profile.username }}</small>
+  </h5>
+  <a href="{{ url_for('hr.employee_contracts', uid=profile.user_id) }}" class="btn btn-sm" style="background:#F59E0B;color:#fff">
+    <i class="bi bi-file-earmark-text"></i> Hợp đồng lao động
+  </a>
+  <span class="status-badge status-{{ status }}">{{ status_label }}</span>
+</div>
+
+{% if status == 'rejected' and profile.admin_note %}
+<div class="alert-note">
+  <div class="label">⚠️ Đã yêu cầu bổ sung:</div>
+  <div style="margin-top:6px">{{ profile.admin_note }}</div>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="hr-card">
+      <div class="hr-section-hdr">Thông tin cơ bản</div>
+      <div class="row g-3 small">
+        <div class="col-md-6"><strong>Họ và tên:</strong> {{ profile.full_name or '—' }}</div>
+        <div class="col-md-3"><strong>SĐT:</strong> {{ profile.phone or '—' }}</div>
+        <div class="col-md-3"><strong>Email cá nhân:</strong> {{ profile.personal_email or '—' }}</div>
+        <div class="col-md-3"><strong>Ngày sinh:</strong> {{ profile.dob.strftime('%d/%m/%Y') if profile.dob else '—' }}</div>
+        <div class="col-md-3"><strong>Giới tính:</strong>
+          {% if profile.gender=='male' %}Nam{% elif profile.gender=='female' %}Nữ{% elif profile.gender=='other' %}Khác{% else %}—{% endif %}
+        </div>
+        <div class="col-md-3"><strong>CCCD:</strong> <code>{{ profile.id_card_number or '—' }}</code></div>
+        <div class="col-md-3"><strong>Ngày vào CT:</strong> {{ profile.hire_date.strftime('%d/%m/%Y') if profile.hire_date else '—' }}</div>
+
+        <div class="col-md-6"><strong>Vai trò:</strong> <span class="badge bg-light text-dark border">{{ profile.role }}</span></div>
+        <div class="col-md-6"><strong>Team:</strong> {{ profile.team_name or '— Không team —' }}</div>
+      </div>
+
+      <div class="hr-section-hdr">Địa chỉ</div>
+      <div class="row g-3 small">
+        <div class="col-md-6">
+          <strong>Quê quán / thường trú:</strong><br>
+          <span class="text-muted">{{ profile.hometown_address or '—' }}</span>
+        </div>
+        <div class="col-md-6">
+          <strong>Nơi ở hiện tại:</strong><br>
+          <span class="text-muted">{{ profile.current_address or '—' }}</span>
+        </div>
+      </div>
+
+      <div class="hr-section-hdr">Liên hệ khẩn cấp</div>
+      <div class="row g-3 small">
+        <div class="col-md-6"><strong>Họ tên:</strong> {{ profile.emergency_contact_name or '—' }}</div>
+        <div class="col-md-6"><strong>SĐT:</strong> {{ profile.emergency_contact_phone or '—' }}</div>
+      </div>
+
+      <div class="hr-section-hdr text-muted">Metadata</div>
+      <div class="row g-2 small text-muted">
+        <div class="col-md-4">Gửi duyệt: {{ profile.submitted_at.strftime('%d/%m/%Y %H:%M') if profile.submitted_at else '—' }}</div>
+        <div class="col-md-4">Duyệt lúc: {{ profile.approved_at.strftime('%d/%m/%Y %H:%M') if profile.approved_at else '—' }}</div>
+        <div class="col-md-4">Cập nhật: {{ profile.updated_at.strftime('%d/%m/%Y %H:%M') if profile.updated_at else '—' }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="hr-card">
+      <div class="hr-section-hdr">Ảnh hồ sơ</div>
+      <div class="mb-3">
+        <div class="small fw-semibold mb-1">Ảnh chân dung</div>
+        <div class="upload-box" onclick="document.getElementById('up-photo').click()">
+          {% if profile.photo_path %}
+            <img src="{{ url_for('hr.serve_file', rel_path=profile.photo_path) }}" alt="Selfie">
+          {% else %}
+            <div class="placeholder-text">
+              <i class="bi bi-camera"></i>
+              Chưa có ảnh
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="row g-2">
+        <div class="col-6">
+          <div class="small fw-semibold mb-1">CCCD trước</div>
+          <div class="upload-box" onclick="document.getElementById('up-idf').click()">
+            {% if profile.id_card_front_path %}
+              <img src="{{ url_for('hr.serve_file', rel_path=profile.id_card_front_path) }}">
+            {% else %}
+              <div class="placeholder-text"><i class="bi bi-card-image"></i>Chưa có</div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="small fw-semibold mb-1">CCCD sau</div>
+          <div class="upload-box" onclick="document.getElementById('up-idb').click()">
+            {% if profile.id_card_back_path %}
+              <img src="{{ url_for('hr.serve_file', rel_path=profile.id_card_back_path) }}">
+            {% else %}
+              <div class="placeholder-text"><i class="bi bi-card-image"></i>Chưa có</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% if is_admin %}
+      <div class="text-muted small mt-2">
+        💡 Bạn (admin/kế toán) có thể upload thay nhân viên.
+      </div>
+      {% endif %}
+    </div>
+
+    {% if is_admin %}
+    <div class="hr-card">
+      <div class="hr-section-hdr">Thao tác duyệt</div>
+
+      {% if status == 'submitted' or status == 'draft' or status == 'rejected' %}
+      <form method="post" action="{{ url_for('hr.employee_approve', uid=profile.user_id) }}" class="mb-3">
+        <button type="submit" class="btn-brand btn w-100" {% if status != 'submitted' %}onclick="return confirm('Hồ sơ chưa được gửi duyệt chính thức. Duyệt luôn?')"{% endif %}>
+          <i class="bi bi-check-circle-fill"></i> Duyệt hồ sơ
+        </button>
+      </form>
+
+      <form method="post" action="{{ url_for('hr.employee_reject', uid=profile.user_id) }}">
+        <label class="form-label small">Yêu cầu bổ sung:</label>
+        <textarea name="admin_note" class="form-control mb-2" rows="3" placeholder="Vd: Thiếu ảnh CCCD mặt sau, SĐT chưa đúng format…" required></textarea>
+        <button type="submit" class="btn btn-outline-warning w-100">
+          <i class="bi bi-exclamation-triangle"></i> Yêu cầu bổ sung
+        </button>
+      </form>
+      {% elif status == 'approved' %}
+      <div class="text-success small mb-2"><i class="bi bi-check-circle-fill"></i> Đã duyệt</div>
+      <form method="post" action="{{ url_for('hr.employee_reject', uid=profile.user_id) }}">
+        <label class="form-label small">Mở duyệt lại (yêu cầu bổ sung mới):</label>
+        <textarea name="admin_note" class="form-control mb-2" rows="2" required></textarea>
+        <button type="submit" class="btn btn-sm btn-outline-secondary w-100">
+          <i class="bi bi-arrow-counterclockwise"></i> Yêu cầu cập nhật
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# Upload forms — admin/kế toán có thể up thay NV #}
+{% if is_admin %}
+<form method="post" action="{{ url_for('hr.employee_upload', uid=profile.user_id) }}" enctype="multipart/form-data" id="upform-photo" style="display:none">
+  <input type="hidden" name="kind" value="photo">
+  <input type="file" id="up-photo" name="file" accept="image/*" capture="user" onchange="document.getElementById('upform-photo').submit()">
+</form>
+<form method="post" action="{{ url_for('hr.employee_upload', uid=profile.user_id) }}" enctype="multipart/form-data" id="upform-idf" style="display:none">
+  <input type="hidden" name="kind" value="id_front">
+  <input type="file" id="up-idf" name="file" accept="image/*" capture="environment" onchange="document.getElementById('upform-idf').submit()">
+</form>
+<form method="post" action="{{ url_for('hr.employee_upload', uid=profile.user_id) }}" enctype="multipart/form-data" id="upform-idb" style="display:none">
+  <input type="hidden" name="kind" value="id_back">
+  <input type="file" id="up-idb" name="file" accept="image/*" capture="environment" onchange="document.getElementById('upform-idb').submit()">
+</form>
+{% endif %}
+
+{% endblock %}

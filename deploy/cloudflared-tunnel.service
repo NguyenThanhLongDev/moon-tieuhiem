@@ -1,0 +1,21 @@
+[Unit]
+Description=POS Dashboard Cloudflared Tunnel (localhost:5050)
+After=network-online.target
+Wants=network-online.target pos-dashboard.service
+Requires=pos-dashboard.service
+
+[Service]
+Type=simple
+User=admin1
+WorkingDirectory=/home/admin1/posbottieuhiem
+# Optional: nếu có named tunnel thì đặt biến ở file này
+# (không có file vẫn chạy quick tunnel như cũ).
+EnvironmentFile=-/home/admin1/posbottieuhiem/deploy/cloudflared-tunnel.env
+# Script sẽ tự dùng ./tools/cloudflared và mở tunnel tới http://localhost:5050
+ExecStart=/home/admin1/posbottieuhiem/run_tunnel_cloudflared.sh 5050
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+

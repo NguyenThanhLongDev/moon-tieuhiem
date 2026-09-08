@@ -1,0 +1,162 @@
+{% extends "hr/_base.html" %}
+{% block title %}Ký hợp đồng — {{ contract.contract_number }}{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center gap-2 mb-3">
+  <a href="{{ url_for('hr.employee_contracts', uid=contract.user_id) }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Quay lại
+  </a>
+  <h5 class="mb-0">
+    <i class="bi bi-pen text-warning"></i>
+    Ký xác nhận hợp đồng
+  </h5>
+</div>
+
+<div class="hr-card">
+  <div class="hr-card-title"><i class="bi bi-file-earmark-text"></i> Thông tin hợp đồng</div>
+  <div class="row g-3 small">
+    <div class="col-md-4"><strong>Số HĐ:</strong> {{ contract.contract_number }}</div>
+    <div class="col-md-4"><strong>Loại:</strong> {{ type_labels.get(contract.contract_type) }}</div>
+    <div class="col-md-4"><strong>Công ty:</strong> {{ contract.company_name }}</div>
+    <div class="col-md-4"><strong>Bắt đầu:</strong> {{ contract.start_date.strftime('%d/%m/%Y') if contract.start_date }}</div>
+    <div class="col-md-4"><strong>Kết thúc:</strong>
+      {{ contract.end_date.strftime('%d/%m/%Y') if contract.end_date else 'Không xác định' }}
+    </div>
+    <div class="col-md-4"><strong>Chức vụ:</strong> {{ contract.position or '—' }}</div>
+    {% if contract.salary_base %}
+    <div class="col-12"><strong>Lương cơ bản:</strong>
+      <span class="text-warning fw-bold">{{ '{:,}'.format(contract.salary_base).replace(',','.') }} đ</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="mt-3 d-flex gap-2 flex-wrap">
+    {% if contract.signed_file_path %}
+    <a href="{{ url_for('hr.contract_download_signed', cid=contract.id) }}"
+       class="btn btn-primary btn-sm" target="_blank">
+      <i class="bi bi-file-earmark-check"></i> Xem bản công ty đã ký
+    </a>
+    {% endif %}
+    {% if contract.docx_path %}
+    <a href="{{ url_for('hr.contract_download', cid=contract.id) }}"
+       class="btn btn-outline-secondary btn-sm" target="_blank">
+      <i class="bi bi-file-earmark-word"></i> Bản gốc (.docx)
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="alert-note">
+  <div class="label">📝 Hướng dẫn:</div>
+  <ol class="mb-0 mt-1" style="padding-left:20px">
+    <li>Mở file
+      {% if contract.signed_file_path %}<strong>"Bản công ty đã ký"</strong>{% else %}<strong>"Bản gốc (.docx)"</strong>{% endif %}
+      ở nút bên trên, đọc kỹ nội dung.
+      {% if not contract.signed_file_path %}<em>(Công ty chưa ký số — bạn có thể ký trước, cty sẽ ký sau).</em>{% endif %}
+    </li>
+    <li>Nếu đồng ý với điều khoản, vẽ chữ ký bằng <strong>ngón tay</strong> (điện thoại) hoặc <strong>chuột</strong> (máy tính) vào ô bên dưới.</li>
+    <li>Tích vào ô "Tôi đã đọc và đồng ý" rồi bấm <strong>"Xác nhận ký"</strong>.</li>
+    <li>Sau khi ký, không thể chỉnh sửa — hãy kiểm tra kỹ trước khi xác nhận.</li>
+  </ol>
+</div>
+
+<form method="POST" id="signForm">
+  <div class="hr-card">
+    <div class="hr-card-title"><i class="bi bi-pen"></i> Chữ ký của bạn</div>
+
+    <div style="border:2px dashed #cbd5e1; border-radius:10px; background:#fff; position:relative;">
+      <canvas id="sigPad" style="width:100%; height:240px; touch-action:none; display:block;"></canvas>
+      <div id="sigPlaceholder"
+           style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; color:#cbd5e1; font-size:14px;">
+        ✍ Vẽ chữ ký vào đây
+      </div>
+    </div>
+
+    <div class="mt-2 d-flex gap-2 align-items-center flex-wrap">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="btnClear">
+        <i class="bi bi-arrow-counterclockwise"></i> Vẽ lại
+      </button>
+      <small class="text-muted">Ký bằng ngón tay (mobile) hoặc chuột (PC).</small>
+    </div>
+
+    <div class="form-check mt-3 p-3" style="background:#fff7ed; border-radius:8px;">
+      <input class="form-check-input" type="checkbox" id="confirm_agree" name="confirm_agree" value="1">
+      <label class="form-check-label fw-bold" for="confirm_agree" style="cursor:pointer">
+        Tôi đã đọc kỹ nội dung hợp đồng <strong>{{ contract.contract_number }}</strong>
+        và đồng ý ký xác nhận với chữ ký bên trên.
+      </label>
+    </div>
+
+    <input type="hidden" name="signature_data" id="signature_data">
+
+    <div class="mt-3 d-flex gap-2">
+      <button type="submit" class="btn-brand btn" id="btnSubmit" disabled>
+        <i class="bi bi-check-circle"></i> Xác nhận ký
+      </button>
+      <a href="{{ url_for('hr.employee_contracts', uid=contract.user_id) }}" class="btn btn-outline-secondary">Hủy</a>
+    </div>
+  </div>
+</form>
+
+<!-- signature_pad.js — vanilla, nhẹ ~11KB -->
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.2.0/dist/signature_pad.umd.min.js"></script>
+<script>
+(function() {
+  const canvas = document.getElementById('sigPad');
+  const placeholder = document.getElementById('sigPlaceholder');
+  const btnClear = document.getElementById('btnClear');
+  const btnSubmit = document.getElementById('btnSubmit');
+  const chkAgree = document.getElementById('confirm_agree');
+  const hidden = document.getElementById('signature_data');
+  const form = document.getElementById('signForm');
+
+  // Setup canvas: scale theo DPR cho nét sắc
+  function resizeCanvas() {
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    canvas.width = canvas.offsetWidth * ratio;
+    canvas.height = canvas.offsetHeight * ratio;
+    canvas.getContext('2d').scale(ratio, ratio);
+    pad.clear();
+  }
+
+  const pad = new SignaturePad(canvas, {
+    backgroundColor: 'rgba(255,255,255,1)',
+    penColor: '#0f172a',
+    minWidth: 0.8,
+    maxWidth: 2.5,
+  });
+
+  function refreshState() {
+    const empty = pad.isEmpty();
+    placeholder.style.display = empty ? 'flex' : 'none';
+    btnSubmit.disabled = empty || !chkAgree.checked;
+  }
+  pad.addEventListener('endStroke', refreshState);
+  pad.addEventListener('beginStroke', () => placeholder.style.display = 'none');
+  chkAgree.addEventListener('change', refreshState);
+
+  btnClear.addEventListener('click', () => { pad.clear(); refreshState(); });
+
+  // Resize trên load + xoay màn hình
+  setTimeout(resizeCanvas, 50);
+  window.addEventListener('resize', () => setTimeout(resizeCanvas, 100));
+
+  form.addEventListener('submit', (e) => {
+    if (pad.isEmpty()) {
+      e.preventDefault();
+      alert('Vui lòng vẽ chữ ký trước khi xác nhận.');
+      return;
+    }
+    if (!chkAgree.checked) {
+      e.preventDefault();
+      alert('Vui lòng tích vào ô đồng ý.');
+      return;
+    }
+    hidden.value = pad.toDataURL('image/png');
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = '<i class="bi bi-hourglass-split"></i> Đang gửi...';
+  });
+})();
+</script>
+
+{% endblock %}

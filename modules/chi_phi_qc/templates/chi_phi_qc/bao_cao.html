@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Báo Cáo Chi Phí QC</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#F59E0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tiểu Hiềm">
+<link rel="apple-touch-icon" href="/static/pwa/icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+  body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; }
+  .topbar { background:#1a1a1a; border-bottom:none; padding:0 20px; min-height:48px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; box-shadow:0 2px 8px rgba(0,0,0,.25); position:sticky; top:0; z-index:100; }
+  .topbar a { color:rgba(255,255,255,.75); text-decoration:none; font-size:13px; padding:4px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.2); white-space:nowrap; transition:background .15s; }
+  .topbar a:hover { background:rgba(255,255,255,.08); color:#fff; }
+  .topbar .brand { font-weight:700; font-size:15px; color:#F59E0B; letter-spacing:.3px; }
+  .page-wrap { max-width:1280px; margin:0 auto; padding:20px 16px; }
+  .kpi-card {
+    border-radius: 12px;
+    padding: 14px 20px;
+    background: #fff;
+    border: 1px solid #e8eaed;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    height: 100%;
+  }
+  .kpi-label {
+    font-size: 10.5px;
+    color: #8a93a2;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .kpi-val {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-top: 4px;
+    line-height: 1.2;
+  }
+  .kpi-sub {
+    font-size: 10px;
+    color: #b0b8c4;
+    margin-top: 2px;
+  }
+  .tab-pill { border-radius:20px; padding:5px 16px; font-size:13px; border:1px solid #dee2e6; background:#fff; color:#495057; cursor:pointer; text-decoration:none; }
+  .tab-pill.active { background:#F59E0B; color:#fff; border-color:#F59E0B; }
+  .tab-pill:hover:not(.active) { background:#FEF3C7; border-color:#F59E0B; color:#D97706; }
+  .badge-win  { background:#d1fae5; color:#065f46; }
+  .badge-test { background:#fef3c7; color:#92400e; }
+  .tbl-scroll { overflow-x:auto; }
+  .snap-card { border-left:3px solid #F59E0B; }
+
+  /* ── Responsive: mobile (≤640px) ── */
+  @media (max-width: 640px) {
+    body { font-size: 13px; }
+    .page-wrap { padding: 12px 8px; }
+    .topbar { flex-wrap: wrap; gap: 6px; padding: 6px 10px; }
+    .tab-pill { padding: 4px 12px; font-size: 12px; }
+    /* Mọi bảng tự cuộn ngang trên mobile (kể cả bảng chưa bọc .table-responsive) */
+    .page-wrap table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; max-width: 100%; }
+    .table-responsive { -webkit-overflow-scrolling: touch; }
+    /* Cụm nút/lọc xuống dòng cho gọn */
+    .d-flex { flex-wrap: wrap; }
+    .form-control, .form-select { max-width: 100%; }
+  }
+</style>
+<link rel="stylesheet" href="/static/cc-multiselect.css">
+<script src="/static/cc-multiselect.js" defer></script>
+</head>
+<body>
+{% include "_main_nav.html" %}
+
+{% set cpqc_active = 'bao_cao' %}{% include "_cpqc_subnav.html" %}
+
+<div class="page-wrap">
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+  {% if msgs %}
+    {% for cat, msg in msgs %}
+    <div class="alert alert-{{ 'danger' if cat=='danger' else 'warning' if cat=='warning' else 'success' if cat=='success' else 'info' }} py-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+  {% endwith %}
+
+  {# ── Filter bar ── #}
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <form method="get" action="/chi-phi-qc/bao-cao" class="row g-2 align-items-end" data-mfilter>
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <div class="col-auto">
+          {% include "_date_range_picker.html" %}
+        </div>
+        <div class="col-auto">
+          <label class="form-label small fw-semibold mb-1">Team</label>
+          <select name="team_filter" id="sel-team" data-cc-search class="form-select form-select-sm" style="min-width:130px" onchange="filterUsers()">
+            <option value="">— Tất cả team —</option>
+            {% for t in team_list %}
+            <option value="{{ t.id }}" {{ 'selected' if team_filter == t.id }}>{{ t.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <label class="form-label small fw-semibold mb-1">Nhân viên</label>
+          <select name="user_filter" id="sel-user" data-cc-search class="form-select form-select-sm" style="min-width:160px">
+            <option value="">— Tất cả —</option>
+            {% for u in user_dropdown %}
+            <option value="{{ u.username }}" data-team="{{ u.team_id }}"
+              {{ 'selected' if user_filter == u.username }}>{{ u.full_name or u.username }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto d-flex gap-2 flex-wrap">
+          <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>Lọc</button>
+          <a href="/chi-phi-qc/bao-cao/xuat-csv?date_from={{ date_from }}&date_to={{ date_to }}&tab={{ active_tab }}{% if team_filter %}&team_filter={{ team_filter }}{% endif %}{% if user_filter %}&user_filter={{ user_filter }}{% endif %}"
+             class="btn btn-outline-success btn-sm"><i class="bi bi-file-earmark-excel me-1"></i>Xuất Excel</a>
+          {% if current_role in ('admin','superadmin','manager','ketoan','accountant','it') %}
+          <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#modalChotKy">
+            <i class="bi bi-lock-fill me-1"></i>Chốt kỳ
+          </button>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# ── Invariant banner — bug guard cho kế toán ── #}
+  {% if invariant and not invariant.ok %}
+    <div class="alert alert-danger d-flex align-items-center mb-3" role="alert" style="border-left:6px solid #dc2626">
+      <i class="bi bi-exclamation-octagon-fill me-2" style="font-size:1.4rem"></i>
+      <div>
+        <strong>⚠ LỆCH SỐ LIỆU — BÁO IT NGAY, KHÔNG CHỐT SỔ</strong><br>
+        <small>
+          Truth FB: <b>{{ '{:,.0f}'.format(invariant.truth) }}đ</b> ·
+          Tổng bucket: <b>{{ '{:,.0f}'.format(invariant.buckets) }}đ</b> ·
+          Chênh: <b style="color:#dc2626">{{ '{:,.0f}'.format(invariant.diff) }}đ</b>
+        </small>
+      </div>
+    </div>
+  {% endif %}
+
+  {# ── Summary KPI cards ── #}
+  {# Use effective page-level totals (auto pages + manual declarations) #}
+  {% set fb_total      = pg_fb_total   | float %}
+  {% set tot_win_chua  = pg_win_chua   | float %}
+  {% set tot_win_co    = pg_win_co     | float %}
+  {% set tot_test_chua = pg_test_chua  | float %}
+  {% set tot_test_co   = pg_test_co    | float %}
+  {% set tot_all       = pg_khai_co    | float %}
+  {% set tot_all_chua  = pg_khai_chua  | float %}
+  {% set cp_pos        = pos_total     | float %}
+  {% set cl_fb_pos     = chenh_lech_fb_pos | float %}
+
+  {# Row 1: 5 equal-width cards filling full width #}
+  <div class="row g-2 mb-2 row-cols-2 row-cols-md-5">
+    <div class="col">
+      <div class="kpi-card" style="border-top:3px solid #0866ff">
+        <div class="kpi-label"><i class="bi bi-facebook me-1" style="color:#0866ff"></i>FB Ads thực tế</div>
+        <div class="kpi-val text-primary">{{ '{:,.0f}'.format(fb_total) }}₫</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="kpi-card" style="border-top:3px solid #16a34a">
+        <div class="kpi-label">Win khai (Chi phí)</div>
+        <div class="kpi-val text-success">{{ '{:,.0f}'.format(tot_win_co) }}₫</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="kpi-card" style="border-top:3px solid #d97706">
+        <div class="kpi-label">Test khai (Chi phí)</div>
+        <div class="kpi-val" style="color:#d97706">{{ '{:,.0f}'.format(tot_test_co) }}₫</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="kpi-card" style="border-top:3px solid #0d6efd">
+        <div class="kpi-label">Tổng khai (Chi phí)</div>
+        <div class="kpi-val fw-bold" style="color:#0d6efd">{{ '{:,.0f}'.format(tot_all) }}₫</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="kpi-card" style="border-top:3px solid #6366f1">
+        <div class="kpi-label">Tiền VAT (11.3%)</div>
+        {% set vat_amt = tot_all - tot_all_chua %}
+        <div class="kpi-val" style="color:#6366f1">{{ '{:,.0f}'.format(vat_amt) }}₫</div>
+      </div>
+    </div>
+  </div>
+
+  {# Row 2: 2 equal cards, full width #}
+  <div class="row g-2 mb-3">
+    <div class="col-12 col-md-6">
+      <div class="kpi-card" style="border-top:3px solid #0891b2">
+        <div class="kpi-label"><i class="bi bi-shop me-1" style="color:#0891b2"></i>CP Ads POS (nhân viên tự điền)</div>
+        <div class="kpi-val" style="color:#0891b2">{{ '{:,.0f}'.format(cp_pos) }}₫</div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6">
+      {% set cl_khai_pos = tot_all - cp_pos %}{# Tổng khai (Chi phí, gồm cả Test) − POS #}
+      <div class="kpi-card" style="border-top:3px solid {% if cl_khai_pos > 50000 %}#dc3545{% elif cl_khai_pos < -50000 %}#fd7e14{% else %}#198754{% endif %}">
+        <div class="kpi-label">Chênh lệch Khai báo vs POS</div>
+        <div class="kpi-val {% if cl_khai_pos > 50000 %}text-danger{% elif cl_khai_pos < -50000 %}text-warning{% else %}text-success{% endif %}">
+          {{ '{:+,.0f}'.format(cl_khai_pos) }}₫
+        </div>
+        <div class="kpi-sub">Tổng khai (Chi phí) − POS &nbsp;·&nbsp; {{ '+' if cl_khai_pos >= 0 else '' }}{{ '{:.1f}'.format(cl_khai_pos / cp_pos * 100 if cp_pos else 0) }}%</div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Tabs ── #}
+  <div class="d-flex gap-2 mb-3 flex-wrap">
+    <a href="?date_from={{ date_from }}&date_to={{ date_to }}&tab=nhanvien"
+       class="tab-pill {{ 'active' if active_tab=='nhanvien' else '' }}">
+      <i class="bi bi-people me-1"></i>Nhân viên
+    </a>
+    <a href="?date_from={{ date_from }}&date_to={{ date_to }}&tab=page"
+       class="tab-pill {{ 'active' if active_tab=='page' else '' }}">
+      <i class="bi bi-diagram-3 me-1"></i>Theo Page
+    </a>
+    <a href="?date_from={{ date_from }}&date_to={{ date_to }}&tab=tk_qc"
+       class="tab-pill {{ 'active' if active_tab=='tk_qc' else '' }}">
+      <i class="bi bi-bar-chart-line me-1"></i>TK QC ({{ (rows_ad_account|default([]))|length + (rows_pa_account|default([]))|length }})
+    </a>
+  </div>
+
+  {# ═══════════════ TAB: NHÂN VIÊN ═══════════════ #}
+  {% if active_tab == 'nhanvien' %}
+  <div class="card">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-people me-2"></i>Chi phí QC theo Shop / Nhân viên</span>
+      <span class="text-muted small">{{ rows_shop|length }} shop · {{ date_from }} → {{ date_to }}</span>
+    </div>
+    {% if rows_shop %}
+    <div class="tbl-scroll">
+      <table class="table table-hover align-middle mb-0" style="font-size:12.5px">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Shop / NV phụ trách</th>
+            <th class="text-end" style="color:#0891b2">CP Ads POS</th>
+            <th class="text-end text-primary">CP Ads FB<br><small class="fw-normal text-muted" style="font-size:10px">theo shop</small></th>
+            <th class="text-end text-success">Win khai<br><small class="fw-normal text-muted" style="font-size:10px">Chi phí</small></th>
+            <th class="text-end" style="color:#b45309">Test tự động<br><small class="fw-normal text-muted" style="font-size:10px">Chi phí</small></th>
+            <th class="text-end" style="color:#b45309">Test thủ công<br><small class="fw-normal text-muted" style="font-size:10px">Chi phí</small></th>
+            <th class="text-end fw-bold">Tổng khai<br><small class="fw-normal text-muted" style="font-size:10px">Chi phí</small></th>
+            <th class="text-end" style="color:#7c3aed">Chênh: Tổng khai−POS<br><small class="fw-normal text-muted" style="font-size:10px">Chi phí (gồm cả Test)</small></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows_shop %}
+          {% set r_pos        = r.cp_ads_pos    | float %}
+          {% set r_fb_shop    = r.cp_ads_fb_shop| float %}
+          {% set r_win_c      = r.win_co_vat    | float %}{# Win khai Chi phí (đổi từ chưa VAT) #}
+          {% set r_auto_test  = r.auto_test_co  | float %}{# Chi phí — đọc từ team tab logic per-page #}
+          {% set r_test_tc    = r.test_co_vat   | float %}{# Chi phí — NV gõ trực tiếp #}
+          {% set r_tong       = r.tong          | float %}
+          {% set r_cl_kp      = r_tong - r_pos %}{# Tổng khai (gồm cả Test) − POS #}
+          {# show if any non-zero data exists across all sources #}
+          {% if r_pos > 0 or r_fb_shop > 0 or r_win_c > 0 or r_auto_test > 0 or r_test_tc > 0 or r_tong > 0 %}
+          <tr>
+            <td class="text-muted small">{{ loop.index }}</td>
+            <td>
+              {% if r.pos_shop_id %}
+                <a href="https://pos.pancake.vn/shop/{{ r.pos_shop_id }}/order" target="_blank" rel="noopener"
+                   class="fw-semibold text-decoration-none" style="font-size:13px;color:#1d4ed8"
+                   title="Mở Pancake POS shop #{{ r.pos_shop_id }}">
+                  {{ r.shop_name }} <i class="bi bi-box-arrow-up-right" style="font-size:10px;opacity:.6"></i>
+                </a>
+              {% else %}
+                <div class="fw-semibold" style="font-size:13px">{{ r.shop_name }}</div>
+              {% endif %}
+              {% if r.shop_id and (r.shop_id | int) > 0 %}
+                <button type="button" class="btn btn-link p-0 ms-1 align-baseline shop-daily-btn"
+                        style="font-size:11px;text-decoration:none"
+                        data-shop-id="{{ r.shop_id }}" data-shop-name="{{ r.shop_name }}"
+                        title="Xem chi tiết chi phí / doanh thu từng ngày">
+                  <i class="bi bi-calendar3"></i> chi tiết ngày
+                </button>
+              {% elif r.is_unbound and r.user_id %}
+                {# Unbound (NV chưa map shop): vẫn cho xem chi tiết theo NV — query qua user_id #}
+                <button type="button" class="btn btn-link p-0 ms-1 align-baseline shop-daily-btn"
+                        style="font-size:11px;text-decoration:none"
+                        data-user-id="{{ r.user_id }}" data-shop-name="{{ r.full_name or r.username }} (chưa có shop)"
+                        title="Xem chi tiết chi phí QC của NV này từng ngày">
+                  <i class="bi bi-calendar3"></i> chi tiết ngày
+                </button>
+              {% endif %}
+              {% if r.full_name or r.username %}
+                <div class="text-muted" style="font-size:11px">
+                  <i class="bi bi-person-fill" style="font-size:10px;opacity:.6"></i>
+                  {{ r.full_name or r.username }}{% if r.username and r.full_name and r.username != r.full_name %} ({{ r.username }}){% endif %}
+                </div>
+              {% else %}
+                <div class="text-muted" style="font-size:11px;font-style:italic">— chưa gán NV —</div>
+              {% endif %}
+            </td>
+            <td class="text-end fw-semibold" style="color:#0891b2">
+              {% if r_pos > 0 %}{{ '{:,.0f}'.format(r_pos) }}₫{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-end fw-semibold text-primary">
+              {% if r_fb_shop > 0 %}{{ '{:,.0f}'.format(r_fb_shop) }}₫{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-end text-success">
+              {% if r_win_c > 0 %}{{ '{:,.0f}'.format(r_win_c) }}₫{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-end fw-semibold" style="color:#b45309">
+              {% if r_auto_test > 0 %}{{ '{:,.0f}'.format(r_auto_test) }}₫{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-end" style="color:#b45309">
+              {% if r_test_tc > 0 %}{{ '{:,.0f}'.format(r_test_tc) }}₫{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-end fw-bold">
+              {% if r_tong > 0 %}{{ '{:,.0f}'.format(r_tong) }}₫{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-end fw-semibold {% if r_cl_kp > 100000 %}text-danger{% elif r_cl_kp < -100000 %}text-warning{% else %}text-muted{% endif %}">
+              {% if r_pos > 0 or r_tong > 0 %}{{ '{:+,.0f}'.format(r_cl_kp) }}₫{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+        <tfoot class="table-light fw-bold">
+          {% set tot_fb_shop   = rows_shop | sum(attribute='cp_ads_fb_shop') | float %}
+          {% set tot_win_c     = rows_shop | sum(attribute='win_co_vat')     | float %}{# Chi phí #}
+          {% set tot_auto_test = rows_shop | sum(attribute='auto_test_co')  | float %}{# Chi phí #}
+          {% set tot_test_tc   = rows_shop | sum(attribute='test_co_vat')   | float %}{# Chi phí #}
+          {% set tot_tong      = rows_shop | sum(attribute='tong')           | float %}
+          <tr>
+            <td colspan="2">Tổng cộng</td>
+            <td class="text-end" style="color:#0891b2">{{ '{:,.0f}'.format(cp_pos) }}₫</td>
+            <td class="text-end text-primary">{{ '{:,.0f}'.format(tot_fb_shop) }}₫</td>
+            <td class="text-end text-success">{{ '{:,.0f}'.format(tot_win_c) }}₫</td>
+            <td class="text-end" style="color:#b45309">{{ '{:,.0f}'.format(tot_auto_test) }}₫</td>
+            <td class="text-end" style="color:#b45309">{{ '{:,.0f}'.format(tot_test_tc) }}₫</td>
+            <td class="text-end">{{ '{:,.0f}'.format(tot_tong) }}₫</td>
+            {% set tot_cl_kp  = tot_tong - cp_pos %}{# Tổng khai (Chi phí, gồm cả Test) − POS #}
+            <td class="text-end {% if tot_cl_kp > 100000 %}text-danger{% elif tot_cl_kp < -100000 %}text-warning{% else %}text-muted{% endif %}">
+              {{ '{:+,.0f}'.format(tot_cl_kp) }}₫
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body text-center py-5 text-muted">
+      <i class="bi bi-inbox" style="font-size:2.5rem;opacity:.25"></i>
+      <p class="mt-2 mb-0">Chưa có dữ liệu trong kỳ này.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ═══════════════ TAB: THEO PAGE ═══════════════ #}
+  {% elif active_tab == 'page' %}
+  <div class="card">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-diagram-3 me-2"></i>FB Ads thực tế vs Khai báo — theo Page</span>
+      <span class="text-muted small">{{ rows_page|length }} pages · {{ date_from }} → {{ date_to }}</span>
+    </div>
+    {% if rows_page %}
+    <div class="tbl-scroll">
+      <table class="table table-hover align-middle mb-0" style="font-size:12.5px">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Page</th>
+            <th class="text-end text-primary">FB Spend</th>
+            <th class="text-end text-muted" style="font-size:11px">Impr / Click</th>
+            <th class="text-end">Win khai (Chi phí)</th>
+            <th class="text-end">Test khai (Chi phí)</th>
+            <th class="text-end fw-bold">Tổng khai (Chi phí)</th>
+            <th class="text-end" style="color:#6366f1">Tiền VAT</th>
+            <th class="text-end text-muted" style="font-size:11px">Khai báo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set pg_fb_total    = rows_page | sum(attribute='fb_spend')  | float %}
+          {% set pg_khai_total  = rows_page | sum(attribute='khai_co')   | float %}
+          {% for r in rows_page %}
+          {% set vat_row = (r.khai_co|float) - (r.fb_spend|float) %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td>
+              {% if r.page_id %}
+                <a href="https://www.facebook.com/profile.php?id={{ r.page_id }}" target="_blank" rel="noopener"
+                   class="fw-semibold text-decoration-none" style="color:#1d4ed8"
+                   title="Mở Facebook page #{{ r.page_id }}">
+                  {{ r.page_name or r.page_id }} <i class="bi bi-box-arrow-up-right" style="font-size:10px;opacity:.6"></i>
+                </a>
+                <div class="text-muted" style="font-size:11px">{{ r.page_id }}</div>
+              {% else %}
+                <div class="fw-semibold">{{ r.page_name or r.page_id }}</div>
+                <div class="text-muted" style="font-size:11px">{{ r.page_id }}</div>
+              {% endif %}
+            </td>
+            <td class="text-end fw-semibold text-primary">
+              {% if r.fb_spend and r.fb_spend > 0 %}
+                {{ '{:,.0f}'.format(r.fb_spend|float) }}₫
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end text-muted" style="font-size:11px">
+              {% if r.fb_impr %}{{ '{:,.0f}'.format(r.fb_impr|int) }} / {{ '{:,.0f}'.format(r.fb_clicks|int) }}{% else %}—{% endif %}
+            </td>
+            <td class="text-end text-success">
+              {% if r.win_co and r.win_co > 0 %}{{ '{:,.0f}'.format(r.win_co|float) }}₫{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-end" style="color:#b45309">
+              {% if r.test_co and r.test_co > 0 %}{{ '{:,.0f}'.format(r.test_co|float) }}₫{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-end fw-bold">
+              {% if r.khai_co and r.khai_co > 0 %}{{ '{:,.0f}'.format(r.khai_co|float) }}₫{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-end fw-semibold" style="color:#6366f1">
+              {% if r.fb_spend and r.fb_spend > 0 %}
+                {{ '{:,.0f}'.format(vat_row) }}₫
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end text-muted" style="font-size:11px">{{ r.so_khai }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="table-light fw-bold">
+          <tr>
+            <td colspan="2">Tổng cộng</td>
+            <td class="text-end text-primary">{{ '{:,.0f}'.format(pg_fb_total) }}₫</td>
+            <td></td>
+            <td class="text-end text-success">{{ '{:,.0f}'.format(rows_page | sum(attribute='win_co') | float) }}₫</td>
+            <td class="text-end" style="color:#b45309">{{ '{:,.0f}'.format(rows_page | sum(attribute='test_co') | float) }}₫</td>
+            <td class="text-end">{{ '{:,.0f}'.format(pg_khai_total) }}₫</td>
+            <td class="text-end fw-bold" style="color:#6366f1">
+              {{ '{:,.0f}'.format(pg_khai_total - pg_fb_total) }}₫
+            </td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body text-center py-5 text-muted">
+      <i class="bi bi-inbox" style="font-size:2.5rem;opacity:.25"></i>
+      <p class="mt-2 mb-0">Chưa có dữ liệu trong kỳ này.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ═══════════════ TAB: CHI TIẾT ═══════════════ #}
+  {% elif active_tab == 'chitiet' %}
+  <div class="card">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-list-ul me-2"></i>Chi tiết từng khai báo</span>
+      <span class="text-muted small">{{ rows_detail|length }} dòng · {{ date_from }} → {{ date_to }}</span>
+    </div>
+    {% if rows_detail %}
+    <div class="tbl-scroll">
+      <table class="table table-hover align-middle mb-0" style="font-size:12.5px">
+        <thead class="table-light">
+          <tr>
+            <th>Ngày</th>
+            <th>Page</th>
+            <th>Nhân viên</th>
+            <th>Tài khoản Ads</th>
+            <th>Loại</th>
+            <th class="text-end">Chưa VAT</th>
+            <th class="text-end">Đã VAT</th>
+            <th>Ghi chú</th>
+            <th class="text-muted" style="font-size:11px">Khai lúc</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows_detail %}
+          <tr>
+            <td style="white-space:nowrap">{{ r.spend_date }}</td>
+            <td>
+              {% if r.page_id %}
+                <a href="https://www.facebook.com/profile.php?id={{ r.page_id }}" target="_blank" rel="noopener"
+                   class="fw-semibold text-decoration-none" style="color:#1d4ed8"
+                   title="Mở Facebook page #{{ r.page_id }}">
+                  {{ r.page_name or r.page_id }} <i class="bi bi-box-arrow-up-right" style="font-size:10px;opacity:.6"></i>
+                </a>
+                <div class="text-muted" style="font-size:11px">{{ r.page_id }}</div>
+              {% else %}
+                <div class="fw-semibold">{{ r.page_name or r.page_id }}</div>
+                <div class="text-muted" style="font-size:11px">{{ r.page_id }}</div>
+              {% endif %}
+            </td>
+            <td>
+              <div>{{ r.full_name or r.username }}</div>
+              <div class="text-muted" style="font-size:11px">{{ r.username }}</div>
+            </td>
+            <td class="text-muted" style="font-size:11px">{{ r.ad_account_name or '—' }}</td>
+            <td>
+              {% if r.phan_loai == 'ma_win' %}
+                <span class="badge badge-win">Win</span>
+              {% else %}
+                <span class="badge badge-test">Test</span>
+              {% endif %}
+            </td>
+            <td class="text-end">{{ '{:,.0f}'.format(r.tien_chua_thue|float) }}₫</td>
+            <td class="text-end fw-semibold">{{ '{:,.0f}'.format(r.thanh_tien|float) }}₫</td>
+            <td class="text-muted" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.note or '' }}</td>
+            <td class="text-muted" style="font-size:11px;white-space:nowrap">
+              {% if r.created_at %}{{ r.created_at.strftime('%d/%m %H:%M') }}{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="table-light fw-bold">
+          <tr>
+            <td colspan="5">Tổng cộng ({{ rows_detail|length }} dòng)</td>
+            <td class="text-end">{{ '{:,.0f}'.format(rows_detail | sum(attribute='tien_chua_thue') | float) }}₫</td>
+            <td class="text-end">{{ '{:,.0f}'.format(rows_detail | sum(attribute='thanh_tien') | float) }}₫</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body text-center py-5 text-muted">
+      <i class="bi bi-inbox" style="font-size:2.5rem;opacity:.25"></i>
+      <p class="mt-2 mb-0">Chưa có khai báo trong kỳ này.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ═══════════════ TAB: TK QC ═══════════════ #}
+  {% elif active_tab == 'tk_qc' %}
+  {% set ra = rows_ad_account | default([]) %}
+  {% set rp = rows_pa_account | default([]) %}
+  {% set total_mapped   = ra | sum(attribute='total_spend') %}
+  {% set total_unmapped = rp | sum(attribute='total_spend') %}
+  {% set grand_total    = total_mapped + total_unmapped %}
+
+  {# Stat cards #}
+  <div class="row g-2 mb-3">
+    <div class="col-6 col-md-3">
+      <div class="card text-center py-3 border-danger">
+        <div class="text-muted" style="font-size:11px">Tổng tất cả TK QC</div>
+        <div class="fw-bold text-danger" style="font-size:1.4rem">{{ '{:,.0f}'.format(grand_total) }}₫</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card text-center py-3">
+        <div class="text-muted" style="font-size:11px">Đã gán shop ({{ ra|length }} TK)</div>
+        <div class="fw-bold text-danger" style="font-size:1.2rem">{{ '{:,.0f}'.format(total_mapped) }}₫</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card text-center py-3">
+        <div class="text-muted" style="font-size:11px">Chưa gán shop ({{ rp|length }} TK)</div>
+        <div class="fw-bold text-warning" style="font-size:1.2rem">{{ '{:,.0f}'.format(total_unmapped) }}₫</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card text-center py-3">
+        <div class="text-muted" style="font-size:11px">Tổng TK có spend</div>
+        <div class="fw-bold" style="font-size:1.2rem">{{ ra|length + rp|length }}</div>
+      </div>
+    </div>
+  </div>
+
+  {# Search box #}
+  <div class="mb-2">
+    <input type="search" class="form-control form-control-sm" style="max-width:300px"
+           placeholder="Tìm tên TK, ID, shop..." id="srchTkQc"
+           oninput="filterTkQc(this.value)">
+  </div>
+
+  {# Bảng 1: Đã gán shop #}
+  <div class="card mb-3">
+    <div class="card-header py-2 d-flex align-items-center gap-2">
+      <i class="bi bi-check-circle-fill text-success"></i>
+      <span class="fw-semibold">Đã gán shop — {{ ra|length }} TK</span>
+      <span class="ms-auto fw-bold text-danger">{{ '{:,.0f}'.format(total_mapped) }}₫</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm align-middle mb-0" id="tblTkQcMapped">
+        <thead class="table-light"><tr>
+          <th style="width:36px">#</th>
+          <th>Tên tài khoản QC</th>
+          <th style="width:170px">ID tài khoản</th>
+          <th style="width:120px">Shop</th>
+          <th style="width:130px">Nhân viên</th>
+          <th class="text-end" style="width:150px">Chi phí</th>
+          <th class="text-end" style="width:100px">Impressions</th>
+          <th class="text-end" style="width:80px">Clicks</th>
+        </tr></thead>
+        <tbody>
+        {% for r in ra %}
+        <tr>
+          <td class="text-muted text-center">{{ loop.index }}</td>
+          <td>
+            <a href="https://www.facebook.com/adsmanager/manage/?act={{ r.fb_ad_account_id }}"
+               target="_blank" rel="noopener" class="text-decoration-none text-dark fw-semibold">
+              {{ r.account_name }}<i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:10px"></i>
+            </a>
+          </td>
+          <td class="text-muted" style="font-size:11px">{{ r.fb_ad_account_id }}</td>
+          <td>{% if r.shop_name %}<span class="badge bg-warning text-dark">{{ r.shop_name }}</span>{{ shop_biz_badge(r.shop_name) | safe }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td>{% if r.employee_name %}<span class="badge bg-primary" style="font-size:11px">{{ r.employee_name }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td class="text-end fw-semibold text-danger">{{ '{:,.0f}'.format(r.total_spend) }}₫</td>
+          <td class="text-end text-muted">{{ '{:,.0f}'.format(r.impressions) }}</td>
+          <td class="text-end text-muted">{{ '{:,.0f}'.format(r.clicks) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-muted py-3">Không có dữ liệu</td></tr>
+        {% endfor %}
+        </tbody>
+        {% if ra %}
+        <tfoot class="table-light fw-bold">
+          <tr>
+            <td colspan="5" class="text-end">Tổng {{ ra|length }} TK đã gán shop:</td>
+            <td class="text-end text-danger">{{ '{:,.0f}'.format(total_mapped) }}₫</td>
+            <td class="text-end">{{ '{:,.0f}'.format(ra | sum(attribute='impressions')) }}</td>
+            <td class="text-end">{{ '{:,.0f}'.format(ra | sum(attribute='clicks')) }}</td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+
+  {# Bảng 2: Chưa gán shop #}
+  {% if rp %}
+  <div class="card">
+    <div class="card-header py-2 d-flex align-items-center gap-2">
+      <i class="bi bi-exclamation-circle text-warning"></i>
+      <span class="fw-semibold text-warning">Chưa gán shop — {{ rp|length }} TK</span>
+      <span class="ms-auto fw-bold text-warning">{{ '{:,.0f}'.format(total_unmapped) }}₫</span>
+    </div>
+    <div class="px-3 py-2" style="background:#fffbeb;border-bottom:1px solid #fde68a;font-size:12.5px;color:#78350f">
+      💡 Các TK này phát sinh chi phí nhưng chưa gán shop / mapping đang inactive. Bấm
+      <strong>Gán shop</strong> ở từng dòng để IT/Admin map nhanh — sau khi gán, TK sẽ
+      tự chuyển sang bảng "Đã gán shop" ở lần báo cáo kế tiếp.
+    </div>
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm align-middle mb-0" id="tblTkQcUnmapped">
+        <thead class="table-light"><tr>
+          <th style="width:36px">#</th>
+          <th>Tên tài khoản QC</th>
+          <th style="width:170px">ID tài khoản</th>
+          <th>BM</th>
+          <th class="text-end" style="width:150px">Chi phí</th>
+          <th style="width:130px">Hành động</th>
+        </tr></thead>
+        <tbody>
+        {% for r in rp %}
+        <tr>
+          <td class="text-muted text-center">{{ loop.index }}</td>
+          <td>
+            <a href="https://www.facebook.com/adsmanager/manage/?act={{ r.account_id }}"
+               target="_blank" rel="noopener" class="text-decoration-none text-dark fw-semibold">
+              {{ r.account_name }}<i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:10px"></i>
+            </a>
+          </td>
+          <td class="text-muted" style="font-size:11px">{{ r.account_id }}</td>
+          <td class="text-muted" style="font-size:12px">{{ r.bm_name or '—' }}</td>
+          <td class="text-end fw-semibold text-warning">{{ '{:,.0f}'.format(r.total_spend) }}₫</td>
+          <td>
+            <a href="{{ url_for('page_account.page_binding') }}?search={{ r.account_id }}"
+               target="_blank" rel="noopener"
+               class="btn btn-sm btn-outline-warning"
+               title="Mở trang Page Binding lọc sẵn TK này">
+              <i class="bi bi-link-45deg me-1"></i>Gán shop
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot class="table-light fw-bold">
+          <tr>
+            <td colspan="4" class="text-end">Tổng {{ rp|length }} TK chưa gán shop:</td>
+            <td class="text-end text-warning">{{ '{:,.0f}'.format(total_unmapped) }}₫</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <script>
+  function filterTkQc(q) {
+    q = q.toLowerCase();
+    ['tblTkQcMapped','tblTkQcUnmapped'].forEach(id => {
+      const t = document.getElementById(id);
+      if (!t) return;
+      t.querySelectorAll('tbody tr').forEach(r => {
+        r.style.display = !q || r.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
+    });
+  }
+  </script>
+
+  {# ═══════════════ TAB: LỊCH SỬ CHỐT ═══════════════ #}
+  {% elif active_tab == 'chot' %}
+  <div class="card">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-archive me-2"></i>Lịch sử chốt kỳ</span>
+      <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#modalChotKy">
+        <i class="bi bi-lock-fill me-1"></i>Chốt kỳ mới
+      </button>
+    </div>
+    {% if snapshots %}
+    <div class="tbl-scroll">
+      <table class="table table-hover align-middle mb-0" style="font-size:13px">
+        <thead class="table-light">
+          <tr>
+            <th>#</th><th>Kỳ</th><th>Từ ngày</th><th>Đến ngày</th>
+            <th class="text-end">Số dòng</th>
+            <th class="text-end">Tổng (Chi phí)</th>
+            <th>Người chốt</th>
+            <th>Thời gian chốt</th>
+            <th>Ghi chú</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in snapshots %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td class="fw-semibold">{{ s.period_label }}</td>
+            <td>{{ s.date_from }}</td>
+            <td>{{ s.date_to }}</td>
+            <td class="text-end">{{ s.total_rows }}</td>
+            <td class="text-end fw-semibold text-success">{{ '{:,.0f}'.format(s.total_amount|float) }}₫</td>
+            <td>{{ s.locked_by_name or '—' }}</td>
+            <td class="text-muted" style="white-space:nowrap">
+              {% if s.locked_at %}{{ s.locked_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}
+            </td>
+            <td class="text-muted" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.note or '' }}</td>
+            <td>
+              <a href="/chi-phi-qc/bao-cao/xem-snapshot/{{ s.id }}" class="btn btn-outline-primary btn-sm" target="_blank">
+                <i class="bi bi-eye"></i>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body text-center py-5 text-muted">
+      <i class="bi bi-archive" style="font-size:2.5rem;opacity:.25"></i>
+      <p class="mt-2">Chưa có kỳ nào được chốt.</p>
+      <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#modalChotKy">
+        <i class="bi bi-lock-fill me-1"></i>Chốt kỳ đầu tiên
+      </button>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+
+{# ── Modal: Chốt kỳ ── #}
+{% if current_role in ('admin','superadmin','manager','ketoan','accountant','it') %}
+<div class="modal fade" id="modalChotKy" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-lock-fill text-warning me-2"></i>Chốt kỳ — lưu snapshot kế toán</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Chốt kỳ sẽ lưu một bản snapshot đầy đủ (khai báo + FB Ads) vào CSDL để kế toán lưu trữ và kiểm tra sau. Dữ liệu gốc không bị thay đổi.</p>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Tên kỳ</label>
+          <input type="text" id="chotLabel" class="form-control" value="{{ date_from[:7] }}" placeholder="Ví dụ: Tháng 4/2026">
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col">
+            <label class="form-label fw-semibold">Từ ngày</label>
+            <input type="date" id="chotFrom" class="form-control" value="{{ date_from }}">
+          </div>
+          <div class="col">
+            <label class="form-label fw-semibold">Đến ngày</label>
+            <input type="date" id="chotTo" class="form-control" value="{{ date_to }}">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Ghi chú</label>
+          <input type="text" id="chotNote" class="form-control" placeholder="Ghi chú nội bộ (tuỳ chọn)">
+        </div>
+        <div id="chotResult"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Huỷ</button>
+        <button type="button" class="btn btn-warning fw-semibold" id="btnChotKy">
+          <i class="bi bi-lock-fill me-1"></i>Lưu snapshot
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// Filter employee dropdown when team is selected
+function filterUsers() {
+  const teamSel = document.getElementById('sel-team');
+  const userSel = document.getElementById('sel-user');
+  const tid = teamSel.value;
+  const prevVal = userSel.value;
+  userSel.innerHTML = '<option value="">— Tất cả —</option>';
+  document.querySelectorAll('#sel-user-src option[data-team]').forEach(opt => {
+    if (!tid || opt.dataset.team === tid) {
+      const o = opt.cloneNode(true);
+      if (o.value === prevVal) o.selected = true;
+      userSel.appendChild(o);
+    }
+  });
+}
+
+// Clone user options into a hidden source list so team filter can rebuild
+document.addEventListener('DOMContentLoaded', () => {
+  const userSel = document.getElementById('sel-user');
+  const src = document.createElement('select');
+  src.id = 'sel-user-src';
+  src.style.display = 'none';
+  [...userSel.options].forEach(o => src.appendChild(o.cloneNode(true)));
+  document.body.appendChild(src);
+  // Run once to apply initial team filter if set
+  const teamSel = document.getElementById('sel-team');
+  if (teamSel && teamSel.value) filterUsers();
+});
+
+const btnChot = document.getElementById('btnChotKy');
+if (btnChot) {
+  btnChot.addEventListener('click', async () => {
+    const label = document.getElementById('chotLabel').value.trim();
+    const from  = document.getElementById('chotFrom').value.trim();
+    const to    = document.getElementById('chotTo').value.trim();
+    const note  = document.getElementById('chotNote').value.trim();
+    const res_div = document.getElementById('chotResult');
+    if (!from || !to) { res_div.innerHTML = '<div class="alert alert-warning py-2">Vui lòng chọn từ ngày và đến ngày.</div>'; return; }
+
+    btnChot.disabled = true;
+    btnChot.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang lưu...';
+    res_div.innerHTML = '';
+    try {
+      const resp = await fetch('/chi-phi-qc/bao-cao/chot-ky', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period_label: label, date_from: from, date_to: to, note }),
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        res_div.innerHTML = `<div class="alert alert-success py-2"><i class="bi bi-check-circle-fill me-1"></i>Đã chốt kỳ! ${data.total_rows} dòng · ${data.total_amount.toLocaleString('vi-VN',{maximumFractionDigits:0})}₫</div>`;
+        setTimeout(() => { location.href = '?date_from=' + from + '&date_to=' + to + '&tab=chot'; }, 1500);
+      } else {
+        res_div.innerHTML = `<div class="alert alert-danger py-2"><i class="bi bi-exclamation-triangle-fill me-1"></i>${data.error}</div>`;
+        btnChot.disabled = false;
+        btnChot.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Lưu snapshot';
+      }
+    } catch (err) {
+      res_div.innerHTML = `<div class="alert alert-danger py-2">Lỗi: ${err.message}</div>`;
+      btnChot.disabled = false;
+      btnChot.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Lưu snapshot';
+    }
+  });
+}
+</script>
+<script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));</script>
+
+{# ═══ Modal: chi tiết chi phí/doanh thu TỪNG NGÀY của 1 shop ═══ #}
+<div class="modal fade" id="shopDailyModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title mb-0"><i class="bi bi-calendar3 me-2"></i><span id="sdTitle">Chi tiết theo ngày</span></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-2">
+        <div id="sdLoading" class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm"></div> Đang tải...</div>
+        <div id="sdContent" style="display:none">
+          <div id="sdWinTest" class="d-flex gap-3 flex-wrap mb-2 px-1" style="font-size:13px"></div>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0" style="font-size:12.5px">
+              <thead class="table-light">
+                <tr>
+                  <th>Ngày / Page</th>
+                  <th style="color:#0d9488">Tên page POS</th>
+                  <th class="text-end text-primary">CP Ads FB<br><small class="text-muted fw-normal" style="font-size:10px">chưa VAT</small></th>
+                  <th class="text-end" style="color:#7c3aed">CP QC<br><small class="text-muted fw-normal" style="font-size:10px">Chi phí</small></th>
+                  <th class="text-end" style="color:#0d9488">CP QC POS</th>
+                  <th class="text-end" style="color:#0d9488">Lệch<br><small class="text-muted fw-normal" style="font-size:10px">Lệch−POS</small></th>
+                  <th class="text-end">Doanh thu</th>
+                  <th class="text-end text-success">Lợi nhuận POS</th>
+                  <th class="text-end">Chốt</th>
+                  <th class="text-end">Hoàn</th>
+                </tr>
+              </thead>
+              <tbody id="sdBody"></tbody>
+              <tfoot class="table-light fw-bold"><tr id="sdFoot"></tr></tfoot>
+            </table>
+          </div>
+          <div class="text-muted mt-2" style="font-size:11px"><i class="bi bi-info-circle me-1"></i>CP Ads FB = chi phí Meta gốc (chưa VAT) · CP QC = Chi phí theo mức từng page · CP QC POS / Doanh thu / Lợi nhuận / Chốt / Hoàn lấy từ POS theo từng page · Lệch = CP QC (Chi phí) − CP QC POS.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const FROM = "{{ date_from }}", TO = "{{ date_to }}";
+  const fmt = n => (Math.round(n||0)).toLocaleString('vi-VN') + '₫';
+  // fmt cho giá trị có thể null (page chưa có trên POS) → '—'
+  const fmtN = n => (n===null||n===undefined) ? '—' : (Math.round(n)).toLocaleString('vi-VN') + '₫';
+  // lợi nhuận: âm → đỏ đậm
+  const fmtProfit = n => (n===null||n===undefined) ? '—' : (n<0 ? '<span style="color:#dc2626;font-weight:700">'+(Math.round(n)).toLocaleString('vi-VN')+'₫</span>' : (Math.round(n)).toLocaleString('vi-VN')+'₫');
+  // lệch Lệch−POS: |lệch|<=1 → khớp xanh, else đỏ
+  const fmtDiff = n => { if(n===null||n===undefined) return '—'; const ok=Math.abs(n)<=1; return '<span style="color:'+(ok?'#16a34a':'#dc2626')+'">'+(ok?'✓ 0':(n>0?'+':'')+(Math.round(n)).toLocaleString('vi-VN'))+'</span>'; };
+  let modal;
+  function ready(){
+    modal = new bootstrap.Modal(document.getElementById('shopDailyModal'));
+    document.querySelectorAll('.shop-daily-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>openSD(btn.dataset.shopId||'', btn.dataset.shopName||'', btn.dataset.userId||''));
+    });
+  }
+  async function openSD(shopId, shopName, userId){
+    document.getElementById('sdTitle').textContent = 'Chi tiết theo ngày — ' + (shopName||'') + ' (' + FROM + ' → ' + TO + ')';
+    document.getElementById('sdLoading').style.display=''; document.getElementById('sdLoading').innerHTML='<div class="spinner-border spinner-border-sm"></div> Đang tải...';
+    document.getElementById('sdContent').style.display='none';
+    document.getElementById('sdBody').innerHTML='';
+    modal.show();
+    try{
+      // shop_id ưu tiên; nếu không có thì query qua user_id (dòng NV "Chưa có shop")
+      const qs = shopId
+        ? ('shop_id='+encodeURIComponent(shopId))
+        : ('user_id='+encodeURIComponent(userId));
+      const res = await fetch('/chi-phi-qc/bao-cao/shop-daily?'+qs+'&from='+FROM+'&to='+TO);
+      const data = await res.json();
+      if(data.error) throw new Error(data.error);
+      renderSD(data);
+    }catch(e){
+      document.getElementById('sdLoading').innerHTML = '<span class="text-danger">Lỗi tải dữ liệu: '+(e.message||e)+'</span>';
+    }
+  }
+  function badge(pl){
+    return pl==='ma_test'
+      ? '<span style="background:#fef3c7;color:#b45309;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700">TEST</span>'
+      : '<span style="background:#d1fae5;color:#065f46;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700">WIN</span>';
+  }
+  function renderSD(data){
+    const tb = document.getElementById('sdBody'); tb.innerHTML='';
+    // Thanh tổng WIN / TEST (Chi phí)
+    document.getElementById('sdWinTest').innerHTML =
+      '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:5px 10px;min-width:170px">'+
+        '<div style="font-size:11px;font-weight:700;color:#065f46">🏆 WIN (Chi phí)</div>'+
+        '<div style="font-size:14px;font-weight:800;color:#16a34a">'+fmt(data.win_vat)+'</div>'+
+        '<div style="font-size:10px;color:#6b7280;display:flex;gap:8px"><span>●<span style="color:#6d28d9"> 11.3%: '+fmt(data.win113)+'</span></span><span>●<span style="color:#0369a1"> 6.1%: '+fmt(data.win61)+'</span></span></div>'+
+      '</div>'+
+      '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:5px 10px;min-width:170px">'+
+        '<div style="font-size:11px;font-weight:700;color:#b45309">⚙️ TEST (Chi phí)</div>'+
+        '<div style="font-size:14px;font-weight:800;color:#d97706">'+fmt(data.test_vat)+'</div>'+
+        '<div style="font-size:10px;color:#6b7280;display:flex;gap:8px"><span>●<span style="color:#6d28d9"> 11.3%: '+fmt(data.test113)+'</span></span><span>●<span style="color:#0369a1"> 6.1%: '+fmt(data.test61)+'</span></span></div>'+
+      '</div>';
+    let shown=0;
+    data.days.forEach(d=>{
+      if(!d.fb_raw && !d.pos_page_ads && !d.pos_page_rev && !d.pos_page_profit) return;
+      shown++;
+      const dayDiff = (d.cp_kt||0) - (d.pos_page_ads||0);
+      // Dòng NGÀY (đậm)
+      const tr=document.createElement('tr');
+      tr.style.background='#f8f9fa'; tr.style.fontWeight='600';
+      tr.innerHTML = '<td>'+d.date.split('-').reverse().join('/')+(d.pages&&d.pages.length?' <span class="text-muted fw-normal" style="font-size:10px">· '+d.pages.length+' page</span>':'')+'</td>'+
+        '<td></td>'+
+        '<td class="text-end text-primary">'+(d.fb_raw?fmt(d.fb_raw):'—')+'</td>'+
+        '<td class="text-end" style="color:#7c3aed">'+(d.cp_kt?fmt(d.cp_kt):'—')+'</td>'+
+        '<td class="text-end" style="color:#0d9488">'+(d.pos_page_ads?fmt(d.pos_page_ads):'—')+'</td>'+
+        '<td class="text-end" style="font-size:11px">'+(d.pos_page_ads?fmtDiff(dayDiff):'—')+'</td>'+
+        '<td class="text-end">'+(d.pos_page_rev?fmt(d.pos_page_rev):'—')+'</td>'+
+        '<td class="text-end '+(d.pos_page_profit<0?'text-danger':'text-success')+'">'+(d.pos_page_profit?fmtProfit(d.pos_page_profit):'—')+'</td>'+
+        '<td class="text-end text-success">'+(d.pos_page_chot||0)+'</td>'+
+        '<td class="text-end text-danger">'+(d.pos_page_hoan||0)+'</td>';
+      tb.appendChild(tr);
+      // Dòng PAGE (thụt vào, gộp trong ngày)
+      (d.pages||[]).forEach(p=>{
+        const pr=document.createElement('tr');
+        const isLoss = (p.pos_profit!==null && p.pos_profit!==undefined && p.pos_profit<0);
+        if(isLoss) pr.style.background='#fef2f2';
+        const link = '<a href="https://www.facebook.com/'+p.page_id+'" target="_blank" rel="noopener" class="text-decoration-none">'+p.name+' <i class="bi bi-box-arrow-up-right" style="font-size:9px;opacity:.6"></i></a>';
+        var vatTag = '<span style="font-size:9px;padding:0 4px;border-radius:3px;'+(p.vat_pct==6.1?'background:#e0f2fe;color:#0369a1':'background:#ede9fe;color:#6d28d9')+'">'+(p.vat_pct||11.3)+'%</span>';
+        const posName = p.pos_name ? '<span style="color:#0f766e"><i class="bi bi-shop" style="font-size:10px"></i> '+p.pos_name+'</span>' : '<span class="text-muted">— chưa có POS —</span>';
+        pr.innerHTML = '<td style="padding-left:22px;font-size:12px">↳ '+link+' '+badge(p.phan_loai)+(isLoss?' <span style="background:#dc2626;color:#fff;padding:0 5px;border-radius:3px;font-size:9px;font-weight:700">LỖ</span>':'')+'</td>'+
+          '<td style="font-size:12px">'+posName+'</td>'+
+          '<td class="text-end text-primary" style="font-size:12px">'+fmt(p.fb_raw)+'</td>'+
+          '<td class="text-end" style="color:#7c3aed;font-size:12px">'+fmt(p.cp_kt)+' '+vatTag+'</td>'+
+          '<td class="text-end" style="color:#0d9488;font-weight:600;font-size:12px">'+fmtN(p.pos_ads)+'</td>'+
+          '<td class="text-end" style="font-size:11px">'+fmtDiff(p.diff_vat)+'</td>'+
+          '<td class="text-end" style="font-size:12px">'+fmtN(p.pos_revenue)+'</td>'+
+          '<td class="text-end" style="font-size:12px">'+fmtProfit(p.pos_profit)+'</td>'+
+          '<td class="text-end text-success" style="font-size:12px">'+(p.pos_chot===null?'—':p.pos_chot)+'</td>'+
+          '<td class="text-end text-danger" style="font-size:12px">'+(p.pos_hoan===null?'—':p.pos_hoan)+'</td>';
+        tb.appendChild(pr);
+        // Dòng phụ TỪNG SHOP — page bán nhiều shop → kế toán đối chiếu thẳng từng Pancake shop.
+        // FB là cấp page (không tách shop) nên các cột FB/CP KT để trống ở dòng phụ.
+        if(p.pos_shops && p.pos_shops.length>1){
+          p.pos_shops.forEach(sh=>{
+            const sr=document.createElement('tr');
+            sr.style.background='#f8fafc'; sr.style.fontSize='11px'; sr.style.color='#475569';
+            sr.innerHTML = '<td style="padding-left:40px">↳ 🏪 '+sh.shop+'</td>'+
+              '<td></td><td></td><td></td>'+
+              '<td class="text-end" style="color:#0d9488;font-weight:600">'+fmtN(sh.pos_ads)+'</td>'+
+              '<td></td>'+
+              '<td class="text-end">'+fmtN(sh.pos_revenue)+'</td>'+
+              '<td class="text-end">'+fmtProfit(sh.pos_profit)+'</td>'+
+              '<td class="text-end text-success">'+(sh.pos_chot||0)+'</td>'+
+              '<td class="text-end text-danger">'+(sh.pos_hoan||0)+'</td>';
+            tb.appendChild(sr);
+          });
+        }
+      });
+    });
+    if(!shown){ tb.innerHTML='<tr><td colspan="10" class="text-center text-muted py-3">Không có dữ liệu trong khoảng ngày này.</td></tr>'; }
+    const t=data.totals;
+    const totDiff = (t.cp_kt||0) - (t.pos_page_ads||0);
+    document.getElementById('sdFoot').innerHTML =
+      '<td>Tổng</td>'+
+      '<td></td>'+
+      '<td class="text-end text-primary">'+fmt(t.fb_raw)+'</td>'+
+      '<td class="text-end" style="color:#7c3aed">'+fmt(t.cp_kt)+'</td>'+
+      '<td class="text-end" style="color:#0d9488">'+fmt(t.pos_page_ads)+'</td>'+
+      '<td class="text-end" style="font-size:11px">'+fmtDiff(totDiff)+'</td>'+
+      '<td class="text-end">'+fmt(t.pos_page_rev)+'</td>'+
+      '<td class="text-end '+(t.pos_page_profit<0?'text-danger':'text-success')+'">'+fmtProfit(t.pos_page_profit)+'</td>'+
+      '<td class="text-end text-success">'+(t.pos_page_chot||0)+'</td>'+
+      '<td class="text-end text-danger">'+(t.pos_page_hoan||0)+'</td>';
+    document.getElementById('sdLoading').style.display='none';
+    document.getElementById('sdContent').style.display='';
+  }
+  if(document.readyState!=='loading') ready(); else document.addEventListener('DOMContentLoaded', ready);
+})();
+</script>
+</body>
+</html>

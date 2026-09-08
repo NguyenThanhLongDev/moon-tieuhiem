@@ -1,0 +1,19 @@
+[Unit]
+Description=Zalo Bridge — forward Zalo group messages tới Flask budget_chat
+After=network-online.target pos-dashboard.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=admin1
+WorkingDirectory=/home/admin1/tieuhiemsoft/zalo_bridge
+EnvironmentFile=/home/admin1/tieuhiemsoft/zalo_bridge/.env
+ExecStart=/usr/bin/node /home/admin1/tieuhiemsoft/zalo_bridge/bridge.js
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/admin1/tieuhiemsoft/zalo_bridge/bridge.log
+StandardError=append:/home/admin1/tieuhiemsoft/zalo_bridge/bridge.log
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

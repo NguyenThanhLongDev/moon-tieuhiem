@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🧾 Ghi chi phí</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="/static/cc-theme.css">
+<style>
+body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; overflow-x:hidden; }
+.topbar { background:#1a1a1a; padding:0 20px; min-height:48px; display:flex; align-items:center; gap:12px; }
+.topbar .brand { font-weight:700; font-size:15px; color:#F59E0B; }
+.topbar a { color:rgba(255,255,255,.75); text-decoration:none; font-size:13px; padding:4px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.2); }
+.topbar a:hover { background:rgba(255,255,255,.08); color:#fff; }
+.page-wrap { max-width:1280px; margin:0 auto; padding:16px; }
+.kpi-card { background:#fff; border-radius:12px; padding:14px 16px; box-shadow:0 1px 3px rgba(0,0,0,.06); border-left:4px solid #F59E0B; }
+.kpi-card.blue { border-left-color:#1e40af; }
+.kpi-card.green { border-left-color:#16a34a; }
+.kpi-card.red { border-left-color:#dc2626; }
+.kpi-card.amber { border-left-color:#d97706; }
+
+/* Grid all-in-one cho KPI + category — auto-fit vừa màn hình */
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; }
+.kpi-grid .kpi-card { padding:10px 13px; }
+.kpi-grid .kpi-card .kpi-label { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.kpi-grid .kpi-card .kpi-value { font-size:17px; line-height:1.25; }
+.kpi-grid .kpi-card .kpi-sub { font-size:11px; }
+@media (max-width:560px) {
+  .kpi-grid { grid-template-columns:repeat(2, 1fr); }
+  .kpi-grid .kpi-card .kpi-value { font-size:15px; }
+}
+.kpi-label { color:#64748b; font-size:12px; font-weight:600; text-transform:uppercase; }
+.kpi-value { font-size:22px; font-weight:700; color:#1f2937; }
+.kpi-sub { color:#94a3b8; font-size:12px; margin-top:2px; }
+.table-x th { background:#f8fafc; font-size:12.5px; }
+.table-x td { font-size:13px; vertical-align:middle; }
+.badge-cat { padding:2px 8px; border-radius:6px; font-size:11px; font-weight:500; }
+.badge-cat.ads { background:#dbeafe; color:#1e40af; }
+.badge-cat.salary { background:#fef3c7; color:#92400e; }
+.badge-cat.office { background:#e0f2fe; color:#075985; }
+.badge-cat.utility { background:#fce7f3; color:#9d174d; }
+.badge-cat.other { background:#e5e7eb; color:#374151; }
+.status-pending { color:#d97706; font-weight:600; }
+.status-confirmed { color:#16a34a; font-weight:600; }
+.status-rejected { color:#dc2626; font-weight:600; }
+.src-icon { display:inline-block; padding:2px 6px; border-radius:4px; font-size:11px; }
+.src-icon.image { background:#fef3c7; }
+.src-icon.text { background:#dbeafe; }
+.snippet { color:#64748b; font-size:11.5px; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.row-flex { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">🧾 Ghi chi phí</span>
+  <a href="/">🏠 Trang chủ</a>
+  <a href="{{ url_for('chi_phi_qc.bao_cao') }}">📊 Bc CP QC</a>
+  {% if (current_user.role or '')|lower in ('admin','superadmin','manager','it') %}
+    <a href="{{ url_for('expense_chat.zalo_mapping') }}" title="Chỉ admin">⚙ Cấu hình</a>
+  {% endif %}
+</div>
+
+<div class="page-wrap">
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in msgs %}
+      <div class="alert alert-{{ 'success' if cat=='success' else ('warning' if cat=='warning' else ('danger' if cat=='danger' else 'info')) }} py-2">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  {# Filter #}
+  <form method="get" class="row-flex mb-3" style="background:#fff; padding:12px 14px; border-radius:10px">
+    {% include "_date_range_picker.html" %}
+    <select name="category" class="form-select form-select-sm" style="max-width:160px">
+      <option value="">— Mọi loại —</option>
+      {% for k, lbl in category_label.items() %}
+        <option value="{{ k }}" {% if k==cat_filter %}selected{% endif %}>{{ lbl }}</option>
+      {% endfor %}
+    </select>
+    <select name="source" class="form-select form-select-sm" style="max-width:120px">
+      <option value="">— Nguồn —</option>
+      <option value="text"  {% if src_filter=='text' %}selected{% endif %}>📝 Chữ</option>
+      <option value="image" {% if src_filter=='image' %}selected{% endif %}>🖼 Ảnh</option>
+    </select>
+    <select name="status" class="form-select form-select-sm" style="max-width:140px">
+      <option value="">— Trạng thái —</option>
+      <option value="pending"   {% if status_filter=='pending' %}selected{% endif %}>⏳ Chờ duyệt</option>
+      <option value="confirmed" {% if status_filter=='confirmed' %}selected{% endif %}>✓ Đã duyệt</option>
+      <option value="rejected"  {% if status_filter=='rejected' %}selected{% endif %}>✗ Từ chối</option>
+    </select>
+    <button class="btn btn-sm btn-primary"><i class="bi bi-search"></i> Lọc</button>
+    <a class="btn btn-sm btn-success ms-auto"
+       href="{{ url_for('expense_chat.export_excel', date_from=date_from, date_to=date_to) }}">
+      <i class="bi bi-download"></i> Xuất Excel
+    </a>
+  </form>
+
+  {# KPI all-in-one — gom Tổng + Pending + tất cả category vào 1 row #}
+  <div class="kpi-grid mb-3">
+    <div class="kpi-card">
+      <div class="kpi-label">💰 Tổng chi phí</div>
+      <div class="kpi-value">{{ '{:,.0f}'.format(grand_total) }}đ</div>
+      <div class="kpi-sub">{{ items|length }} mục</div>
+    </div>
+    <div class="kpi-card {{ 'red' if pending_count > 0 else 'green' }}">
+      <div class="kpi-label">⏳ Chờ duyệt</div>
+      <div class="kpi-value">{{ pending_count }}</div>
+      <div class="kpi-sub">cần check</div>
+    </div>
+    {% for b in by_cat %}
+      {% set _color = {'ads':'blue','salary':'green','office':'amber','utility':'red','other':''}.get(b.cat,'') %}
+      <div class="kpi-card {{ _color }}">
+        <div class="kpi-label">{{ category_label.get(b.cat, b.cat) }}</div>
+        <div class="kpi-value">{{ '{:,.0f}'.format(b.total) }}đ</div>
+        <div class="kpi-sub">{{ b.count }} mục</div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {# Bảng items #}
+  <div class="table-responsive" style="background:#fff; border-radius:10px; padding:12px 14px">
+    <table class="table table-sm table-x align-middle">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Ngày</th>
+          <th class="text-end">Số tiền</th>
+          <th>Loại</th>
+          <th>Ghi chú</th>
+          <th>Nguồn</th>
+          <th>Người gửi</th>
+          <th>Trạng thái</th>
+          <th style="width:140px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+          <tr>
+            <td>#{{ it.id }}</td>
+            <td>
+              {{ it.occurred_date.strftime('%d/%m/%Y') if it.occurred_date else '—' }}
+              {% if it.is_private %}<span title="Báo riêng qua chat 1-1" style="color:#dc2626; font-size:11px">🔒</span>{% endif %}
+            </td>
+            <td class="text-end fw-bold text-success">{{ '{:,.0f}'.format(it.amount_vnd) }}đ</td>
+            <td><span class="badge-cat {{ it.category }}">{{ category_label.get(it.category, it.category) }}</span></td>
+            <td><div class="snippet" title="{{ it.note }}">{{ it.note }}</div>
+                {% if it.confidence and it.confidence < 0.7 %}<span class="text-warning" title="Confidence thấp">⚠ {{ '%.0f'|format(it.confidence*100) }}%</span>{% endif %}
+            </td>
+            <td>
+              {% if it.source == 'image' %}
+                <a href="{{ it.source_url }}" target="_blank" class="src-icon image">🖼 Ảnh</a>
+              {% else %}
+                <span class="src-icon text" title="{{ it.raw_body }}">📝 Chữ</span>
+              {% endif %}
+            </td>
+            <td class="small">{{ it.zalo_sender_name }}</td>
+            <td><span class="status-{{ it.status }}">{{ {'pending':'⏳ Chờ','confirmed':'✓ OK','rejected':'✗ Từ chối'}.get(it.status, it.status) }}</span></td>
+            <td>
+              {% if it.status == 'pending' %}
+                <form method="post" action="{{ url_for('expense_chat.confirm_item', item_id=it.id) }}" style="display:inline">
+                  <input type="hidden" name="status" value="confirmed">
+                  <button class="btn btn-sm btn-success" title="Duyệt"><i class="bi bi-check2"></i></button>
+                </form>
+                <form method="post" action="{{ url_for('expense_chat.confirm_item', item_id=it.id) }}" style="display:inline">
+                  <input type="hidden" name="status" value="rejected">
+                  <button class="btn btn-sm btn-outline-danger" title="Từ chối"><i class="bi bi-x"></i></button>
+                </form>
+              {% endif %}
+              <button type="button" class="btn btn-sm btn-outline-primary edit-btn" title="Sửa phiếu"
+                      data-id="{{ it.id }}"
+                      data-amount="{{ it.amount_vnd }}"
+                      data-category="{{ it.category }}"
+                      data-note="{{ it.note|e }}"
+                      data-date="{{ it.occurred_date.isoformat() if it.occurred_date else '' }}"
+                      data-status="{{ it.status }}">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <form method="post" action="{{ url_for('expense_chat.delete_item', item_id=it.id) }}" style="display:inline" onsubmit="return confirm('Xoá?')">
+                <button class="btn btn-sm btn-outline-secondary" title="Xoá"><i class="bi bi-trash"></i></button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        {% if not items %}
+          <tr><td colspan="9" class="text-center text-muted py-3">Chưa có chi phí nào trong khoảng ngày này.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+{# Modal sửa phiếu #}
+<div class="modal fade" id="editItemModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="post" id="editItemForm" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">✏️ Sửa phiếu chi phí</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="status" id="ed_status">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">💰 Số tiền (VND)</label>
+          <input type="number" name="amount_vnd" id="ed_amount" class="form-control" min="0" step="1" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">🏷 Loại chi phí</label>
+          <select name="category" id="ed_category" class="form-select" required>
+            {% for k, lbl in category_label.items() %}
+              <option value="{{ k }}">{{ lbl }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">📅 Ngày</label>
+          <input type="date" name="occurred_date" id="ed_date" class="form-control">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">📝 Ghi chú</label>
+          <textarea name="note" id="ed_note" class="form-control" rows="3"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Huỷ</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Lưu</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+(function(){
+  var modalEl = document.getElementById('editItemModal');
+  var modal = new bootstrap.Modal(modalEl);
+  var form = document.getElementById('editItemForm');
+  document.querySelectorAll('.edit-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var id = btn.dataset.id;
+      form.action = '/chi-phi/items/' + id + '/confirm';
+      document.getElementById('ed_amount').value = btn.dataset.amount || 0;
+      document.getElementById('ed_category').value = btn.dataset.category || 'other';
+      document.getElementById('ed_date').value = btn.dataset.date || '';
+      document.getElementById('ed_note').value = btn.dataset.note || '';
+      document.getElementById('ed_status').value = btn.dataset.status || 'confirmed';
+      modal.show();
+    });
+  });
+})();
+</script>
+</body>
+</html>

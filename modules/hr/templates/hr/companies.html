@@ -1,0 +1,57 @@
+{% extends "hr/_base.html" %}
+{% block title %}Công ty — HR{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center mb-3">
+  <h5 class="mb-0" style="flex:1"><i class="bi bi-building text-warning"></i> Quản lý công ty (Bên A)</h5>
+  <a href="{{ url_for('hr.company_edit') }}" class="btn-brand btn btn-sm">
+    <i class="bi bi-plus-lg"></i> Thêm công ty
+  </a>
+</div>
+
+<div class="hr-card p-0">
+  <table class="table table-hover mb-0">
+    <thead style="background:#f8fafc">
+      <tr>
+        <th style="width:30%">Tên công ty</th>
+        <th>MST</th>
+        <th>Người đại diện</th>
+        <th>SĐT</th>
+        <th class="text-center">HĐ</th>
+        <th class="text-center">Trạng thái</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in companies %}
+      <tr>
+        <td>
+          <strong>{{ c.company_name }}</strong>
+          {% if c.is_default %}<span class="badge bg-warning text-dark ms-1">Mặc định</span>{% endif %}
+          {% if c.address %}<div class="text-muted small">{{ c.address }}</div>{% endif %}
+        </td>
+        <td>{{ c.tax_code or '—' }}</td>
+        <td>
+          {{ c.legal_rep_name or '—' }}
+          {% if c.legal_rep_title %}<div class="text-muted small">{{ c.legal_rep_title }}</div>{% endif %}
+        </td>
+        <td>{{ c.phone or '—' }}</td>
+        <td class="text-center">{{ c.contract_count or 0 }}</td>
+        <td class="text-center">
+          {% if c.is_active %}<span class="badge bg-success">Hoạt động</span>
+          {% else %}<span class="badge bg-secondary">Ngưng</span>{% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('hr.company_edit', cid=c.id) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-pencil"></i> Sửa
+          </a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-4">Chưa có công ty nào. Bấm "Thêm công ty" để bắt đầu.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

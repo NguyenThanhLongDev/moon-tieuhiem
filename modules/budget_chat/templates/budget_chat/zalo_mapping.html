@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🧸 Map Zalo ↔ User/Team</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="/static/cc-theme.css">
+<link rel="stylesheet" href="/static/cc-multiselect.css">
+<script src="/static/cc-multiselect.js" defer></script>
+<style>
+body { background:#f5f6fa; font-family:'Segoe UI',sans-serif; font-size:14px; }
+.topbar { background:#1a1a1a; padding:0 20px; min-height:48px; display:flex; align-items:center; gap:12px; }
+.topbar .brand { font-weight:700; font-size:15px; color:#F59E0B; }
+.topbar a { color:rgba(255,255,255,.75); text-decoration:none; font-size:13px; padding:4px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.2); }
+.page-wrap { max-width:1100px; margin:0 auto; padding:16px; }
+.section { background:#fff; border-radius:10px; padding:14px 16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+.section h5 { margin:0 0 10px; font-size:15px; font-weight:600; }
+.pending-card { background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+.pending-card .head { display:flex; justify-content:space-between; align-items:center; }
+.pending-card .uid { font-family:monospace; font-size:11px; color:#6b7280; }
+.pending-card .snippet { font-size:12px; color:#475569; margin-top:4px; font-style:italic; }
+.pending-card form { margin-top:8px; display:flex; gap:6px; align-items:center; }
+.mapped-row { display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid #f1f5f9; }
+.mapped-row:last-child { border-bottom:none; }
+.thread-row { display:flex; gap:8px; align-items:center; padding:8px; border-bottom:1px solid #f1f5f9; flex-wrap:wrap; }
+.thread-row code { background:#f3f4f6; padding:2px 6px; border-radius:4px; font-size:11px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">🧸 Map Zalo ↔ User/Team</span>
+  <a href="{{ url_for('budget_chat.summary') }}">📊 Tổng hợp</a>
+  <a href="/">🏠 Trang chủ</a>
+</div>
+
+<div class="page-wrap">
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="alert alert-{{ 'success' if cat=='success' else ('warning' if cat=='warning' else ('danger' if cat=='danger' else 'info')) }} py-2">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  {# 1. Pending senders #}
+  <div class="section">
+    <h5>⚠ Sender Zalo chưa map ({{ pending|length }})</h5>
+    {% if not pending %}
+      <div class="text-muted small">Không có sender nào chờ map ✓</div>
+    {% endif %}
+    {% for p in pending %}
+      <div class="pending-card">
+        <div class="head">
+          <div>
+            <strong>{{ p.sender_name }}</strong>
+            <span class="uid">· uid={{ p.sender_uid }}</span>
+            <span class="text-muted small">· {{ p.count }} tin · last {{ p.last_seen.strftime('%d/%m %H:%M') if p.last_seen else '' }}</span>
+          </div>
+        </div>
+        {% if p.snippet %}
+          <div class="snippet">"{{ p.snippet }}"</div>
+        {% endif %}
+        <form method="post" action="{{ url_for('budget_chat.zalo_mapping_assign_user') }}">
+          <input type="hidden" name="sender_uid" value="{{ p.sender_uid }}">
+          <select name="user_id" class="form-select form-select-sm" data-cc-search style="max-width:380px" required>
+            <option value="">-- Chọn user DB --</option>
+            <option value="0">— Bỏ qua sender này —</option>
+            {% for u in all_users %}
+              <option value="{{ u.id }}">
+                {{ u.full_name }} ({{ u.username }}){% if u.team_name %} · {{ u.team_name }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-link-45deg"></i> Map</button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+
+  {# 2. Đã map #}
+  <div class="section">
+    <h5>✓ User đã map Zalo ({{ mapped|length }})</h5>
+    {% if not mapped %}
+      <div class="text-muted small">Chưa có user nào.</div>
+    {% endif %}
+    {% for m in mapped %}
+      <div class="mapped-row">
+        <strong style="min-width:200px">{{ m.full_name }}</strong>
+        <span class="text-muted small">{{ m.username }}</span>
+        {% if m.team_code %}<span class="badge bg-secondary">{{ m.team_code }}</span>{% endif %}
+        <code class="ms-auto" style="font-size:11px">{{ m.zalo_uid }}</code>
+        <form method="post" action="{{ url_for('budget_chat.zalo_mapping_unmap_user') }}" onsubmit="return confirm('Unmap user này?')">
+          <input type="hidden" name="user_id" value="{{ m.id }}">
+          <button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-x"></i></button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+
+  {# 2.4 Nhóm nhận BÁO CÁO ADS (Lãi/Lỗ) #}
+  <div class="section" style="background:#fff7ed; border:1px solid #fdba74">
+    <h5>📣 Nhóm nhận BÁO CÁO ADS — Lãi/Lỗ ({{ ads_report_tids|length }} nhóm đang bật)</h5>
+    <p class="text-muted small mb-2">Lan sẽ gửi báo cáo Lãi/Lỗ (page nào lỗ, lời bao nhiêu, theo NV) vào các nhóm BẬT ở đây. Kéo Lan vào nhóm rồi bấm Bật.</p>
+    {% if all_groups %}
+      {% for g in all_groups %}
+      <div class="thread-row" style="background:#fff">
+        <strong style="min-width:240px">{{ g.name or '(không tên)' }}</strong>
+        <span class="text-muted small">{{ g.member_count }} mem</span>
+        <code style="font-size:10px">{{ g.thread_id }}</code>
+        <form method="post" action="{{ url_for('budget_chat.zalo_mapping_toggle_ads_report') }}" class="ms-auto">
+          <input type="hidden" name="thread_id" value="{{ g.thread_id }}">
+          {% if g.thread_id in ads_report_tids %}
+            <input type="hidden" name="enable" value="0">
+            <button class="btn btn-sm btn-success" type="submit"><i class="bi bi-check-circle-fill"></i> ĐANG BẬT — bấm để tắt</button>
+          {% else %}
+            <input type="hidden" name="enable" value="1">
+            <button class="btn btn-sm btn-outline-secondary" type="submit"><i class="bi bi-megaphone"></i> Bật báo cáo Ads</button>
+          {% endif %}
+        </form>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="text-muted small">Chưa thấy nhóm nào — kéo Zalo của Lan vào nhóm rồi tải lại trang (bridge tự quét).</div>
+    {% endif %}
+  </div>
+
+  {# 2.5 Auto-scan groups chưa map #}
+  {% if auto_groups %}
+  <div class="section" style="background:#ecfdf5; border:1px solid #6ee7b7">
+    <h5>✨ Group Zalo Lan đang ở (chưa map · {{ auto_groups|length }})</h5>
+    <p class="text-muted small mb-2">Bridge tự quét. Em gợi ý team dựa trên tên — anh confirm + Lưu.</p>
+    {% for g in auto_groups %}
+      <div class="thread-row" style="background:#fff">
+        <strong style="min-width:260px">{{ g.name }}</strong>
+        <span class="text-muted small">{{ g.member_count }} mem</span>
+        <code style="font-size:10px">{{ g.thread_id }}</code>
+        <span>→</span>
+        <form method="post" action="{{ url_for('budget_chat.zalo_mapping_assign_thread') }}" class="d-flex gap-2 align-items-center ms-auto">
+          <input type="hidden" name="thread_id" value="{{ g.thread_id }}">
+          <select name="team_code" class="form-select form-select-sm" style="max-width:200px" required>
+            <option value="">-- Chọn team --</option>
+            {% for team in teams_all %}
+              <option value="{{ team.team_id }}" {% if team.team_id == g.suggested_team %}selected{% endif %}>
+                {{ team.name }}{% if team.team_id == g.suggested_team %} ⭐{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-sm btn-success" type="submit"><i class="bi bi-check2"></i> Map</button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# 3. Thread mapping #}
+  <div class="section">
+    <h5>📡 Zalo Group → Team ({{ threads|length }})</h5>
+    <p class="text-muted small mb-2">Bridge phải biết group Zalo nào thuộc team nào. Khi bridge log <code>thread not mapped</code>, copy thread_id vào đây.</p>
+    {% for t in threads %}
+      <div class="thread-row">
+        <code>{{ t.thread_id }}</code>
+        <span>→</span>
+        <form method="post" action="{{ url_for('budget_chat.zalo_mapping_assign_thread') }}" class="d-flex gap-2 align-items-center">
+          <input type="hidden" name="thread_id" value="{{ t.thread_id }}">
+          <select name="team_code" class="form-select form-select-sm" style="max-width:200px">
+            <option value="">— Gỡ map —</option>
+            {% for team in teams_all %}
+              <option value="{{ team.team_id }}" {% if team.team_id == t.team_code %}selected{% endif %}>{{ team.name }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-sm btn-outline-primary" type="submit">Lưu</button>
+        </form>
+      </div>
+    {% endfor %}
+
+    <hr>
+    <strong>+ Thêm thread mới</strong>
+    <form method="post" action="{{ url_for('budget_chat.zalo_mapping_assign_thread') }}" class="d-flex gap-2 align-items-center mt-2 flex-wrap">
+      <input type="text" name="thread_id" class="form-control form-control-sm" placeholder="thread_id (vd 638544760243854625)" style="max-width:280px" required>
+      <select name="team_code" class="form-select form-select-sm" style="max-width:200px" required>
+        <option value="">-- Chọn team --</option>
+        {% for team in teams_all %}
+          <option value="{{ team.team_id }}">{{ team.name }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-sm btn-success" type="submit"><i class="bi bi-plus-lg"></i> Thêm</button>
+    </form>
+  </div>
+
+</div>
+</body>
+</html>

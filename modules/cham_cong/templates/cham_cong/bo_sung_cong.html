@@ -1,0 +1,318 @@
+{% extends "cham_cong/base.html" %}
+{% block title %}Bổ sung công — Tiểu Hiềm{% endblock %}
+{% set active_page = 'bo_sung_cong' %}
+
+{% block extra_css %}
+<style>
+.bsc-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  margin-bottom: 16px;
+}
+.bsc-card h6 { font-weight: 700; color: #1e293b; margin-bottom: 14px; display:flex; align-items:center; gap:8px; }
+
+/* ── Ca làm việc (thẻ chuyên nghiệp) ── */
+.ca-row {
+  position:relative;
+  background:#f8fafc;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  padding:12px 14px;
+  margin-bottom:10px;
+}
+.ca-row .ca-no {
+  font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+  color:#64748b; display:block; margin-bottom:8px;
+}
+.ca-grid { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; }
+.ca-time { display:flex; flex-direction:column; gap:4px; }
+.ca-time .tlabel { font-size:11px; font-weight:600; color:#475569; }
+.ca-time .tinputs { display:flex; align-items:center; gap:4px; }
+.ca-time .tsep { color:#94a3b8; font-weight:700; }
+.ca-time .tnum {
+  width:54px; padding:9px 8px; border:1px solid #cbd5e1; border-radius:9px;
+  font-size:16px; font-weight:600; color:#1e293b; background:#fff;
+  text-align:center; transition:border-color .15s, box-shadow .15s;
+}
+.ca-time .tnum::placeholder { color:#cbd5e1; font-weight:500; }
+.ca-time .tnum:focus { outline:none; border-color:#1d4ed8; box-shadow:0 0 0 3px rgba(29,78,216,.12); }
+/* ẩn spinner number trên trình duyệt */
+.ca-time .tnum::-webkit-outer-spin-button,
+.ca-time .tnum::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.ca-arrow { align-self:center; color:#cbd5e1; font-size:18px; padding:0 2px; margin-top:14px; }
+.ca-del {
+  margin-left:auto; align-self:center; margin-top:14px;
+  background:#fff; color:#dc2626; border:1px solid #fecaca; border-radius:9px;
+  width:38px; height:38px; cursor:pointer; flex:0 0 auto; transition:background .15s;
+}
+.ca-del:hover { background:#fef2f2; }
+.ca-sep { color:#94a3b8; font-size:13px; }
+.req-item {
+  border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; margin-bottom:10px;
+}
+.req-head { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
+.req-date { font-weight:700; color:#1e293b; font-size:15px; }
+.req-sessions { font-size:13px; color:#475569; margin-top:6px; }
+.req-sessions .chip { display:inline-block; background:#eff6ff; color:#1d4ed8; border-radius:6px; padding:2px 8px; margin:2px 4px 2px 0; font-weight:600; }
+.req-reason { font-size:13px; color:#64748b; margin-top:6px; font-style:italic; }
+.req-meta { font-size:12px; color:#94a3b8; margin-top:6px; }
+.badge-st { font-size:12px; font-weight:700; border-radius:20px; padding:3px 12px; }
+.st-pending  { background:#fef3c7; color:#b45309; }
+.st-approved { background:#dcfce7; color:#16a34a; }
+.st-rejected { background:#fee2e2; color:#dc2626; }
+.st-cancelled{ background:#f1f5f9; color:#64748b; }
+.req-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.req-actions button { font-size:13px; padding:7px 14px; border-radius:8px; border:none; cursor:pointer; font-weight:600; }
+.btn-approve { background:#16a34a; color:#fff; }
+.btn-reject  { background:#fff; color:#dc2626; border:1px solid #fecaca!important; }
+.btn-cancel  { background:#fff; color:#64748b; border:1px solid #e2e8f0!important; }
+.btn-add-ca  { background:#eff6ff; color:#1d4ed8; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; }
+.sub-tabs { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+.sub-tabs button { flex:1; min-width:120px; padding:9px 12px; border:none; border-radius:10px; background:#f1f5f9; color:#475569; font-weight:600; font-size:13px; cursor:pointer; }
+.sub-tabs button.active { background:#1d4ed8; color:#fff; }
+.empty-note { color:#94a3b8; font-size:14px; text-align:center; padding:18px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Macro render 1 đề nghị -->
+{% macro render_request(r, can_act) %}
+<div class="req-item" id="req-{{ r.id }}">
+  <div class="req-head">
+    <span class="req-date">
+      <i class="bi bi-calendar3"></i>
+      {{ r.work_date.strftime('%d/%m/%Y') if r.work_date.strftime is defined else r.work_date }}
+      {% if r.full_name %}<span style="color:#64748b;font-weight:500;font-size:13px;"> · {{ r.full_name }}</span>{% endif %}
+    </span>
+    <span class="badge-st st-{{ r.status }}">
+      {% if r.status == 'pending' %}Chờ duyệt
+      {% elif r.status == 'approved' %}Đã duyệt
+      {% elif r.status == 'rejected' %}Từ chối
+      {% else %}Đã huỷ{% endif %}
+    </span>
+  </div>
+  <div class="req-sessions">
+    {% for ca in r.sessions %}
+      <span class="chip">{{ ca.check_in }}{% if ca.check_out %} → {{ ca.check_out }}{% else %} → (chưa có giờ ra){% endif %}</span>
+    {% endfor %}
+  </div>
+  {% if r.reason %}<div class="req-reason">“{{ r.reason }}”</div>{% endif %}
+  {% if r.status != 'pending' and r.review_note %}
+    <div class="req-meta"><i class="bi bi-chat-left-text"></i> Ghi chú: {{ r.review_note }}{% if r.reviewer_name %} — {{ r.reviewer_name }}{% endif %}</div>
+  {% endif %}
+  <div class="req-meta"><i class="bi bi-clock"></i> Gửi lúc {{ r.created_at.strftime('%H:%M %d/%m/%Y') if r.created_at.strftime is defined else r.created_at }}</div>
+
+  {% if can_act and r.status == 'pending' %}
+  <div class="req-actions">
+    <button class="btn-approve" onclick="approveReq({{ r.id }})"><i class="bi bi-check-lg"></i> Duyệt</button>
+    <button class="btn-reject" onclick="rejectReq({{ r.id }})"><i class="bi bi-x-lg"></i> Từ chối</button>
+  </div>
+  {% elif not can_act and r.status == 'pending' and (r.user_id|string) == (user.id|string) %}
+  <div class="req-actions">
+    <button class="btn-cancel" onclick="cancelReq({{ r.id }})"><i class="bi bi-trash"></i> Huỷ đề nghị</button>
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+<div style="max-width:760px;margin:0 auto;">
+
+  <h4 style="font-weight:800;color:#1e293b;margin-bottom:4px;"><i class="bi bi-calendar-plus"></i> Bổ sung công</h4>
+  <p style="color:#64748b;font-size:14px;margin-bottom:18px;">Quên chấm công hoặc chấm sai giờ? Gửi đề nghị bổ sung — trưởng nhóm / kế toán sẽ duyệt.</p>
+
+  {% if is_manager %}
+  <div class="sub-tabs">
+    <button id="tab-btn-pending" class="active" onclick="showTab('pending', this)">
+      Cần duyệt {% if pending_list %}({{ pending_list|length }}){% endif %}
+    </button>
+    <button id="tab-btn-mine" onclick="showTab('mine', this)">Đề nghị của tôi</button>
+    <button id="tab-btn-history" onclick="showTab('history', this)">Đã xử lý</button>
+  </div>
+  {% endif %}
+
+  <!-- ── Form gửi đề nghị ── -->
+  <div id="tab-mine" class="{% if is_manager %}d-none{% endif %}">
+    <div class="bsc-card">
+      <h6><i class="bi bi-pencil-square"></i> Gửi đề nghị bổ sung công</h6>
+      <div class="mb-3">
+        <label class="form-label" style="font-size:13px;font-weight:600;">Ngày cần bổ sung</label>
+        <input type="date" id="bsc-date" class="form-control" max="{{ today.isoformat() }}">
+      </div>
+      <label class="form-label" style="font-size:13px;font-weight:600;">Ca làm việc (có thể nhiều ca)</label>
+      <div id="ca-list"></div>
+      <button type="button" class="btn-add-ca mt-1" onclick="addCa()"><i class="bi bi-plus-lg"></i> Thêm ca</button>
+      <div class="mt-3">
+        <label class="form-label" style="font-size:13px;font-weight:600;">Lý do</label>
+        <textarea id="bsc-reason" class="form-control" rows="2" placeholder="VD: Quên chấm công sáng, máy lỗi GPS..."></textarea>
+      </div>
+      <button type="button" class="btn btn-primary w-100 mt-3" style="font-weight:700;" onclick="submitRequest()">
+        <i class="bi bi-send"></i> Gửi đề nghị
+      </button>
+    </div>
+
+    <h6 style="font-weight:700;color:#334155;margin:18px 0 10px;">Đề nghị của tôi</h6>
+    {% if my_requests %}
+      {% for r in my_requests %}{{ render_request(r, false) }}{% endfor %}
+    {% else %}
+      <div class="empty-note">Chưa có đề nghị nào.</div>
+    {% endif %}
+  </div>
+
+  {% if is_manager %}
+  <!-- ── Cần duyệt ── -->
+  <div id="tab-pending">
+    {% if pending_list %}
+      {% for r in pending_list %}{{ render_request(r, true) }}{% endfor %}
+    {% else %}
+      <div class="empty-note"><i class="bi bi-check2-circle" style="font-size:32px;color:#cbd5e1;display:block;margin-bottom:8px;"></i>Không có đề nghị nào chờ duyệt.</div>
+    {% endif %}
+  </div>
+
+  <!-- ── Đã xử lý ── -->
+  <div id="tab-history" class="d-none">
+    {% if reviewed_list %}
+      {% for r in reviewed_list %}{{ render_request(r, false) }}{% endfor %}
+    {% else %}
+      <div class="empty-note">Chưa có đề nghị nào được xử lý.</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showTab(tab, btn) {
+  ['pending','mine','history'].forEach(t => {
+    const el = document.getElementById('tab-' + t);
+    if (el) el.classList.toggle('d-none', t !== tab);
+    const b = document.getElementById('tab-btn-' + t);
+    if (b) b.classList.toggle('active', t === tab);
+  });
+}
+
+function caRowHtml() {
+  const inp = (cls, ph, max) =>
+    `<input type="text" inputmode="numeric" maxlength="2" class="tnum ${cls}" placeholder="${ph}" data-max="${max}">`;
+  return `<div class="ca-row">
+    <span class="ca-no"><i class="bi bi-clock-history"></i> Ca làm việc</span>
+    <div class="ca-grid">
+      <div class="ca-time">
+        <span class="tlabel">Giờ vào</span>
+        <div class="tinputs">
+          ${inp('ca-in-h','08',23)}<span class="tsep">:</span>${inp('ca-in-m','00',59)}
+        </div>
+      </div>
+      <span class="ca-arrow"><i class="bi bi-arrow-right"></i></span>
+      <div class="ca-time">
+        <span class="tlabel">Giờ ra</span>
+        <div class="tinputs">
+          ${inp('ca-out-h','18',23)}<span class="tsep">:</span>${inp('ca-out-m','00',59)}
+        </div>
+      </div>
+      <button type="button" class="ca-del" title="Xoá ca" onclick="removeCa(this)"><i class="bi bi-trash"></i></button>
+    </div>
+  </div>`;
+}
+function renumberCa() {
+  document.querySelectorAll('#ca-list .ca-row').forEach((row, i) => {
+    const lbl = row.querySelector('.ca-no');
+    if (lbl) lbl.innerHTML = `<i class="bi bi-clock-history"></i> Ca ${i + 1}`;
+  });
+}
+function addCa() {
+  document.getElementById('ca-list').insertAdjacentHTML('beforeend', caRowHtml());
+  renumberCa();
+}
+function removeCa(btn) {
+  btn.closest('.ca-row').remove();
+  renumberCa();
+}
+
+// ── Cho gõ giờ/phút: chỉ nhận số, tự nhảy ô, kẹp giá trị hợp lệ ──
+document.getElementById('ca-list').addEventListener('input', (e) => {
+  const el = e.target;
+  if (!el.classList.contains('tnum')) return;
+  el.value = el.value.replace(/[^0-9]/g, '').slice(0, 2);
+  const max = parseInt(el.dataset.max, 10);
+  if (el.value.length === 2) {
+    if (parseInt(el.value, 10) > max) el.value = String(max).padStart(2, '0');
+    // tự nhảy sang ô kế tiếp trong cùng ca
+    const inputs = [...el.closest('.ca-grid').querySelectorAll('.tnum')];
+    const next = inputs[inputs.indexOf(el) + 1];
+    if (next) next.focus();
+  }
+});
+// rời ô → tự đệm 0 phía trước (8 → 08), kẹp lại lần nữa
+document.getElementById('ca-list').addEventListener('blur', (e) => {
+  const el = e.target;
+  if (!el.classList || !el.classList.contains('tnum') || el.value === '') return;
+  let n = parseInt(el.value, 10);
+  const max = parseInt(el.dataset.max, 10);
+  if (isNaN(n) || n < 0) n = 0;
+  if (n > max) n = max;
+  el.value = String(n).padStart(2, '0');
+}, true);
+
+async function submitRequest() {
+  const date = document.getElementById('bsc-date').value;
+  if (!date) { ccToast('Vui lòng chọn ngày!', 'error'); return; }
+  const pad2 = v => (v === '' ? '' : String(parseInt(v, 10)).padStart(2, '0'));
+  const rows = document.querySelectorAll('#ca-list .ca-row');
+  const sessions = [];
+  for (const row of rows) {
+    const ih = pad2(row.querySelector('.ca-in-h').value), im = pad2(row.querySelector('.ca-in-m').value);
+    const oh = pad2(row.querySelector('.ca-out-h').value), om = pad2(row.querySelector('.ca-out-m').value);
+    if (ih === '' || im === '') {
+      if (ih !== '' || im !== '') { ccToast('Giờ vào phải nhập đủ giờ và phút!', 'error'); return; }
+      continue;
+    }
+    const ci = `${ih}:${im}`;
+    let co = '';
+    if (oh !== '' && om !== '') co = `${oh}:${om}`;
+    else if (oh !== '' || om !== '') { ccToast('Giờ ra phải nhập đủ giờ và phút!', 'error'); return; }
+    sessions.push({check_in: ci, check_out: co});
+  }
+  if (!sessions.length) { ccToast('Cần ít nhất 1 ca có giờ vào!', 'error'); return; }
+  const r = await ccPost('/cham-cong/api/bo-sung-cong', {
+    work_date: date,
+    sessions: sessions,
+    reason: document.getElementById('bsc-reason').value
+  });
+  if (r.ok) {
+    ccToast('✅ ' + r.msg);
+    setTimeout(() => location.reload(), 800);
+  } else {
+    ccToast(r.msg || 'Lỗi', 'error');
+  }
+}
+
+async function approveReq(id) {
+  if (!confirm('Duyệt đề nghị này? Hệ thống sẽ thêm ca và tính lại công.')) return;
+  const r = await ccPost('/cham-cong/api/bo-sung-cong/' + id + '/approve', {});
+  if (r.ok) { ccToast('✅ ' + r.msg); setTimeout(() => location.reload(), 800); }
+  else ccToast(r.msg || 'Lỗi', 'error');
+}
+
+async function rejectReq(id) {
+  const note = prompt('Lý do từ chối (tuỳ chọn):', '');
+  if (note === null) return;
+  const r = await ccPost('/cham-cong/api/bo-sung-cong/' + id + '/reject', {note: note});
+  if (r.ok) { ccToast('Đã từ chối đề nghị.'); setTimeout(() => location.reload(), 800); }
+  else ccToast(r.msg || 'Lỗi', 'error');
+}
+
+async function cancelReq(id) {
+  if (!confirm('Huỷ đề nghị này?')) return;
+  const r = await ccPost('/cham-cong/api/bo-sung-cong/' + id + '/cancel', {});
+  if (r.ok) { ccToast('Đã huỷ đề nghị.'); setTimeout(() => location.reload(), 800); }
+  else ccToast(r.msg || 'Lỗi', 'error');
+}
+
+// khởi tạo 1 ca mặc định
+document.addEventListener('DOMContentLoaded', () => { addCa(); });
+</script>
+{% endblock %}

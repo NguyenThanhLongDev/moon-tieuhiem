@@ -1,0 +1,1094 @@
+{% extends "cham_cong/base.html" %}
+{% block title %}Chấm công — Tiểu Hiềm{% endblock %}
+{% set active_page = 'attendance' %}
+
+{% block extra_css %}
+<style>
+.att-checkin-card {
+  text-align: center;
+  padding: 4px 0;
+}
+.att-checkin-card .cc-checkin-btn {
+  width: 100%;
+  max-width: 320px;
+  justify-content: center;
+  font-size: 16px;
+  padding: 14px 20px;
+  border-radius: 14px;
+  margin: 0 auto;
+  display: flex;
+}
+.att-time-info {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.gps-badge {
+  display: inline-flex;align-items:center;gap:6px;
+  font-size:12px;padding:4px 10px;border-radius:20px;
+  background:#dcfce7;color:#166534;margin-top:8px;font-weight:600;
+}
+.gps-badge.error { background:#fee2e2;color:#991b1b; }
+.gps-badge.loading { background:#dbeafe;color:#1e40af; }
+.cong-badge {
+  display:inline-block;padding:3px 10px;border-radius:12px;
+  background:#fef3c7;color:#92400e;font-size:12px;font-weight:700;
+}
+/* Holiday + OT badges */
+.hol-badge {
+  display:block;margin-top:2px;padding:1px 6px;border-radius:6px;
+  background:#fee2e2;color:#b91c1c;font-size:10px;font-weight:700;
+  line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.hol-badge::before { content: "🎌 "; }
+.hol-x2 {
+  display:inline-block;margin-left:4px;padding:0 5px;border-radius:6px;
+  background:#fbbf24;color:#78350f;font-size:9px;font-weight:800;
+}
+.ot-badge {
+  display:inline-block;margin-top:2px;padding:1px 6px;border-radius:6px;
+  background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;
+}
+.reg-badge {
+  display:inline-block;margin-top:2px;padding:1px 6px;border-radius:6px;
+  background:#dbeafe;color:#1e40af;font-size:10px;font-weight:600;
+}
+.cal-cell.is-holiday { background:#fef2f2 !important; border-color:#fecaca !important; }
+/* Multi-select ngày để cộng dồn (kê toán lương) — chỉ admin/IT/kế toán thấy */
+.cal-cell.is-selectable { cursor:pointer; transition:transform .08s, box-shadow .12s; user-select:none; }
+.cal-cell.is-selectable:hover { transform:translateY(-1px); box-shadow:0 2px 6px rgba(0,0,0,.12); }
+.cal-cell.is-selected {
+  background:#fef3c7 !important; border-color:#f59e0b !important; border-width:2px !important;
+  box-shadow:inset 0 0 0 1px #f59e0b;
+}
+.cal-cell.is-selected.is-holiday { background:#fee2e2 !important; border-color:#dc2626 !important; }
+.sumpicker-bar {
+  position:sticky; bottom:0; z-index:50;
+  display:none; flex-wrap:wrap; gap:14px; align-items:center; justify-content:space-between;
+  padding:12px 16px; margin-top:14px;
+  background:linear-gradient(180deg, #1e293b 0%, #0f172a 100%); color:#f8fafc;
+  border-radius:12px; box-shadow:0 6px 24px rgba(0,0,0,.18);
+  font-size:13px;
+}
+.sumpicker-bar.active { display:flex; }
+.sumpicker-bar .pick-val { font-weight:800; color:#fbbf24; }
+.sumpicker-bar .pick-block { display:flex; flex-direction:column; gap:2px; }
+.sumpicker-bar .pick-lbl { font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; }
+.sumpicker-toolbar { display:flex; gap:6px; flex-wrap:wrap; }
+.sumpicker-toolbar button {
+  background:rgba(255,255,255,.08); color:#f8fafc; border:1px solid rgba(255,255,255,.18);
+  padding:5px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:600;
+}
+.sumpicker-toolbar button:hover { background:rgba(255,255,255,.15); }
+.sumpicker-toolbar button.btn-clear { color:#fca5a5; border-color:rgba(252,165,165,.3); }
+.sumpicker-toolbar button.btn-copy  { color:#86efac; border-color:rgba(134,239,172,.3); }
+/* Totals bar */
+.totals-bar {
+  display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;
+  padding:10px 14px;border-radius:10px;background:#f8fafc;margin-top:12px;
+  border:1px dashed #cbd5e1;font-size:13px;
+}
+.totals-bar .val { font-weight:800;color:#0f172a; }
+.totals-bar .ot  { color:#b45309; }
+.totals-bar .pay { color:#047857; }
+.totals-bar .reg { color:#1e40af; }
+/* Calendar responsive */
+@media (max-width: 767px) {
+  .cal-cell { min-height: 46px !important; font-size: 9px !important; padding: 3px 2px !important; }
+  .cal-cell .day-num { font-size: 12px; font-weight: 600; }
+  .hol-badge, .ot-badge, .reg-badge { font-size: 9px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+
+  <!-- Chấm công nhanh + Filter -->
+  <div class="col-12 col-md-4">
+    <!-- Check-in/out -->
+    <div class="cc-card">
+      <div class="cc-card-title"><i class="bi bi-clock"></i> Chấm công hôm nay</div>
+      <div class="att-checkin-card">
+        {# ── Cảnh báo phiên cũ chưa checkout ── #}
+        {% if pending_old_session %}
+        {% set old_date = pending_old_session.date %}
+        {% set old_ci   = pending_old_session.check_in %}
+        <div style="background:#fff1f2;border:1.5px solid #fca5a5;border-radius:10px;
+                    padding:12px 14px;margin-bottom:14px;text-align:left;">
+          <div style="font-size:13px;font-weight:600;color:#dc2626;margin-bottom:5px;">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            Chưa check-out ngày {{ old_date.strftime('%d/%m/%Y') if old_date else '?' }}
+            (vào lúc {{ old_ci.strftime('%H:%M') if old_ci else '?' }})
+          </div>
+          <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">
+            Chọn giờ check-out để mở khóa check-in hôm nay:
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <select id="ocHour" style="border:1px solid #fca5a5;border-radius:6px;padding:5px 8px;font-size:14px;">
+              {% for h in range(24) %}<option value="{{ '%02d'|format(h) }}" {% if h==18 %}selected{% endif %}>{{ '%02d'|format(h) }}</option>{% endfor %}
+            </select>
+            <span style="font-weight:700;">:</span>
+            <select id="ocMin" style="border:1px solid #fca5a5;border-radius:6px;padding:5px 8px;font-size:14px;">
+              {% for m in range(60) %}<option value="{{ '%02d'|format(m) }}">{{ '%02d'|format(m) }}</option>{% endfor %}
+            </select>
+            <span style="font-size:11px;color:#6b7280;">(giờ 0–23)</span>
+            <button id="btnOldCheckout"
+                    onclick="doOldCheckout('{{ old_date }}')"
+                    style="background:#dc2626;color:#fff;border:none;border-radius:7px;
+                           padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">
+              <i class="bi bi-box-arrow-right me-1"></i>Checkout ngày {{ old_date.strftime('%d/%m') if old_date else '' }}
+            </button>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if att and att.check_in %}
+          <div class="att-time-info">
+            <span style="color:#059669;"><i class="bi bi-box-arrow-in-right"></i> {{ att.check_in | hcm_time }}</span>
+            {% if att.check_out %}
+            <span style="color:#dc2626;"><i class="bi bi-box-arrow-right"></i> {{ att.check_out | hcm_time }}</span>
+            {% endif %}
+          </div>
+          {% if not att.check_out %}
+          <button class="cc-checkin-btn btn-out" onclick="doCheckOut(this)">
+            <i class="bi bi-box-arrow-right"></i> Check-out
+          </button>
+          {% else %}
+          <div style="color:#059669;font-weight:600;font-size:14px;">
+            <i class="bi bi-check-circle-fill"></i> Đã hoàn tất ca!
+          </div>
+          {% endif %}
+        {% else %}
+          {% if pending_old_session %}
+          <button class="cc-checkin-btn btn-in" disabled style="opacity:.4;cursor:not-allowed;">
+            <i class="bi bi-lock me-1"></i> Check-in (checkout ngày cũ trước)
+          </button>
+          {% elif is_adser %}
+            <div style="font-size:12px;color:#6366f1;margin-bottom:8px;">
+              <i class="bi bi-geo-alt-fill"></i> Marketing cần xác nhận vị trí văn phòng
+            </div>
+            <div id="gpsStatus" class="gps-badge loading" style="display:none;margin-bottom:8px;">
+              <i class="bi bi-arrow-clockwise"></i> Đang lấy vị trí…
+            </div>
+            <button class="cc-checkin-btn btn-in" id="gpsCheckinBtn" onclick="doGpsCheckIn(this)">
+              <i class="bi bi-geo-alt"></i> Check-in (GPS)
+            </button>
+          {% elif is_sale %}
+            <div style="font-size:12px;color:#10b981;margin-bottom:8px;">
+              <i class="bi bi-geo-alt-fill"></i> Ghi nhận vị trí của bạn khi check-in
+            </div>
+            <div id="gpsStatus" class="gps-badge loading" style="display:none;margin-bottom:8px;">
+              <i class="bi bi-arrow-clockwise"></i> Đang lấy vị trí…
+            </div>
+            <button class="cc-checkin-btn btn-in" id="gpsCheckinBtn" onclick="doSaleCheckIn(this)">
+              <i class="bi bi-geo-alt"></i> Check-in
+            </button>
+          {% else %}
+            <button class="cc-checkin-btn btn-in" onclick="doCheckIn(this)">
+              <i class="bi bi-box-arrow-in-right"></i> Check-in ngay
+            </button>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Stats tháng -->
+    <div class="cc-card">
+      <div class="cc-card-title"><i class="bi bi-bar-chart"></i> Thống kê {{ month_name }}/{{ year }}</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div class="cc-stat" style="padding:12px 14px;">
+          <div class="cc-stat-icon" style="background:#d1fae522;color:#059669;"><i class="bi bi-calendar-check"></i></div>
+          <div><div class="cc-stat-val">{{ stat_present }}</div><div class="cc-stat-lbl">Ngày có mặt</div></div>
+        </div>
+        {% if is_adser %}
+        <!-- Marketing: hiện số công -->
+        <div class="cc-stat" style="padding:12px 14px;">
+          <div class="cc-stat-icon" style="background:#fef3c722;color:#b45309;"><i class="bi bi-award-fill"></i></div>
+          <div>
+            <div class="cc-stat-val">{{ stat_total_cong }}</div>
+            <div class="cc-stat-lbl">Số công</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;text-align:center;padding:4px 0;">
+          1 công = {{ cc_settings.min_hours_cong or 9 }}h trong {{ cc_settings.work_start or '08:00' }}–{{ cc_settings.work_end or '17:30' }}
+        </div>
+        {% else %}
+        <!-- Kho / Sale: tách riêng ngày thường vs ngày lễ -->
+        {% macro _hm(decimal_h) -%}
+          {%- set _h = decimal_h | int -%}
+          {%- set _m = ((decimal_h - _h) * 60) | round | int -%}
+          {%- if _m == 60 %}{% set _h = _h + 1 %}{% set _m = 0 %}{% endif -%}
+          {{ _h }}h{{ '%02d' % _m }}p
+        {%- endmacro %}
+        <div class="cc-stat" style="padding:12px 14px;">
+          <div class="cc-stat-icon" style="background:#dbeafe22;color:#2563eb;"><i class="bi bi-clock-fill"></i></div>
+          <div>
+            <div class="cc-stat-val">{{ stat_weekday_reg_h or 0 }}h
+              <span style="font-size:12px;color:#94a3b8;font-weight:500;">({{ _hm(stat_weekday_reg_h or 0) }})</span>
+            </div>
+            <div class="cc-stat-lbl">Tổng giờ làm</div>
+          </div>
+        </div>
+        {# 7 stats — TẤT CẢ NV (NV/Sale/Leader/Adser/IT/Kế toán/Admin) đều xem được #}
+        <div class="cc-stat" style="padding:12px 14px;">
+          <div class="cc-stat-icon" style="background:#fef3c722;color:#b45309;"><i class="bi bi-hourglass-split"></i></div>
+          <div>
+            <div class="cc-stat-val" style="color:#b45309;">{{ stat_weekday_ot_h or 0 }}h
+              <span style="font-size:12px;color:#94a3b8;font-weight:500;">({{ _hm(stat_weekday_ot_h or 0) }})</span>
+            </div>
+            <div class="cc-stat-lbl">Tổng giờ tăng ca</div>
+          </div>
+        </div>
+        <div class="cc-stat" style="padding:12px 14px;">
+          <div class="cc-stat-icon" style="background:#fef3c722;color:#d97706;"><i class="bi bi-calendar-heart"></i></div>
+          <div>
+            <div class="cc-stat-val" style="{% if stat_holiday_reg_h %}color:#d97706;{% endif %}">
+              {{ stat_holiday_reg_h or 0 }}h
+              <span style="font-size:12px;color:#94a3b8;font-weight:500;">({{ _hm(stat_holiday_reg_h or 0) }})</span>
+            </div>
+            <div class="cc-stat-lbl">Giờ làm ngày lễ</div>
+          </div>
+        </div>
+        <div class="cc-stat" style="padding:12px 14px;">
+          <div class="cc-stat-icon" style="background:#fee2e222;color:#b91c1c;"><i class="bi bi-stars"></i></div>
+          <div>
+            <div class="cc-stat-val" style="{% if stat_holiday_ot_h %}color:#b91c1c;{% endif %}">
+              {{ stat_holiday_ot_h or 0 }}h
+              <span style="font-size:12px;color:#94a3b8;font-weight:500;">({{ _hm(stat_holiday_ot_h or 0) }})</span>
+            </div>
+            <div class="cc-stat-lbl">Giờ tăng ca ngày lễ</div>
+          </div>
+        </div>
+        <div class="cc-stat" style="padding:12px 14px;">
+          <div class="cc-stat-icon" style="background:#ede9fe22;color:#6366f1;"><i class="bi bi-check2-all"></i></div>
+          <div>
+            <div class="cc-stat-val">{{ stat_full_day or 0 }}</div>
+            <div class="cc-stat-lbl" title="Số ngày tổng giờ làm ≥ {{ cc_settings.min_hours_cong or 7 }}h">Ngày đủ ca</div>
+          </div>
+        </div>
+        <div class="cc-stat" style="padding:12px 14px;">
+          <div class="cc-stat-icon" style="background:#fee2e222;color:#dc2626;"><i class="bi bi-exclamation-circle"></i></div>
+          <div>
+            <div class="cc-stat-val" style="{% if stat_short_day %}color:#dc2626;{% endif %}">{{ stat_short_day or 0 }}</div>
+            <div class="cc-stat-lbl" title="Số ngày tổng giờ làm < {{ cc_settings.min_hours_cong or 7 }}h (không đủ ca)">Ngày chưa đủ ca</div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Admin: Chọn nhân viên -->
+    {% if is_manager and all_employees %}
+    <div class="cc-card">
+      <div class="cc-card-title"><i class="bi bi-person"></i> Xem nhân viên</div>
+      {# Lọc team — chỉ admin/IT/kế toán xem được #}
+      {% if is_admin and all_teams %}
+      <div class="mb-2">
+        <label style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">
+          <i class="bi bi-diagram-3"></i> Lọc theo team
+        </label>
+        <select class="form-select form-select-sm" onchange="changeTeam(this.value)">
+          <option value="">— Tất cả team —</option>
+          {% for t in all_teams %}
+          <option value="{{ t.team_code }}" {% if selected_team == t.team_code %}selected{% endif %}>
+            {{ t.team_name or t.team_code }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <label style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">
+        <i class="bi bi-person"></i> Nhân viên ({{ all_employees|length }})
+      </label>
+      <select class="form-select form-select-sm" data-cc-search onchange="changeUid(this.value)">
+        <option value="{{ user.id }}">— Của tôi —</option>
+        {% for e in all_employees %}
+        <option value="{{ e.user_id }}" {% if e.user_id == view_uid %}selected{% endif %}>
+          {{ e.full_name }} ({{ cc_role_label_fn(e.cc_role) }})
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Calendar view -->
+  <div class="col-12 col-md-8">
+    <div class="cc-card">
+      <!-- Tháng navigation -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <a href="?year={% if month == 1 %}{{ year-1 }}{% else %}{{ year }}{% endif %}&month={% if month == 1 %}12{% else %}{{ month-1 }}{% endif %}&uid={{ view_uid }}{% if selected_team %}&team={{ selected_team }}{% endif %}"
+           style="text-decoration:none;color:#6366f1;font-size:20px;">‹</a>
+        <strong style="font-size:16px;">{{ month_name }} {{ year }}</strong>
+        <a href="?year={% if month == 12 %}{{ year+1 }}{% else %}{{ year }}{% endif %}&month={% if month == 12 %}1{% else %}{{ month+1 }}{% endif %}&uid={{ view_uid }}{% if selected_team %}&team={{ selected_team }}{% endif %}"
+           style="text-decoration:none;color:#6366f1;font-size:20px;">›</a>
+      </div>
+
+      <!-- Calendar table -->
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr>
+              {% for d in ['T2','T3','T4','T5','T6','T7','CN'] %}
+              <th style="text-align:center;padding:6px;color:#94a3b8;font-weight:600;">{{ d }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for week in calendar %}
+            <tr>
+              {% for day in week %}
+              <td style="text-align:center;padding:4px;vertical-align:top;">
+                {% if day == 0 %}
+                <div style="padding:8px;"></div>
+                {% else %}
+                  {% set day_str = '%04d-%02d-%02d' % (year, month, day) %}
+                  {% set rec = records_map.get(day_str) %}
+                  {% set cday = (cal_days or {}).get(day_str) %}
+                  {% set is_today = (day == today.day and month == today.month and year == today.year) %}
+                  {% set is_hol = cday and cday.holiday_name %}
+                  {% set _cell_total_min = ((cday.reg_min or 0) + (cday.ot_min or 0)) if cday else 0 %}
+                  {% set _cell_has_data = (rec and rec.check_in) or _cell_total_min > 0 %}
+                  <div class="cal-cell {% if is_hol %}is-holiday{% endif %} {% if can_select_days and _cell_has_data %}is-selectable{% endif %}"
+                       {% if can_select_days and _cell_has_data %}
+                       data-date="{{ day_str }}"
+                       data-day="{{ day }}"
+                       data-total-min="{{ _cell_total_min }}"
+                       data-reg-min="{{ cday.reg_min or 0 }}"
+                       data-ot-min="{{ cday.ot_min or 0 }}"
+                       data-is-holiday="{{ '1' if is_hol else '0' }}"
+                       data-multiplier="{{ cday.multiplier if cday and cday.multiplier else 1 }}"
+                       {% endif %}
+                       style="
+                    min-height:60px;
+                    padding:6px 4px;
+                    border-radius:8px;
+                    border:{{ '2px solid #6366f1' if is_today else '1px solid #f1f5f9' }};
+                    background:{{ '#ede9fe' if is_today else ('#f0fdf4' if rec and rec.check_in else '#fff') }};
+                  ">
+                    <div class="day-num" style="font-weight:{{ '700' if is_today else '400' }};color:{{ '#6366f1' if is_today else '#1e293b' }};">
+                      {{ day }}
+                      {% if can_select_days and is_hol and cday.multiplier and cday.multiplier > 1 %}<span class="hol-x2">x{{ '%.1f' % cday.multiplier }}</span>{% endif %}
+                    </div>
+                    {% if is_hol %}
+                    <div class="hol-badge" title="{{ cday.holiday_name }}">{{ cday.holiday_name }}</div>
+                    {% endif %}
+                    {% if rec and rec.check_in %}
+                    {% if rec.check_out %}
+                    {# Hiển thị TỔNG GIỜ LÀM trong ngày (vd "10h39p") thay vì giờ check-in/out #}
+                    {% set _total_min = ((cday.reg_min or 0) + (cday.ot_min or 0)) if cday else 0 %}
+                    {% if _total_min <= 0 %}
+                      {% set _total_min = ((rec.check_out - rec.check_in).total_seconds() / 60) | round | int %}
+                    {% endif %}
+                    <div style="color:#0f172a;font-weight:700;font-size:13px;">
+                      {{ (_total_min // 60) | int }}h{{ '%02d' % (_total_min % 60) }}p
+                    </div>
+                    {% if can_select_days and cday and cday.ot_min %}
+                      <span class="ot-badge" title="Tăng ca (sau 22h hoặc trước 8h)">+{{ (cday.ot_min/60)|round(1) }}h OT</span>
+                    {% endif %}
+                    {% if is_adser %}
+                      {% set h_worked = (_total_min / 60) | round(2) %}
+                      <div class="cong-badge">{{ '1 công' if h_worked >= (cc_settings.min_hours_cong or 9)|float else '½' if h_worked >= ((cc_settings.min_hours_cong or 9)|float / 2) else '—' }}</div>
+                    {% endif %}
+                    {% else %}
+                    <div style="font-size:10px;color:#f59e0b;">Chưa ra</div>
+                    {% endif %}
+                    {% endif %}
+                  </div>
+                {% endif %}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Totals bar: tổng giờ làm / giờ tăng ca / giờ quy lương -->
+      {% if cal_totals %}
+      <div class="totals-bar" id="totalsBar">
+        <div>
+          <i class="bi bi-calculator"></i>
+          <strong>Tổng {{ month_name }}/{{ year }}:</strong>
+        </div>
+        <div class="reg">
+          <i class="bi bi-clock"></i>
+          Giờ thường: <span class="val">{{ (cal_totals.reg_min / 60) | round(1) }}h</span>
+        </div>
+        {% if can_select_days and cal_totals.ot_min > 0 %}
+        <div class="ot">
+          <i class="bi bi-hourglass-split"></i>
+          Tăng ca: <span class="val">{{ (cal_totals.ot_min / 60) | round(1) }}h</span>
+        </div>
+        {% endif %}
+        <div>
+          <i class="bi bi-clock-history"></i>
+          Tổng: <span class="val">{{ cal_totals.total_hours }}h</span>
+        </div>
+        {% if can_select_days and stat_holiday_hours %}
+        <div style="color:#d97706;">
+          <i class="bi bi-calendar-heart"></i>
+          Ngày lễ: <span style="font-weight:800;">{{ stat_holiday_hours }}h</span>
+        </div>
+        {% endif %}
+        {% if can_select_days %}
+        <button class="btn btn-sm btn-outline-primary" type="button" onclick="toggleTotalsBreakdown()" id="btnTotalsBreakdown">
+          <i class="bi bi-plus-circle"></i> Chi tiết theo ngày
+        </button>
+        {% endif %}
+      </div>
+
+      {% if can_select_days %}
+      <!-- Sum-picker panel — chỉ hiện khi admin/IT/kế toán bật chế độ chọn ngày -->
+      <div id="sumPickerBar" class="sumpicker-bar">
+        <div class="pick-block">
+          <span class="pick-lbl"><i class="bi bi-calendar-check"></i> Đã chọn</span>
+          <span><span class="pick-val" id="pickCount">0</span> ngày</span>
+        </div>
+        <div class="pick-block">
+          <span class="pick-lbl">Giờ thường (ngày thường)</span>
+          <span class="pick-val" id="pickWdReg">0h00p</span>
+        </div>
+        <div class="pick-block">
+          <span class="pick-lbl">Tăng ca (ngày thường)</span>
+          <span class="pick-val" id="pickWdOt">0h00p</span>
+        </div>
+        <div class="pick-block">
+          <span class="pick-lbl">Giờ làm ngày lễ</span>
+          <span class="pick-val" id="pickHolReg">0h00p</span>
+        </div>
+        <div class="pick-block">
+          <span class="pick-lbl">Tăng ca ngày lễ</span>
+          <span class="pick-val" id="pickHolOt">0h00p</span>
+        </div>
+        <div class="pick-block">
+          <span class="pick-lbl">Tổng cộng</span>
+          <span class="pick-val" id="pickTotal" style="font-size:16px;">0h00p</span>
+        </div>
+        <div class="sumpicker-toolbar">
+          <button type="button" onclick="sumPickerSelectAll()"><i class="bi bi-check-all"></i> Chọn hết</button>
+          <button type="button" class="btn-copy" onclick="sumPickerCopy()"><i class="bi bi-clipboard"></i> Copy</button>
+          <button type="button" class="btn-clear" onclick="sumPickerClear()"><i class="bi bi-x-circle"></i> Bỏ chọn</button>
+        </div>
+      </div>
+      {% endif %}
+      {% if can_select_days %}
+      <div id="totalsBreakdown" style="display:none;margin-top:10px;overflow-x:auto;">
+        <table class="table table-sm" style="font-size:12px;">
+          <thead style="background:#f1f5f9;">
+            <tr>
+              <th>Ngày</th><th>Giờ thường</th><th>Tăng ca</th><th>Hệ số</th><th>Ghi chú</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for dk, dv in (cal_days or {}) | dictsort %}
+              {% if dv.reg_min or dv.ot_min or dv.holiday_name %}
+              <tr {% if dv.holiday_name %}style="background:#fef2f2;"{% endif %}>
+                <td>{{ dk }}</td>
+                <td class="reg-badge" style="margin:0;">{{ (dv.reg_min / 60) | round(2) }}h</td>
+                <td class="ot-badge"  style="margin:0;">{{ (dv.ot_min  / 60) | round(2) }}h</td>
+                <td>{% if dv.multiplier and dv.multiplier > 1 %}<span class="hol-x2">x{{ '%.1f' % dv.multiplier }}</span>{% else %}x1{% endif %}</td>
+                <td style="color:#b91c1c;font-weight:600;">{{ dv.holiday_name or '' }}</td>
+              </tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+      {% endif %}
+    </div>
+
+    <!-- Bảng chi tiết -->
+    <div class="cc-card">
+      <div class="cc-card-title"><i class="bi bi-list-ul"></i> Chi tiết chấm công</div>
+      {% if records %}
+      <div style="overflow-x:auto;">
+        <table class="table table-sm" style="font-size:13px;">
+          <thead style="background:#f8fafc;">
+            <tr>
+              <th>Ngày</th>
+              <th>Check-in</th>
+              <th>Check-out</th>
+              <th>{% if is_adser %}Công{% else %}Thời gian{% endif %}</th>
+              <th style="color:#b45309;">Tăng ca</th>{# Luôn hiện cho NV xem giờ OT #}
+              {% if is_adser %}<th>Khoảng cách VP</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in records | sort(attribute='date', reverse=True) %}
+            {% set date_key = r.date.isoformat() if r.date and r.date.isoformat is defined else r.date|string %}
+            {% set day_sessions = sessions_by_date.get(date_key, []) %}
+            {% set day_cal = cal_days.get(date_key, {}) if cal_days is defined else {} %}
+            {% set holiday_name = day_cal.get('holiday_name') %}
+            {% set day_ot_min = day_cal.get('ot_min', 0) %}
+            {# Macro hiển thị ngày + badge lễ #}
+            {% set date_str = r.date.strftime('%d/%m/%Y') if r.date else date_key %}
+
+            {% if day_sessions | length > 1 %}
+              {# Nhiều ca: hiển thị từng ca riêng #}
+              {% set total_mins = namespace(val=0) %}
+              {% for s in day_sessions %}
+              <tr style="{% if loop.first %}border-top:2px solid #e2e8f0;{% endif %}{% if holiday_name %}background:#fffbeb;{% endif %}">
+                <td {% if loop.first %}rowspan="{{ day_sessions|length + 1 }}" style="vertical-align:top;font-weight:600;"{% else %}style="display:none;"{% endif %}>
+                  {% if loop.first %}
+                    {{ date_str }}
+                    {% if holiday_name %}
+                    <div><span style="font-size:10px;background:#fde68a;color:#92400e;padding:1px 5px;border-radius:4px;font-weight:600;">🎉 Lễ</span></div>
+                    {% endif %}
+                  {% endif %}
+                </td>
+                <td style="color:#059669;font-weight:500;padding-left:6px;">
+                  <span style="font-size:11px;background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:4px;margin-right:4px;">Ca {{ loop.index }}</span>
+                  {{ s.check_in | hcm_time if s.check_in else '—' }}
+                </td>
+                <td style="color:#dc2626;font-weight:500;">
+                  {% if s.check_out %}
+                    {{ s.check_out | hcm_time }}
+                    {% set _m = ((s.check_out - s.check_in).total_seconds() / 60) | round | int %}
+                    {% set total_mins.val = total_mins.val + _m %}
+                  {% elif s.check_in %}
+                    <span style="color:#f59e0b;font-size:12px;">Đang làm</span>
+                  {% else %}—{% endif %}
+                </td>
+                <td style="font-size:12px;color:#64748b;">
+                  {% if s.check_in and s.check_out %}
+                    {% set m = ((s.check_out - s.check_in).total_seconds() / 60) | round | int %}
+                    {{ (m // 60) | int }}g{{ '%02d' % (m % 60) }}p
+                    <span style="color:#94a3b8;font-size:11px;">({{ '%.2f' % (m / 60) }})</span>
+                  {% elif s.check_in %}<span style="color:#f59e0b;">Chưa ra</span>
+                  {% else %}—{% endif %}
+                </td>
+                <td></td>{# placeholder cột Tăng ca cho từng ca #}
+                {% if is_adser %}<td>{% if s.check_in_distance_m %}{{ s.check_in_distance_m }}m{% else %}—{% endif %}</td>{% endif %}
+              </tr>
+              {% endfor %}
+              {# Dòng tổng ngày #}
+              <tr style="background:#f0fdf4;font-weight:600;font-size:12px;">
+                <td colspan="2" style="color:#059669;padding-left:8px;">
+                  <i class="bi bi-clock-fill"></i> Tổng ngày: {{ (total_mins.val // 60) | int }}g{{ '%02d' % (total_mins.val % 60) }}p
+                  <span style="color:#64748b;font-weight:500;">({{ '%.2f' % (total_mins.val / 60) }}h)</span>
+                </td>
+                <td></td>
+                <td style="color:#b45309;">
+                  {% if day_ot_min > 0 %}<strong>+{{ (day_ot_min // 60) | int }}g{{ '%02d' % (day_ot_min % 60) }}p OT</strong> <span style="color:#94a3b8;font-size:11px;font-weight:500;">({{ '%.2f' % (day_ot_min / 60) }})</span>{% endif %}
+                </td>
+                {% if is_adser %}<td></td>{% endif %}
+              </tr>
+            {% else %}
+              {# 1 ca #}
+              <tr style="{% if holiday_name %}background:#fffbeb;{% endif %}">
+                <td style="font-weight:{% if holiday_name %}600{% else %}400{% endif %};">
+                  {{ date_str }}
+                  {% if holiday_name %}
+                  <span style="font-size:10px;background:#fde68a;color:#92400e;padding:1px 5px;border-radius:4px;margin-left:4px;font-weight:600;">🎉 Lễ</span>
+                  {% endif %}
+                </td>
+                <td style="color:#059669;font-weight:500;">
+                  {{ r.check_in | hcm_time if r.check_in else '—' }}
+                </td>
+                <td style="color:#dc2626;font-weight:500;">
+                  {% if r.check_out %}
+                    {{ r.check_out | hcm_time }}
+                  {% elif r.check_in %}
+                    <button type="button" class="btn btn-sm btn-outline-warning py-0 px-2"
+                            style="font-size:11px;"
+                            onclick="openBackfillCheckout('{{ date_key }}', '{{ view_uid }}', this)">
+                      <i class="bi bi-clock-history"></i> Đặt giờ ra
+                    </button>
+                  {% else %}—{% endif %}
+                </td>
+                <td>
+                  {% if r.check_in and r.check_out %}
+                    {% set mins = ((r.check_out - r.check_in).total_seconds() / 60) | round | int %}
+                    {% if is_adser %}
+                      {% if (mins / 60) | round(2) >= (cc_settings.min_hours_cong or 9)|float %}
+                        <span class="cong-badge">1 công</span>
+                        <span style="color:#94a3b8;font-size:11px;">({{ '%.2f' % (mins / 60) }})</span>
+                      {% else %}
+                        <span style="color:#94a3b8;">{{ (mins // 60) | int }}g{{ '%02d' % (mins % 60) }}p</span>
+                        <span style="color:#94a3b8;font-size:11px;">({{ '%.2f' % (mins / 60) }})</span>
+                      {% endif %}
+                    {% else %}
+                      {{ (mins // 60) | int }}g{{ '%02d' % (mins % 60) }}p
+                      <span style="color:#94a3b8;font-size:11px;">({{ '%.2f' % (mins / 60) }})</span>
+                    {% endif %}
+                  {% elif r.check_in %}<span style="color:#f59e0b;">Chưa ra</span>
+                  {% else %}—{% endif %}
+                </td>
+                <td style="color:#b45309;font-size:12px;">
+                  {% if day_ot_min > 0 %}<strong>+{{ (day_ot_min // 60) | int }}g{{ '%02d' % (day_ot_min % 60) }}p</strong> <span style="color:#94a3b8;font-size:11px;font-weight:500;">({{ '%.2f' % (day_ot_min / 60) }})</span>{% else %}—{% endif %}
+                </td>
+                {% if is_adser %}
+                <td style="font-size:12px;">
+                  {% if r.check_in_distance_m is defined and r.check_in_distance_m %}
+                    <span style="color:#059669;">{{ r.check_in_distance_m }}m</span>
+                  {% else %}—{% endif %}
+                </td>
+                {% endif %}
+              </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {# ── Tổng hợp tháng (chỉ IT/Kế toán/Admin xem được) ── #}
+      {% if cal_days is defined and can_select_days %}
+      {% set ns = namespace(reg_h=0, reg_ot=0, hol_h=0, hol_ot=0) %}
+      {% for dk, dv in cal_days.items() %}
+        {% if dv.get('reg_min', 0) + dv.get('ot_min', 0) > 0 %}
+          {% if dv.get('holiday_name') %}
+            {% set ns.hol_h  = ns.hol_h  + dv.get('reg_min', 0) + dv.get('ot_min', 0) %}
+            {% set ns.hol_ot = ns.hol_ot + dv.get('ot_min', 0) %}
+          {% else %}
+            {% set ns.reg_h  = ns.reg_h  + dv.get('reg_min', 0) + dv.get('ot_min', 0) %}
+            {% set ns.reg_ot = ns.reg_ot + dv.get('ot_min', 0) %}
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+      <div style="margin-top:12px;border-top:2px solid #e2e8f0;padding-top:12px;">
+        <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">
+          <i class="bi bi-bar-chart-fill"></i> Tổng hợp tháng {{ month_name }}/{{ year }}
+        </div>
+        {% macro _hmin(min) -%}
+          {%- set _m = min | round | int -%}
+          {{ (_m // 60) | int }}h{{ '%02d' % (_m % 60) }}p
+        {%- endmacro %}
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <div style="flex:1;min-width:140px;background:#f0fdf4;border-radius:10px;padding:10px 14px;">
+            <div style="font-size:11px;color:#64748b;margin-bottom:2px;">Giờ làm ngày thường</div>
+            <div style="font-size:18px;font-weight:800;color:#059669;">
+              {{ ((ns.reg_h - ns.reg_ot) / 60) | round(1) }}h
+              <span style="font-size:12px;color:#94a3b8;font-weight:500;">({{ _hmin(ns.reg_h - ns.reg_ot) }})</span>
+            </div>
+          </div>
+          {% if can_select_days and ns.reg_ot > 0 %}
+          <div style="flex:1;min-width:140px;background:#fffbeb;border-radius:10px;padding:10px 14px;">
+            <div style="font-size:11px;color:#64748b;margin-bottom:2px;">Tăng ca ngày thường</div>
+            <div style="font-size:18px;font-weight:800;color:#b45309;">
+              {{ (ns.reg_ot / 60) | round(1) }}h
+              <span style="font-size:12px;color:#94a3b8;font-weight:500;">({{ _hmin(ns.reg_ot) }})</span>
+            </div>
+          </div>
+          {% endif %}
+          {% if can_select_days and ns.hol_h > 0 %}
+          <div style="flex:1;min-width:140px;background:#fef3c7;border-radius:10px;padding:10px 14px;">
+            <div style="font-size:11px;color:#64748b;margin-bottom:2px;">Giờ làm ngày lễ</div>
+            <div style="font-size:18px;font-weight:800;color:#d97706;">
+              {{ (ns.hol_h / 60) | round(1) }}h
+              <span style="font-size:12px;color:#94a3b8;font-weight:500;">({{ _hmin(ns.hol_h) }})</span>
+            </div>
+          </div>
+          {% if ns.hol_ot > 0 %}
+          <div style="flex:1;min-width:140px;background:#fef3c7;border-radius:10px;padding:10px 14px;border:1px solid #fde68a;">
+            <div style="font-size:11px;color:#64748b;margin-bottom:2px;">Tăng ca ngày lễ</div>
+            <div style="font-size:18px;font-weight:800;color:#b45309;">
+              {{ (ns.hol_ot / 60) | round(1) }}h
+              <span style="font-size:12px;color:#94a3b8;font-weight:500;">({{ _hmin(ns.hol_ot) }})</span>
+            </div>
+          </div>
+          {% endif %}
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% else %}
+      <p style="text-align:center;color:#94a3b8;padding:20px;">Chưa có dữ liệu chấm công tháng này.</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function changeUid(uid) {
+  const url = new URL(location.href);
+  url.searchParams.set('uid', uid);
+  location.href = url.toString();
+}
+
+function changeTeam(team) {
+  const url = new URL(location.href);
+  if (team) url.searchParams.set('team', team);
+  else url.searchParams.delete('team');
+  // đổi team thì reset uid về "của tôi" để danh sách filter đúng
+  url.searchParams.delete('uid');
+  location.href = url.toString();
+}
+
+function toggleTotalsBreakdown() {
+  const box = document.getElementById('totalsBreakdown');
+  const btn = document.getElementById('btnTotalsBreakdown');
+  if (!box) return;
+  const open = box.style.display !== 'none';
+  box.style.display = open ? 'none' : 'block';
+  btn.innerHTML = open
+    ? '<i class="bi bi-plus-circle"></i> Chi tiết theo ngày'
+    : '<i class="bi bi-dash-circle"></i> Ẩn chi tiết';
+}
+
+/* ──────────── SUM-PICKER (chỉ admin/IT/kế toán) ────────────────────────────
+ * Cho phép chọn nhiều ngày trong lịch (click, shift+click, kéo chuột) để
+ * cộng dồn giờ làm — kê toán dùng tính lương kỳ tuỳ ý.
+ * State: window._sumPickerOn (bool) + .is-selected class trên cell.
+ */
+window._sumPickerOn = false;
+window._sumDragging = false;
+window._sumDragMode = null; // 'add' | 'remove'
+window._sumDragMoved = false; // true nếu mouseenter fired sau mousedown — phân biệt click vs drag
+window._sumLastClicked = null; // cho shift-range
+
+function fmtHHmm(min) {
+  min = Math.max(0, Math.round(min));
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h + 'h' + (m < 10 ? '0' : '') + m + 'p';
+}
+// Quy đổi sang giờ thập phân — để kế toán tính lương (như AppSheet cũ)
+function fmtHDec(min) {
+  min = Math.max(0, Math.round(min));
+  return (min / 60).toFixed(2);
+}
+// Cả 2 format: "8h13p (8.22)" — dùng cho sumpicker totals
+function fmtHHmmDec(min) {
+  return fmtHHmm(min) + ' (' + fmtHDec(min) + ')';
+}
+
+function toggleSumPickerMode() {
+  window._sumPickerOn = !window._sumPickerOn;
+  const bar = document.getElementById('sumPickerBar');
+  const btn = document.getElementById('btnSumPicker');
+  if (window._sumPickerOn) {
+    bar.classList.add('active');
+    btn.innerHTML = '<i class="bi bi-x-circle"></i> Tắt chế độ chọn';
+    btn.classList.remove('btn-outline-warning');
+    btn.classList.add('btn-warning');
+    sumPickerRecalc();
+  } else {
+    bar.classList.remove('active');
+    btn.innerHTML = '<i class="bi bi-hand-index-thumb"></i> Chọn ngày để cộng dồn';
+    btn.classList.add('btn-outline-warning');
+    btn.classList.remove('btn-warning');
+    sumPickerClear();
+  }
+}
+
+function sumPickerSelectableCells() {
+  return Array.from(document.querySelectorAll('.cal-cell.is-selectable'));
+}
+
+function sumPickerSelectedCells() {
+  return Array.from(document.querySelectorAll('.cal-cell.is-selected'));
+}
+
+function sumPickerRecalc() {
+  let cnt = 0, wdReg = 0, wdOt = 0, holReg = 0, holOt = 0;
+  for (const c of sumPickerSelectedCells()) {
+    cnt++;
+    const reg = parseInt(c.dataset.regMin || '0', 10);
+    const ot  = parseInt(c.dataset.otMin  || '0', 10);
+    const isHol = c.dataset.isHoliday === '1';
+    if (isHol) { holReg += reg; holOt += ot; }
+    else       { wdReg  += reg; wdOt  += ot; }
+  }
+  const total = wdReg + wdOt + holReg + holOt;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('pickCount', cnt);
+  set('pickWdReg', fmtHHmmDec(wdReg));
+  set('pickWdOt',  fmtHHmmDec(wdOt));
+  set('pickHolReg', fmtHHmmDec(holReg));
+  set('pickHolOt',  fmtHHmmDec(holOt));
+  set('pickTotal',  fmtHHmmDec(total));
+}
+
+function sumPickerToggleCell(cell, force) {
+  if (!cell || !cell.classList.contains('is-selectable')) return;
+  if (force === 'add')    cell.classList.add('is-selected');
+  else if (force === 'remove') cell.classList.remove('is-selected');
+  else                    cell.classList.toggle('is-selected');
+}
+
+function sumPickerSelectAll() {
+  for (const c of sumPickerSelectableCells()) c.classList.add('is-selected');
+  sumPickerRecalc();
+}
+
+function sumPickerClear() {
+  for (const c of sumPickerSelectedCells()) c.classList.remove('is-selected');
+  sumPickerRecalc();
+}
+
+function sumPickerCopy() {
+  const rows = sumPickerSelectedCells()
+    .map(c => ({
+      date: c.dataset.date,
+      total: parseInt(c.dataset.totalMin || '0', 10),
+      reg: parseInt(c.dataset.regMin || '0', 10),
+      ot: parseInt(c.dataset.otMin || '0', 10),
+      hol: c.dataset.isHoliday === '1',
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (!rows.length) { alert('Chưa chọn ngày nào.'); return; }
+  let txt = 'Ngày\tGiờ thường\tTăng ca\tNgày lễ\tTổng (giờ)\n';
+  let tReg = 0, tOt = 0, tHolReg = 0, tHolOt = 0;
+  for (const r of rows) {
+    if (r.hol) { tHolReg += r.reg; tHolOt += r.ot; }
+    else       { tReg += r.reg; tOt += r.ot; }
+    txt += r.date + '\t' + fmtHHmm(r.hol ? 0 : r.reg) + '\t' + fmtHHmm(r.hol ? 0 : r.ot)
+         + '\t' + fmtHHmm(r.hol ? r.reg + r.ot : 0) + '\t' + fmtHHmm(r.total) + '\n';
+  }
+  const total = tReg + tOt + tHolReg + tHolOt;
+  txt += 'TỔNG\t' + fmtHHmm(tReg) + '\t' + fmtHHmm(tOt)
+       + '\t' + fmtHHmm(tHolReg + tHolOt) + '\t' + fmtHHmm(total) + '\n';
+  navigator.clipboard.writeText(txt).then(() => {
+    alert('Đã copy ' + rows.length + ' dòng vào clipboard. Paste vào Excel/AppSheet.');
+  }, () => {
+    prompt('Copy thủ công:', txt);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-bật chế độ chọn cho admin/IT/kế toán (sumPickerBar chỉ render cho các role này)
+  const bar = document.getElementById('sumPickerBar');
+  if (bar) {
+    window._sumPickerOn = true;
+    bar.classList.add('active');
+  }
+
+  const cells = sumPickerSelectableCells();
+  for (const cell of cells) {
+    cell.addEventListener('click', function(ev) {
+      if (!window._sumPickerOn) return;
+      ev.preventDefault();
+      // Sau drag → áp mode lên cell origin (vì mouseenter không fire trên cell mousedown)
+      if (window._sumDragMoved) {
+        sumPickerToggleCell(cell, window._sumDragMode);
+        sumPickerRecalc();
+        window._sumDragMoved = false;
+        return;
+      }
+      // Shift+click: chọn dải từ lần click trước → này
+      if (ev.shiftKey && window._sumLastClicked) {
+        const all = sumPickerSelectableCells();
+        const i1 = all.indexOf(window._sumLastClicked);
+        const i2 = all.indexOf(cell);
+        if (i1 >= 0 && i2 >= 0) {
+          const [a, b] = i1 <= i2 ? [i1, i2] : [i2, i1];
+          for (let k = a; k <= b; k++) all[k].classList.add('is-selected');
+          sumPickerRecalc();
+          return;
+        }
+      }
+      // Click thường: toggle (tick / bỏ tick)
+      sumPickerToggleCell(cell);
+      window._sumLastClicked = cell;
+      sumPickerRecalc();
+    });
+    // Drag selection: mousedown CHỈ ghi nhận state, không toggle ngay (để click handle)
+    cell.addEventListener('mousedown', function(ev) {
+      if (!window._sumPickerOn || ev.shiftKey) return;
+      window._sumDragging = true;
+      window._sumDragMoved = false;
+      window._sumDragMode = cell.classList.contains('is-selected') ? 'remove' : 'add';
+      ev.preventDefault();
+    });
+    cell.addEventListener('mouseenter', function() {
+      if (!window._sumPickerOn || !window._sumDragging) return;
+      window._sumDragMoved = true;
+      sumPickerToggleCell(cell, window._sumDragMode);
+      sumPickerRecalc();
+    });
+  }
+  document.addEventListener('mouseup', function() {
+    window._sumDragging = false;
+    window._sumDragMode = null;
+  });
+});
+
+async function doCheckIn(btn) {
+  btn.disabled = true;
+  const r = await ccPost('/cham-cong/api/checkin', {});
+  if (r.ok) { ccToast('✅ ' + r.msg); setTimeout(() => location.reload(), 1000); }
+  else { ccToast(r.msg || 'Lỗi', 'error'); btn.disabled = false; }
+}
+
+async function doCheckOut(btn) {
+  if (!confirm('Xác nhận check-out?')) return;
+  btn.disabled = true;
+  const r = await ccPost('/cham-cong/api/checkout', {});
+  if (r.ok) { ccToast('👋 ' + r.msg); setTimeout(() => location.reload(), 1000); }
+  else { ccToast(r.msg || 'Lỗi', 'error'); btn.disabled = false; }
+}
+
+// ── Helper: lấy vị trí có RETRY (chống "lâu lâu báo không truy cập GPS") ──
+// Lần 1: GPS độ chính xác cao (15s). Hỏng (timeout/không bắt được) → thử lại bằng
+// wifi/cell (nhanh hơn trong nhà). Chỉ bỏ cuộc khi user CHẶN quyền hoặc cả 2 lần fail.
+function ccGetPositionRetry(onSuccess, onError) {
+  if (!navigator.geolocation) { onError({ code: -1 }); return; }
+  navigator.geolocation.getCurrentPosition(
+    onSuccess,
+    function (err) {
+      // Bị chặn quyền → không retry, báo luôn
+      if (err && err.code === err.PERMISSION_DENIED) { onError(err); return; }
+      // Thử lại nhẹ hơn (wifi/cell, chấp nhận vị trí cache ≤60s)
+      navigator.geolocation.getCurrentPosition(
+        onSuccess, onError,
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+      );
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+  );
+}
+function ccGeoErrMsg(err) {
+  if (!err) return 'Không lấy được vị trí.';
+  if (err.code === 1 /*PERMISSION_DENIED*/) return 'Bạn đã CHẶN quyền vị trí — vào cài đặt trình duyệt cho phép định vị cho trang này rồi thử lại.';
+  if (err.code === 2 /*POSITION_UNAVAILABLE*/) return 'Không bắt được GPS — kiểm tra đã BẬT định vị (Location) trên máy.';
+  if (err.code === 3 /*TIMEOUT*/) return 'GPS phản hồi chậm — thử lại (ra gần cửa sổ/chỗ thoáng).';
+  return 'Trình duyệt không hỗ trợ GPS.';
+}
+
+// ── GPS Check-in cho Marketing ──
+async function doGpsCheckIn(btn) {
+  if (!navigator.geolocation) {
+    ccToast('Trình duyệt không hỗ trợ GPS', 'error'); return;
+  }
+  btn.disabled = true;
+  const statusEl = document.getElementById('gpsStatus');
+  statusEl.style.display = 'inline-flex';
+  statusEl.className = 'gps-badge loading';
+  statusEl.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Đang lấy vị trí…';
+
+  ccGetPositionRetry(
+    async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const acc = Math.round(pos.coords.accuracy);
+      statusEl.innerHTML = `<i class="bi bi-geo-alt-fill"></i> Độ chính xác ±${acc}m — Đang gửi…`;
+      const r = await ccPost('/cham-cong/api/checkin', { lat, lng });
+      if (r.ok) {
+        statusEl.className = 'gps-badge';
+        statusEl.innerHTML = `<i class="bi bi-check-circle-fill"></i> ${r.msg}`;
+        ccToast('✅ ' + r.msg);
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        statusEl.className = 'gps-badge error';
+        statusEl.innerHTML = `<i class="bi bi-x-circle-fill"></i> ${r.msg}`;
+        ccToast(r.msg || 'Check-in thất bại', 'error');
+        btn.disabled = false;
+      }
+    },
+    (err) => {
+      const m = ccGeoErrMsg(err);
+      statusEl.className = 'gps-badge error';
+      statusEl.innerHTML = '<i class="bi bi-x-circle-fill"></i> ' + m;
+      ccToast(m, 'error');
+      btn.disabled = false;
+    }
+  );
+}
+
+// ── GPS Check-in cho Sale (ghi tọa độ, không kiểm tra bán kính) ──
+async function doSaleCheckIn(btn) {
+  if (!navigator.geolocation) {
+    ccToast('Trình duyệt không hỗ trợ GPS', 'error'); return;
+  }
+  btn.disabled = true;
+  const statusEl = document.getElementById('gpsStatus');
+  statusEl.style.display = 'inline-flex';
+  statusEl.className = 'gps-badge loading';
+  statusEl.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Đang lấy vị trí…';
+
+  ccGetPositionRetry(
+    async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const acc = Math.round(pos.coords.accuracy);
+      statusEl.innerHTML = `<i class="bi bi-geo-alt-fill"></i> ±${acc}m — Đang gửi…`;
+      const r = await ccPost('/cham-cong/api/checkin', { lat, lng });
+      if (r.ok) {
+        statusEl.className = 'gps-badge';
+        statusEl.innerHTML = `<i class="bi bi-check-circle-fill"></i> ${r.msg}`;
+        ccToast('✅ ' + r.msg);
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        statusEl.className = 'gps-badge error';
+        statusEl.innerHTML = `<i class="bi bi-x-circle-fill"></i> ${r.msg}`;
+        ccToast(r.msg || 'Check-in thất bại', 'error');
+        btn.disabled = false;
+      }
+    },
+    (err) => {
+      const m = ccGeoErrMsg(err);
+      statusEl.className = 'gps-badge error';
+      statusEl.innerHTML = '<i class="bi bi-x-circle-fill"></i> ' + m;
+      ccToast(m, 'error');
+      btn.disabled = false;
+    }
+  );
+}
+
+/* ═══ Backfill check-out — đặt giờ ra cho ca "Chưa ra" ═══ */
+async function openBackfillCheckout(dateStr, userId, anchorBtn){
+  // Prompt simple: time HH:MM. Default = current HCM time
+  const now = new Date();
+  // UTC+7 conversion (rough — server vẫn kiểm lại bằng zoneinfo)
+  const hcm = new Date(now.getTime() + (now.getTimezoneOffset() + 7*60) * 60000);
+  const hh = String(hcm.getHours()).padStart(2, '0');
+  const mm = String(hcm.getMinutes()).padStart(2, '0');
+  const defaultTime = `${hh}:${mm}`;
+  const timeInput = prompt(
+    `Đặt giờ ra cho ngày ${dateStr}\n(định dạng HH:MM, ví dụ 18:30)`,
+    defaultTime
+  );
+  if (!timeInput) return;
+  const trimmed = timeInput.trim();
+  if (!/^\d{1,2}:\d{2}(:\d{2})?$/.test(trimmed)) {
+    ccToast('Định dạng giờ không hợp lệ (cần HH:MM)', 'error');
+    return;
+  }
+  if (!confirm(`Xác nhận đóng ca ngày ${dateStr} lúc ${trimmed}?`)) return;
+  anchorBtn && (anchorBtn.disabled = true);
+  try {
+    const r = await ccPost('/cham-cong/api/backfill-checkout', {
+      date: dateStr, time: trimmed, user_id: userId,
+    });
+    if (r.ok) {
+      ccToast('✅ ' + (r.msg || 'Đã đóng ca'));
+      setTimeout(() => location.reload(), 800);
+    } else {
+      ccToast(r.msg || 'Thất bại', 'error');
+      anchorBtn && (anchorBtn.disabled = false);
+    }
+  } catch (e) {
+    ccToast('Lỗi kết nối', 'error');
+    anchorBtn && (anchorBtn.disabled = false);
+  }
+}
+
+async function doOldCheckout(dateStr) {
+  const timeVal = document.getElementById('ocHour').value + ':' + document.getElementById('ocMin').value;
+  if (!timeVal) { ccToast('Vui lòng chọn giờ check-out', 'error'); return; }
+  const btn = document.getElementById('btnOldCheckout');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Đang lưu...';
+  const r = await ccPost('/cham-cong/api/backfill-checkout', { date: dateStr, time: timeVal });
+  if (r.ok) {
+    ccToast('✅ Đã check-out ngày ' + dateStr + ' lúc ' + timeVal + '. Bạn có thể check-in hôm nay!');
+    setTimeout(() => location.reload(), 1400);
+  } else {
+    ccToast(r.msg || 'Lỗi check-out', 'error');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-box-arrow-right me-1"></i>Checkout ngày cũ';
+  }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tra cứu đơn — Marketing Brain</title>
+<link rel="stylesheet" href="/static/cc-theme.css">
+<style>
+  body { background:#f5f6f8; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; margin:0; }
+  .mb-topbar { background:#1a1a1a; color:#fff; padding:10px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .mb-topbar a { color:#F59E0B; text-decoration:none; font-weight:600; }
+  .wrap { max-width:860px; margin:0 auto; padding:16px; }
+  .searchbox { display:flex; gap:8px; margin:14px 0; }
+  .searchbox input { flex:1; padding:11px 14px; border:1px solid #ddd; border-radius:10px; font-size:15px; }
+  .searchbox button { padding:11px 22px; border:0; border-radius:10px; background:#F59E0B; color:#fff; font-weight:700; cursor:pointer; }
+  .card { background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); padding:16px 18px; margin-bottom:16px; }
+  .ord-hdr { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:12px; }
+  .ord-hdr .code { font-size:17px; font-weight:700; }
+  .money { font-variant-numeric:tabular-nums; }
+  .tree { font-size:14px; line-height:1.9; }
+  .tree .lv { padding-left:0; }
+  .tree .arrow { color:#cbd5e1; }
+  .badge { display:inline-block; padding:1px 9px; border-radius:999px; font-size:12px; font-weight:700; }
+  .b-win { background:#d1fae5; color:#065f46; }
+  .b-test { background:#fef3c7; color:#92400e; }
+  .b-org { background:#e0e7ff; color:#3730a3; }
+  .muted { color:#94a3b8; }
+  .kv { display:grid; grid-template-columns:130px 1fr; gap:4px 12px; font-size:13.5px; margin-top:8px; }
+  .kv .k { color:#64748b; }
+  .hl { background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:8px 12px; font-size:13px; margin-top:10px; }
+  table.items { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
+  table.items td { padding:4px 8px; border-bottom:1px solid #f1f5f9; }
+  table.items td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  a.ext { color:#2563eb; text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="mb-topbar">
+  <a href="/marketing-brain/">← Marketing Brain</a>
+  <strong>🔎 Tra cứu đơn — Gia phả quảng cáo</strong>
+</div>
+<div class="wrap">
+
+<form class="searchbox" method="get">
+  <input name="q" value="{{ q }}" autofocus placeholder="Mã đơn / SĐT khách / Mã vận đơn... rồi Enter">
+  <button type="submit">Tra cứu</button>
+</form>
+<p class="muted" style="font-size:13px">Gõ <b>mã đơn</b>, <b>số điện thoại</b> hoặc <b>mã vận đơn</b> → ra full gia phả: đơn này của ai chạy, ad nào, chiến dịch nào, chi bao nhiêu cho đúng đơn này, SP win hay test.</p>
+
+{% if q and not results %}
+<div class="card muted">Không tìm thấy đơn nào khớp "<b>{{ q }}</b>". Thử mã đơn / SĐT / mã vận đơn khác. (NV chỉ tra được đơn thuộc TK quảng cáo của mình.)</div>
+{% endif %}
+
+{% for r in results %}
+{% set o = r.o %}{% set a = r.a %}
+<div class="card">
+  <div class="ord-hdr">
+    <span class="code">📦 Đơn {{ o.order_code or o.external_order_id }}</span>
+    <span class="muted">{{ o.created_at_pos.strftime('%d/%m/%Y %H:%M') if o.created_at_pos else '' }}</span>
+    <span class="money" style="margin-left:auto;font-weight:700;color:#059669">{{ "{:,.0f}".format(o.net_revenue or 0).replace(',', '.') }}đ</span>
+    <span class="muted">({{ o.order_status }})</span>
+  </div>
+
+  {# GIA PHẢ #}
+  <div class="tree">
+    {% if a.ad_id %}
+      <div class="lv">🏪 <b>Page:</b> {{ a.page_name or a.page_id }}
+        {% if a.phan_loai == 'ma_win' %}<span class="badge b-win">🏆 WIN</span>
+        {% elif a.phan_loai == 'ma_test' %}<span class="badge b-test">🧪 TEST</span>{% endif %}
+      </div>
+      <div class="lv"><span class="arrow">└</span> 🎯 <b>Chiến dịch:</b> {{ a.campaign_name or '—' }}</div>
+      {% if a.adset_name %}<div class="lv"><span class="arrow">&nbsp;&nbsp;└</span> 📂 <b>Adset:</b> {{ a.adset_name }}</div>{% endif %}
+      <div class="lv"><span class="arrow">&nbsp;&nbsp;&nbsp;&nbsp;└</span> 📢 <b>Ad:</b> {{ a.ad_name or a.ad_id }} <span class="muted">({{ a.ad_id }})</span></div>
+      {% if a.post_id %}<div class="lv"><span class="arrow">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└</span> 📝 <b>Bài post:</b> <a class="ext" href="https://www.facebook.com/{{ a.post_id }}" target="_blank" rel="noopener">{{ a.post_id }} ↗</a></div>{% endif %}
+    {% elif a.is_organic %}
+      <div class="lv">🏪 <b>Page:</b> {{ a.page_name or a.page_id }} <span class="badge b-org">🌱 Organic (khách tự đến, không qua ad)</span></div>
+    {% else %}
+      <div class="lv muted">Đơn chưa có dữ liệu nguồn (nhập tay / chưa quy được).</div>
+    {% endif %}
+  </div>
+
+  {% if a.ad_id %}
+  <div class="hl">
+    👤 <b>NV chạy QC:</b> {{ a.nv_name or '—' }}{% if a.account_name %} · TK: {{ a.account_name }}{% endif %}<br>
+    💸 <b>Chi phí ad cho ĐÚNG đơn này (CPA ngày):</b>
+    {% if r.cpa_pending %}<span style="color:#d97706">⏳ chưa chốt — chi phí ads ngày {{ a.order_date.strftime('%d/%m') }} chỉ chính xác sau khi qua ngày (FB còn đang tiêu, số chốt vào hôm sau)</span>
+    {% elif r.cpa %}<b>{{ "{:,}".format(r.cpa).replace(',', '.') }}đ</b>
+       <span class="muted">(ad chi {{ "{:,.0f}".format((a.ad_spend_day or 0)|float * 1.113).replace(',', '.') }}đ đã VAT ÷ {{ a.ad_orders_day }} đơn trong ngày)</span>
+    {% else %}<span class="muted">chưa có chi phí ad ngày đó</span>{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="kv">
+    <span class="k">Khách</span><span>{{ o.customer_name or '—' }} · {{ o.customer_phone or '' }}</span>
+    <span class="k">Shop</span><span>{{ o.shop_name }}</span>
+    {% if o.tracking %}<span class="k">Mã vận đơn</span><span>{{ o.tracking }}</span>{% endif %}
+    <span class="k">Giá niêm yết</span><span class="muted money">{{ "{:,.0f}".format(o.total_amount or 0).replace(',', '.') }}đ</span>
+  </div>
+
+  {% if r.products %}
+  <table class="items">
+    {% for it in r.products %}
+    <tr><td>{{ it.product_name or it.sku or '' }}</td><td class="muted">{{ it.sku or '' }}</td>
+        <td class="num">×{{ it.quantity }}</td><td class="num">{{ "{:,.0f}".format(it.line_total or 0).replace(',', '.') }}đ</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+{% endfor %}
+
+</div>
+</body>
+</html>

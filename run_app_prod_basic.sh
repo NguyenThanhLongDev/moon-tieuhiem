@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+if [ ! -f ".venv/bin/activate" ]; then
+  echo "ERROR: .venv not found. Run: python3 -m venv .venv"
+  exit 1
+fi
+
+# shellcheck disable=SC1091
+source ".venv/bin/activate"
+
+# Load local env values if present.
+if [ -f ".env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source ".env"
+  set +a
+fi
+
+# Ensure local requests do not go through blocked proxies.
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+export NO_PROXY="localhost,127.0.0.1,::1"
+export no_proxy="localhost,127.0.0.1,::1"
+
+# Keep current behavior stable and explicit.
+export DATABASE_URL="${DATABASE_URL:-postgresql://localhost:5432/pos_dashboard}"
+export WEB_DAILY_DASHBOARD_DB_ENABLED="${WEB_DAILY_DASHBOARD_DB_ENABLED:-1}"
+export WEB_DASHBOARD_ORDER_STATUS_DB_ENABLED="${WEB_DASHBOARD_ORDER_STATUS_DB_ENABLED:-1}"
+export WEB_DASHBOARD_LIGHTWEIGHT_HOME_ENABLED="${WEB_DASHBOARD_LIGHTWEIGHT_HOME_ENABLED:-1}"
+export WEB_HOME_ALERT_CACHE_TTL_SECONDS="${WEB_HOME_ALERT_CACHE_TTL_SECONDS:-120}"
+export WEB_APP_DEBUG="${WEB_APP_DEBUG:-0}"
+export WEB_PERF_LOG="${WEB_PERF_LOG:-0}"
+export WEB_PANCAKE_PARALLEL_WORKERS="${WEB_PANCAKE_PARALLEL_WORKERS:-8}"
+export WEB_SENT_ITEMS_DB_ENABLED="${WEB_SENT_ITEMS_DB_ENABLED:-0}"
+export WEB_SENT_ITEMS_DB_PICKUP_FETCH="${WEB_SENT_ITEMS_DB_PICKUP_FETCH:-0}"
+export WEB_SENT_ITEMS_DB_FALLBACK_API="${WEB_SENT_ITEMS_DB_FALLBACK_API:-1}"
+export WEB_SENT_ITEMS_DB_CREATED_LOOKBACK_DAYS="${WEB_SENT_ITEMS_DB_CREATED_LOOKBACK_DAYS:-120}"
+export WEB_SHIPPING_SUMMARY_CACHE_TTL_SECONDS="${WEB_SHIPPING_SUMMARY_CACHE_TTL_SECONDS:-120}"
+export WEB_SHIPPED_TRUST_CARRIER_PICKUP_ES_WINDOW="${WEB_SHIPPED_TRUST_CARRIER_PICKUP_ES_WINDOW:-0}"
+export WEB_SHIPPED_COUNT_LENIENT_MISSING_PICKUP_TS="${WEB_SHIPPED_COUNT_LENIENT_MISSING_PICKUP_TS:-1}"
+
+echo "Starting Flask app on 0.0.0.0:5050 ..."
+exec python3 web_app.py
