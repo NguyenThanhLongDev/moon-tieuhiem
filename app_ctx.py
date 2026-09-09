@@ -448,7 +448,6 @@ def _load_users_from_db() -> Optional[List[Dict]]:
             assign_from_by_user: Dict[int, Any] = {}
             for user_id, shop_key, afrom in cur.fetchall():
                 shops_by_user.setdefault(user_id, []).append(shop_key)
-                # Giữ ngày hiệu lực MỚI NHẤT để pre-fill ô "Ngày áp dụng" khi sửa user
                 if afrom and (user_id not in assign_from_by_user or afrom > assign_from_by_user[user_id]):
                     assign_from_by_user[user_id] = afrom
             users = []
@@ -542,12 +541,8 @@ def save_users(users: List[Dict[str, Any]]) -> None:
                         (_hash_password(plain), db_id),
                     )
                 assigned = u.get("assigned_shops", [])
-                # Ngày hiệu lực gán shop (date picker từ form). None → CURRENT_DATE.
                 eff = (str(u.get("assign_from") or "").strip()) or None
                 if "*" not in assigned:
-                    # Versioned (migration 058): KHÔNG xóa lịch sử gán shop.
-                    # Shop bị gỡ → đóng hiệu lực hôm qua; shop thêm mới → mở từ hôm nay
-                    # + đóng holder khác (1 shop 1 chủ tính doanh thu/lương tại 1 thời điểm).
                     want_ids = {shop_map[k] for k in assigned if shop_map.get(k)}
                     cur.execute(
                         "SELECT shop_id FROM user_shop_assignments"
@@ -555,7 +550,6 @@ def save_users(users: List[Dict[str, Any]]) -> None:
                     have_ids = {r[0] for r in cur.fetchall()}
                     removed = list(have_ids - want_ids)
                     if removed:
-                        # Gán nhầm trong ngày → xóa hẳn; gán từ trước → đóng hôm qua
                         cur.execute(
                             "DELETE FROM user_shop_assignments WHERE user_id = %s"
                             " AND shop_id = ANY(%s) AND assigned_to IS NULL"
@@ -565,24 +559,19 @@ def save_users(users: List[Dict[str, Any]]) -> None:
                             " WHERE user_id = %s AND shop_id = ANY(%s) AND assigned_to IS NULL",
                             (db_id, removed))
                     for shop_db_id in want_ids - have_ids:
-                        # [DÙNG CHUNG SHOP] KHÔNG đóng/gỡ holder khác — cho nhiều NV cùng
-                        # giữ 1 shop (cùng xem/truy cập). Chỉ thêm gán cho NV này.
                         cur.execute(
                             "INSERT INTO user_shop_assignments (user_id, shop_id, assigned_from)"
                             " VALUES (%s, %s, COALESCE(%s::date, CURRENT_DATE)) ON CONFLICT DO NOTHING",
                             (db_id, shop_db_id, eff))
-                    # Cascade: shop của NV đổi → đồng bộ fb_ad_account_mappings cho các TK của NV
                     try:
                         from repositories.admin_repo import sync_shop_mappings_for_user
                         sync_shop_mappings_for_user(cur, int(db_id), effective_date=eff)
                     except Exception as exc:
-                        _log.warning("sync_shop_mappings_for_user(user_id=%s) error: %s", db_id, exc)
+                        _log.warning("sync_shop_mappings_for_user error: %s", exc)
             conn.commit()
     except Exception as e:
         _log.error("save_users DB error: %s", e)
 
-    # Đồng bộ cc_employees.cc_role theo web role (IT, Leader, Kế toán, Kho…)
-    # để tránh trường hợp web = IT nhưng chấm công = Sale.
     try:
         from modules.cham_cong.cc_db import sync_cc_role_from_web_role
         with get_db_conn() as conn2:
