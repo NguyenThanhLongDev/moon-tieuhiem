@@ -94,7 +94,7 @@ def logout():
 
 
 
-@auth_bp.route("/profile", methods=["GET", "POST"])
+@auth_bp.route("/profile", methods=["GET"])
 def profile():
     if not session.get("logged_in"):
         return redirect(url_for("auth.login", next="/profile"))
@@ -105,63 +105,14 @@ def profile():
     if not me:
         return redirect(url_for("auth.login"))
 
-    messages = []
-
-    if request.method == "POST":
-        action = request.form.get("action", "")
-
-        if action == "update_name":
-            new_name = request.form.get("full_name", "").strip()
-            if not new_name:
-                messages.append(("error", "Tên không được để trống."))
-            else:
-                me["full_name"] = new_name
-                save_users(users)
-                session["full_name"] = new_name
-                # Đồng bộ cc_employees
-                try:
-                    from modules.cham_cong.cc_db import upsert_employee, get_employee
-                    emp = get_employee(uid)
-                    if emp:
-                        upsert_employee(uid, new_name, emp.get("cc_role","sale"),
-                                        emp.get("department",""), emp.get("phone",""),
-                                        emp.get("position",""))
-                except Exception:
-                    pass
-                messages.append(("success", f"Đã cập nhật tên thành: {new_name}"))
-
-        elif action == "change_password":
-            old_pw  = request.form.get("old_password", "").strip()
-            new_pw  = request.form.get("new_password", "").strip()
-            new_pw2 = request.form.get("new_password2", "").strip()
-            if not old_pw or not new_pw or not new_pw2:
-                messages.append(("error", "Vui lòng nhập đầy đủ thông tin."))
-            elif not _check_user_password(old_pw, me):
-                messages.append(("error", "Mật khẩu hiện tại không đúng."))
-            elif new_pw != new_pw2:
-                messages.append(("error", "Mật khẩu mới không khớp."))
-            elif len(new_pw) < 4:
-                messages.append(("error", "Mật khẩu mới phải có ít nhất 4 ký tự."))
-            else:
-                me["password"] = new_pw
-                save_users(users)
-                messages.append(("success", "Đã đổi mật khẩu thành công!"))
-
     current_name = me.get("full_name") or me.get("username", "")
     username = me.get("username", "")
     role_label = {"admin":"Quản trị","leader":"Trưởng nhóm","staff":"Nhân viên",
                   "accountant":"Kế toán","kho":"Kho","manager":"Manager"}.get(me.get("role",""), me.get("role",""))
 
-    alerts_html = ""
-    for lvl, txt in messages:
-        color = "#d1fae5" if lvl == "success" else "#fee2e2"
-        tc    = "#065f46" if lvl == "success" else "#991b1b"
-        alerts_html += f'<div style="padding:10px 14px;border-radius:8px;background:{color};color:{tc};margin-bottom:10px;font-size:14px;">{txt}</div>'
-
     body = f"""
 <div style="max-width:520px;margin:32px auto;padding:0 16px;">
   <div style="background:#fff;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,.08);overflow:hidden;">
-    <!-- Header -->
     <div style="background:linear-gradient(135deg,#f59e0b,#d97706);padding:24px;text-align:center;color:#fff;">
       <div style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.25);margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:28px;">
         <i class="bi bi-person-fill"></i>
@@ -169,17 +120,12 @@ def profile():
       <div style="font-size:20px;font-weight:700;">{current_name}</div>
       <div style="font-size:13px;opacity:.85;">@{username} &nbsp;·&nbsp; {role_label}</div>
     </div>
-
     <div style="padding:24px;">
-      {alerts_html}
-
-      <!-- Form 1: Cập nhật tên -->
       <div style="margin-bottom:24px;">
         <div style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">
           <i class="bi bi-person-badge"></i> Tên hiển thị
         </div>
-        <form method="post">
-          <input type="hidden" name="action" value="update_name">
+        <form method="post" action="/profile/update-name">
           <div style="display:flex;gap:8px;">
             <input type="text" name="full_name" value="{current_name}"
                    placeholder="Nguyễn Văn Nam"
@@ -192,16 +138,12 @@ def profile():
           </div>
         </form>
       </div>
-
       <hr style="border:none;border-top:1px solid #f3f4f6;margin:0 0 24px;">
-
-      <!-- Form 2: Đổi mật khẩu -->
       <div>
         <div style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">
           <i class="bi bi-shield-lock"></i> Đổi mật khẩu
         </div>
-        <form method="post">
-          <input type="hidden" name="action" value="change_password">
+        <form method="post" action="/profile/change-password">
           <div style="display:flex;flex-direction:column;gap:10px;">
             <input type="password" name="old_password" placeholder="Mật khẩu hiện tại"
                    style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;"
@@ -229,5 +171,66 @@ def profile():
 </div>
 """
     return render_template_string(PAGE_TEMPLATE, title="Hồ sơ cá nhân", body=body)
+
+
+@auth_bp.route("/profile/update-name", methods=["POST"])
+def update_name():
+    if not session.get("logged_in"):
+        return redirect(url_for("auth.login", next="/profile"))
+
+    users = load_users()
+    uid = session.get("user_id", "")
+    me = next((u for u in users if u.get("id") == uid), None)
+    if not me:
+        return redirect(url_for("auth.login"))
+
+    new_name = request.form.get("full_name", "").strip()
+    if not new_name:
+        return redirect(url_for("auth.profile"))
+
+    me["full_name"] = new_name
+    save_users(users)
+    session["full_name"] = new_name
+
+    try:
+        from modules.cham_cong.cc_db import upsert_employee, get_employee
+        emp = get_employee(uid)
+        if emp:
+            upsert_employee(uid, new_name, emp.get("cc_role","sale"),
+                            emp.get("department",""), emp.get("phone",""),
+                            emp.get("position",""))
+    except Exception:
+        pass
+
+    return redirect(url_for("auth.profile"))
+
+
+@auth_bp.route("/profile/change-password", methods=["POST"])
+def change_password():
+    if not session.get("logged_in"):
+        return redirect(url_for("auth.login", next="/profile"))
+
+    users = load_users()
+    uid = session.get("user_id", "")
+    me = next((u for u in users if u.get("id") == uid), None)
+    if not me:
+        return redirect(url_for("auth.login"))
+
+    old_pw  = request.form.get("old_password", "").strip()
+    new_pw  = request.form.get("new_password", "").strip()
+    new_pw2 = request.form.get("new_password2", "").strip()
+
+    if not old_pw or not new_pw or not new_pw2:
+        return redirect(url_for("auth.profile"))
+    if not _check_user_password(old_pw, me):
+        return redirect(url_for("auth.profile"))
+    if new_pw != new_pw2:
+        return redirect(url_for("auth.profile"))
+    if len(new_pw) < 4:
+        return redirect(url_for("auth.profile"))
+
+    me["password"] = new_pw
+    save_users(users)
+    return redirect(url_for("auth.profile"))
 
 
