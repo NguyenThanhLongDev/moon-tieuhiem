@@ -504,7 +504,7 @@ def dashboard():
     bac_2b_pct = None
     if total_revenue_value > 0 and total_ads_cost_value > 0:
         try:
-            from modules.salary_2b import get_config as _s2b_cfg, _tier_pick as _s2b_tier
+#            from modules.salary_2b import get_config as _s2b_cfg, _tier_pick as _s2b_tier
             bac_2b_pct = _s2b_tier(ads_dt_pct, _s2b_cfg()["tiers"])
         except Exception:
             bac_2b_pct = None
@@ -513,7 +513,7 @@ def dashboard():
     nv_ads_breakdown = []
     if filter_team and total_ads_cost_value > 0:
         try:
-            from modules.salary_2b import get_config as _s2b_cfg2, _tier_pick as _s2b_tier2
+#            from modules.salary_2b import get_config as _s2b_cfg2, _tier_pick as _s2b_tier2
             from db import query_all as _qa
             if is_date_range:
                 _d1, _d2 = filter_date_from, filter_date_to

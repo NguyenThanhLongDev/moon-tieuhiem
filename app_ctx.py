@@ -4080,7 +4080,8 @@ def get_kho_shipping_stats(allowed_shop_keys: Optional[set]) -> Dict[str, int]:
     Trả về tích lũy (không filter ngày) — phản ánh trạng thái hiện tại.
     """
     try:
-        from modules.kho_vat_ly.wh_db import wh_db
+#        from modules.kho_vat_ly.wh_db import wh_db
+        pass
         params: List[Any] = []
         shop_cond = ""
         if allowed_shop_keys is not None:
@@ -4149,7 +4150,8 @@ def load_carrier_pickup_orders_map_from_db(
     if not selected_date:
         return {}
     try:
-        from modules.kho_vat_ly.wh_db import wh_db
+#        from modules.kho_vat_ly.wh_db import wh_db
+        pass
         date_prefix = selected_date + "%"
         with wh_db() as conn:
             rows = conn.execute(
@@ -4190,7 +4192,8 @@ def sum_carrier_pickup_orders_dashboard(
 
     # ── Fast path: DB local (wh_outbound_requests) ──────────────────────────
     try:
-        from modules.kho_vat_ly.wh_db import wh_db
+#        from modules.kho_vat_ly.wh_db import wh_db
+        pass
         date_prefix = selected_date + "%"
         params: List[Any] = [date_prefix]
         shop_cond = ""
@@ -4367,7 +4370,8 @@ def _build_sent_items_from_db(target_date: str, selected_shop_key: Optional[str]
     Trả None nếu chưa có dữ liệu cho ngày này → fall back sang API.
     """
     try:
-        from modules.kho_vat_ly.wh_db import wh_db
+#        from modules.kho_vat_ly.wh_db import wh_db
+        pass
     except Exception:
         return None
 

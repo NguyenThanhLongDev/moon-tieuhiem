@@ -138,7 +138,7 @@ def _sync_team_to_vias(user_id, team_code) -> int:
     if not user_id or not team_code:
         return 0
     try:
-        from modules.quan_ly_via import sync_user_team_to_vias
+#        from modules.quan_ly_via import sync_user_team_to_vias
         return sync_user_team_to_vias(user_id, team_code)
     except Exception as exc:
         logger.warning("_sync_team_to_vias lỗi: %s", exc)
@@ -927,7 +927,7 @@ def settings_page():
                     if db_ok is True:
                         # Ghi wh_shops để có api_key
                         try:
-                            from modules.kho_vat_ly.wh_db import wh_db as _wh_db
+#                            from modules.kho_vat_ly.wh_db import wh_db as _wh_db
                             with _wh_db() as _conn:
                                 _conn.execute("""
                                     INSERT INTO wh_shops (shop_key, shop_name, pos_shop_id, pos_api_key, status)
@@ -1071,7 +1071,7 @@ def settings_page():
                     # Đồng bộ wh_shops
                     if toggled:
                         try:
-                            from modules.kho_vat_ly.wh_db import wh_db as _wh_db
+#                            from modules.kho_vat_ly.wh_db import wh_db as _wh_db
                             with _wh_db() as _conn:
                                 _conn.execute(
                                     "UPDATE wh_shops SET status=%s WHERE shop_key=%s",
@@ -1102,7 +1102,7 @@ def settings_page():
                     messages.append({"level": "Lỗi", "text": "Thiếu shop_key."})
                 else:
                     try:
-                        from modules.kho_vat_ly.wh_db import wh_db as _wh_db
+#                        from modules.kho_vat_ly.wh_db import wh_db as _wh_db
                         with _wh_db() as _conn:
                             _conn.execute(
                                 "UPDATE wh_shops SET pos_api_key=%s WHERE shop_key=%s",
@@ -1176,7 +1176,7 @@ def settings_page():
                             messages.append({"level": "Cảnh báo", "text": f"Cập nhật DB thất bại: {_e}"})
                     # Đồng bộ wh_shops (tên, pos_shop_id, status, api_key)
                     try:
-                        from modules.kho_vat_ly.wh_db import wh_db as _wh_db
+#                        from modules.kho_vat_ly.wh_db import wh_db as _wh_db
                         with _wh_db() as _conn:
                             _wh_fields = ["shop_name=?"]
                             _wh_vals = [new_shop_name]
@@ -1334,7 +1334,7 @@ def settings_page():
     users = load_users()
     _shops_base = sorted(load_shop_meta_map().values(), key=lambda x: x.get("shop_name", ""))
     try:
-        from modules.kho_vat_ly.wh_db import wh_db as _wh_db
+#        from modules.kho_vat_ly.wh_db import wh_db as _wh_db
         with _wh_db() as _wconn:
             _wh_rows = _wconn.execute(
                 "SELECT shop_key, pos_api_key, pos_shop_id, last_webhook_at FROM wh_shops"
@@ -1489,7 +1489,7 @@ def settings_page():
     # Shop có API key invalid (≠ 32 hex) → sync silent skip
     invalid_apikey_shops = []
     try:
-        from modules.kho_vat_ly.wh_db import wh_db as _wh_db_check
+#        from modules.kho_vat_ly.wh_db import wh_db as _wh_db_check
         with _wh_db_check() as _ck:
             invalid_apikey_shops = [dict(r) for r in _ck.execute("""
                 SELECT shop_name, pos_shop_id, pos_api_key
