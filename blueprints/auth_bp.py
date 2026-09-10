@@ -107,14 +107,13 @@ def profile():
 
     current_name = me.get("full_name") or me.get("username", "")
     username = me.get("username", "")
-    role_label = {"admin":"Quản trị","leader":"Trưởng nhóm","staff":"Nhân viên",
-                  "accountant":"Kế toán","kho":"Kho","manager":"Manager"}.get(me.get("role",""), me.get("role",""))
+    role = me.get("role", "")
 
     return render_template("auth/profile.html",
                           title="Hồ sơ cá nhân",
                           current_name=current_name,
                           username=username,
-                          role_label=role_label,
+                          role=role,
                           PAGE_TEMPLATE=PAGE_TEMPLATE)
 
 
