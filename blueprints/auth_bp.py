@@ -74,8 +74,6 @@ def login():
             session["role"] = str(user.get("role", "staff"))
             session["user_id"] = user.get("id")
             session["full_name"] = user.get("full_name", "") or username
-            session["warehouse_id"] = user.get("warehouse_id") or None
-            session["warehouse_name"] = user.get("warehouse_name", "") or ""
             return redirect(next_url)
         elif username == DASHBOARD_USERNAME and password == DASHBOARD_PASSWORD:
             # backward-compatible fallback for first-time setup
