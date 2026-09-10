@@ -26,7 +26,6 @@ from modules.ads_mapping import register_ads_mapping_module
 from scheduler import start_scheduler
 from run_migrations import auto_migrate, auto_bootstrap_if_empty
 from modules.salary import register_salary_module
-from modules.kho_vat_ly import register_kho_vat_ly_module
 import perm_utils
 from modules.fb_pages import register_fb_pages_module
 from modules.chi_phi_qc import register_chi_phi_qc_module
@@ -40,7 +39,7 @@ from modules.expense_chat import register_expense_chat_module
 # from modules.salary_b1 import register_salary_b1_module
 from modules.hr import register_hr_module
 
-from app_constants import DASHBOARD_WEB_VERSION, KHO_VAT_LY_ACCESS_ROLES, PAGE_TEMPLATE, BASE_DIR
+from app_constants import DASHBOARD_WEB_VERSION, PAGE_TEMPLATE, BASE_DIR
 from app_ctx import (
     login_required,
     _find_home_url,
@@ -325,15 +324,6 @@ def _perm_context():
 
 
 @app.context_processor
-def _kho_vat_ly_nav():
-    from flask import session
-    def can_access_kho_vat_ly() -> bool:
-        r = str(session.get("role", "staff")).strip().lower()
-        return r in KHO_VAT_LY_ACCESS_ROLES
-    return dict(can_access_kho_vat_ly=can_access_kho_vat_ly)
-
-
-@app.context_processor
 def _marketing_brain_nav():
     from flask import session, g
     _MB_FULL_ROLES = {"admin", "superadmin", "manager", "ketoan", "accountant", "it", "leader"}
@@ -562,10 +552,6 @@ def _check_billing_lock():
 from modules.fraud_detect import register_fraud_detect  # noqa: E402
 register_fraud_detect(app)
 
-# Quản lý kho tài khoản VIA (chỉ admin/IT thao tác, leader xem team mình)
-from modules.quan_ly_via import quan_ly_via_bp as _quan_ly_via_bp  # noqa: E402
-app.register_blueprint(_quan_ly_via_bp)
-
 # Marketing Brain V0 (GĐ1: Ad ↔ Đơn ↔ Doanh thu) — module riêng, bảng mb_*
 from modules.marketing_brain import marketing_brain_bp as _marketing_brain_bp  # noqa: E402
 app.register_blueprint(_marketing_brain_bp)
@@ -610,29 +596,6 @@ auto_migrate()
 
 # [CPQC] Bỏ đăng ký module Kho vật lý — không thuộc phạm vi chi phí quảng cáo
 # register_kho_vat_ly_module(app)
-
-
-@app.route("/api/kho/outbound-sync-quick", methods=["GET", "POST"])
-def api_kho_outbound_sync_quick():
-    """Đồng bộ POS nhanh — đăng ký trực tiếp trên app để tránh 404 khi blueprint/deploy lệch.
-    Gọi lại logic `outbound_sync_quick` trong module kho (kiểm tra quyền + sync giữ nguyên)."""
-    ct = request.content_type or ""
-    is_ajax = (
-        request.is_json
-        or ct.startswith("multipart/")
-        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
-    )
-    if not session.get("logged_in"):
-        if is_ajax:
-            return jsonify({"ok": False, "error": "Phiên đăng nhập hết hạn, vui lòng tải lại trang"}), 401
-        return redirect(url_for("auth.login", next=request.url))
-    role = str(session.get("role", "staff")).strip().lower()
-    if role not in KHO_VAT_LY_ACCESS_ROLES:
-        if is_ajax:
-            return jsonify({"ok": False, "error": "Bạn không có quyền truy cập Kho vật lý."}), 403
-        return redirect(url_for("dashboard.dashboard"))
-    from modules.kho_vat_ly import outbound_sync_quick as _fn
-    return _fn()
 
 
 # ─────────────────────────────────────────────────────────────────
