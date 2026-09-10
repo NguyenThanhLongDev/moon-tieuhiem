@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 from functools import wraps
 
-from flask import Blueprint, abort, render_template_string, request, url_for, redirect, session, g, send_file, jsonify
+from flask import Blueprint, abort, render_template_string, render_template, request, url_for, redirect, session, g, send_file, jsonify
 from openpyxl import Workbook
 
 # Import everything from app_ctx (helpers, login_required, render_page, etc.)
@@ -110,67 +110,12 @@ def profile():
     role_label = {"admin":"Quản trị","leader":"Trưởng nhóm","staff":"Nhân viên",
                   "accountant":"Kế toán","kho":"Kho","manager":"Manager"}.get(me.get("role",""), me.get("role",""))
 
-    body = f"""
-<div style="max-width:520px;margin:32px auto;padding:0 16px;">
-  <div style="background:#fff;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,.08);overflow:hidden;">
-    <div style="background:linear-gradient(135deg,#f59e0b,#d97706);padding:24px;text-align:center;color:#fff;">
-      <div style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.25);margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:28px;">
-        <i class="bi bi-person-fill"></i>
-      </div>
-      <div style="font-size:20px;font-weight:700;">{current_name}</div>
-      <div style="font-size:13px;opacity:.85;">@{username} &nbsp;·&nbsp; {role_label}</div>
-    </div>
-    <div style="padding:24px;">
-      <div style="margin-bottom:24px;">
-        <div style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">
-          <i class="bi bi-person-badge"></i> Tên hiển thị
-        </div>
-        <form method="post" action="/profile/update-name">
-          <div style="display:flex;gap:8px;">
-            <input type="text" name="full_name" value="{current_name}"
-                   placeholder="Nguyễn Văn Nam"
-                   style="flex:1;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;outline:none;"
-                   onfocus="this.style.borderColor='#f59e0b'" onblur="this.style.borderColor='#e5e7eb'">
-            <button type="submit"
-                    style="padding:10px 18px;background:#f59e0b;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">
-              Lưu
-            </button>
-          </div>
-        </form>
-      </div>
-      <hr style="border:none;border-top:1px solid #f3f4f6;margin:0 0 24px;">
-      <div>
-        <div style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">
-          <i class="bi bi-shield-lock"></i> Đổi mật khẩu
-        </div>
-        <form method="post" action="/profile/change-password">
-          <div style="display:flex;flex-direction:column;gap:10px;">
-            <input type="password" name="old_password" placeholder="Mật khẩu hiện tại"
-                   style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;"
-                   onfocus="this.style.borderColor='#f59e0b'" onblur="this.style.borderColor='#e5e7eb'">
-            <input type="password" name="new_password" placeholder="Mật khẩu mới"
-                   style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;"
-                   onfocus="this.style.borderColor='#f59e0b'" onblur="this.style.borderColor='#e5e7eb'">
-            <input type="password" name="new_password2" placeholder="Nhập lại mật khẩu mới"
-                   style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;"
-                   onfocus="this.style.borderColor='#f59e0b'" onblur="this.style.borderColor='#e5e7eb'">
-            <button type="submit"
-                    style="padding:10px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">
-              <i class="bi bi-shield-check"></i> Đổi mật khẩu
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-  <div style="text-align:center;margin-top:16px;">
-    <a href="/" style="color:#6b7280;font-size:13px;text-decoration:none;">
-      <i class="bi bi-arrow-left"></i> Quay về trang chủ
-    </a>
-  </div>
-</div>
-"""
-    return render_template_string(PAGE_TEMPLATE, title="Hồ sơ cá nhân", body=body)
+    return render_template("auth/profile.html",
+                          title="Hồ sơ cá nhân",
+                          current_name=current_name,
+                          username=username,
+                          role_label=role_label,
+                          PAGE_TEMPLATE=PAGE_TEMPLATE)
 
 
 @auth_bp.route("/profile/update-name", methods=["POST"])
