@@ -136,17 +136,6 @@ def update_name():
     me["full_name"] = new_name
     save_users(users)
     session["full_name"] = new_name
-
-    try:
-        from modules.cham_cong.cc_db import upsert_employee, get_employee
-        emp = get_employee(uid)
-        if emp:
-            upsert_employee(uid, new_name, emp.get("cc_role","sale"),
-                            emp.get("department",""), emp.get("phone",""),
-                            emp.get("position",""))
-    except Exception:
-        pass
-
     return redirect(url_for("auth.profile"))
 
 
