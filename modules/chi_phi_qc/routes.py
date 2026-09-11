@@ -19,6 +19,7 @@ from modules.chi_phi_qc.db_queries import (
     _active_pages_for_user,
     _auto_pages_for_date,
     _daily_spend_by_page,
+    _get_allowed_account_ids_unified,
     _get_last_sync,
     _has_page_spend_table,
     _kpi_spend_by_page,
@@ -33,7 +34,6 @@ from modules.chi_phi_qc.db_queries import (
 )
 from modules.chi_phi_qc.helpers import (
     _NON_ADS_ROLES,
-    _get_allowed_shop_keys_for_user,
     _get_team_members,
     _get_user_by_id,
     _is_full_view,
@@ -67,25 +67,8 @@ def index():
     spend_map      = _daily_spend_by_page(date_from, date_to, user_id, role)
 
     # ── Determine which ad accounts this user is allowed to see ──
-    allowed_shop_keys  = _get_allowed_shop_keys_for_user(user_id, role)  # None = all
-    if allowed_shop_keys is None:
-        allowed_account_ids = None  # admin/ketoan: xem tất cả
-    else:
-        # Lấy account từ shop được gán (date-aware: mapping theo cửa sổ giao với kỳ lọc)
-        shop_based_ids = _shop_keys_to_account_ids(allowed_shop_keys, date_from, date_to)
-        # Lấy account được gán trực tiếp cho user này (date-aware theo khoảng lọc)
-        direct_ids = set(_user_direct_account_ids(user_id, date_from, date_to))
-        # LEADER: gộp thêm TK gán trực tiếp của TẤT CẢ thành viên trong team —
-        # nếu không, NV có TK gán-trực-tiếp (không qua shop) sẽ bị thiếu khỏi
-        # tab "Phân theo nhân viên" khi leader xem (bug: leader chỉ thấy 1 phần team).
-        if role == "leader":
-            _cu = _get_user_by_id(user_id)
-            _tid = str(_cu.get("team_id", "")).strip()
-            for _mb in (_get_team_members(_tid) if _tid else []):
-                if _mb.get("id"):
-                    direct_ids |= set(_user_direct_account_ids(_mb.get("id"), date_from, date_to))
-        # Gộp cả hai nguồn
-        allowed_account_ids = list(set(shop_based_ids) | direct_ids)
+    # Gộp 2 nguồn (shop + direct) trong 1 query SQL unified
+    allowed_account_ids = _get_allowed_account_ids_unified(user_id, role, date_from, date_to)
 
     # ── Auto-discovered pages (filtered by role) ──
     auto_pages = _auto_pages_for_date(date_from, date_to, allowed_account_ids) if has_auto_table else []

@@ -14,6 +14,7 @@ from modules.chi_phi_qc.helpers import (
     _is_full_view,
     _is_senior,
     _load_users_json,
+    _normalize_shops,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,6 +92,104 @@ def _user_direct_account_ids(user_id, date_from: str = "", date_to: str = "") ->
                 return [r[0] for r in cur.fetchall()]
     except Exception as exc:
         logger.error("_user_direct_account_ids error: %s", exc)
+        return []
+
+
+def _get_allowed_account_ids_unified(user_id, role, date_from: str = "", date_to: str = "") -> list | None:
+    """Lấy tất cả TK user được xem (shop-based + direct assignment).
+
+    Admin/Ketoan → None (xem tất cả)
+    Staff/Leader → gộp từ: shop mappings + direct assignments (+ team members nếu leader)
+
+    Date-aware: filter overlap với khoảng [date_from, date_to].
+    """
+    if _is_full_view(role):
+        return None  # admin/ketoan/manager/superadmin: xem tất cả TK
+
+    user = _get_user_by_id(user_id)
+    if not user:
+        return []
+
+    try:
+        from db import get_conn
+
+        # Lấy danh sách user_ids (chính user + team members nếu leader)
+        if role == "leader":
+            team_id = str(user.get("team_id", "")).strip()
+            members = _get_team_members(team_id) if team_id else [user]
+            user_ids = [m.get("id") for m in members if m.get("id")]
+            # Gộp shop keys từ tất cả team members
+            shops: set = set()
+            for m in members:
+                shops.update(_normalize_shops(m.get("assigned_shops", [])))
+            shop_keys = list(shops)
+        else:
+            # Staff: chỉ chính mình
+            user_ids = [user_id]
+            shop_keys = _normalize_shops(user.get("assigned_shops", []))
+
+        # 1 query SQL UNION: shop-based TK + direct TK
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                if shop_keys:
+                    # Có shop → lấy cả shop + direct
+                    if date_from and date_to:
+                        cur.execute("""
+                            SELECT DISTINCT acc_id FROM (
+                                -- Nguồn 1: shop → account (date-aware)
+                                SELECT DISTINCT m.fb_ad_account_id AS acc_id
+                                  FROM fb_ad_account_mappings m
+                                  JOIN shops s ON s.id = m.shop_id
+                                 WHERE s.shop_key = ANY(%s)
+                                   AND m.assigned_from <= %s::date
+                                   AND (m.assigned_to IS NULL OR m.assigned_to >= %s::date)
+
+                                UNION
+
+                                -- Nguồn 2: direct assignment (date-aware)
+                                SELECT DISTINCT ad_account_id
+                                  FROM user_ad_account_assignments
+                                 WHERE user_id = ANY(%s)
+                                   AND assigned_from <= %s::date
+                                   AND (assigned_to IS NULL OR assigned_to >= %s::date)
+                            ) t
+                        """, (shop_keys, date_to, date_from, user_ids, date_to, date_from))
+                    else:
+                        # Fallback: mapping active + direct active
+                        cur.execute("""
+                            SELECT DISTINCT acc_id FROM (
+                                SELECT DISTINCT m.fb_ad_account_id AS acc_id
+                                  FROM fb_ad_account_mappings m
+                                  JOIN shops s ON s.id = m.shop_id
+                                 WHERE s.shop_key = ANY(%s) AND m.status = 'active'
+
+                                UNION
+
+                                SELECT DISTINCT ad_account_id
+                                  FROM user_ad_account_assignments
+                                 WHERE user_id = ANY(%s) AND assigned_to IS NULL
+                            ) t
+                        """, (shop_keys, user_ids))
+                else:
+                    # Không có shop → chỉ direct assignment
+                    if date_from and date_to:
+                        cur.execute("""
+                            SELECT DISTINCT ad_account_id
+                              FROM user_ad_account_assignments
+                             WHERE user_id = ANY(%s)
+                               AND assigned_from <= %s::date
+                               AND (assigned_to IS NULL OR assigned_to >= %s::date)
+                        """, (user_ids, date_to, date_from))
+                    else:
+                        cur.execute("""
+                            SELECT DISTINCT ad_account_id
+                              FROM user_ad_account_assignments
+                             WHERE user_id = ANY(%s) AND assigned_to IS NULL
+                        """, (user_ids,))
+
+                return [r[0] for r in cur.fetchall()]
+    except Exception as exc:
+        logger.error("_get_allowed_account_ids_unified error: %s", exc)
         return []
 
 # ── Page & chi phí theo ngày ─────────────────────────────────────────
