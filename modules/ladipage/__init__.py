@@ -566,7 +566,8 @@ def _push_async(row_id: int, pos_shop_id: str):
                 return
         ok, oid, err = _push_to_pos(shop, rec, cho_don_trong=bool(force))
         with get_conn() as conn:
-            _mark(conn, row_id, ok, oid, err)
+            # Chế độ test đẩy sang shop TEST → không được coi là "đã lên POS"
+            _mark(conn, row_id, ok, oid, err, cap_nhat_doi_soat=not force)
     except Exception as e:
         logger.exception("push_async fail id=%s", row_id)
         try:
@@ -576,9 +577,18 @@ def _push_async(row_id: int, pos_shop_id: str):
             pass
 
 
-def _mark(conn, row_id, ok, oid, err):
+def _mark(conn, row_id, ok, oid, err, cap_nhat_doi_soat: bool = True):
+    """Ghi kết quả đẩy POS.
+
+    `cap_nhat_doi_soat=False`: CHỈ ghi trạng thái đẩy, KHÔNG đụng
+    match_status/matched_*. Dùng cho chế độ test (ladipage_push_force_shop):
+    đơn được đẩy sang shop TEST chứ không phải POS đang kinh doanh, nên
+    đánh dấu 'co_pos' là SAI — đơn sẽ biến khỏi tab "Chưa lên POS" và sale
+    bỏ sót đơn khách thật. Việc đối soát phải tiếp tục do run_match làm,
+    soi đúng POS của shop thật.
+    """
     with conn.cursor() as cur:
-        if ok and oid:
+        if ok and oid and cap_nhat_doi_soat:
             cur.execute(
                 "UPDATE ladipage_inbound_orders SET "
                 "pos_status=%s, pos_order_id=%s, pos_error=%s, "
@@ -587,6 +597,14 @@ def _mark(conn, row_id, ok, oid, err):
                 "matched_order_id=%s, matched_at=NOW(), checked_at=NOW() "
                 "WHERE id=%s",
                 ("pushed", oid, err or None, oid, oid, row_id))
+        elif ok and oid:
+            # Chế độ test: chỉ ghi đã đẩy, để nguyên kết quả đối soát
+            cur.execute(
+                "UPDATE ladipage_inbound_orders SET "
+                "pos_status=%s, pos_order_id=%s, pos_error=%s, "
+                "push_attempts=push_attempts+1, pushed_at=NOW() "
+                "WHERE id=%s",
+                ("pushed", oid, err or None, row_id))
         else:
             cur.execute(
                 "UPDATE ladipage_inbound_orders SET "
