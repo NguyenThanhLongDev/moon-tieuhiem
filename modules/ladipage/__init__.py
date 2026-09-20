@@ -647,9 +647,17 @@ def _webhook(pos_shop_id):
         auto_push = str((load_config() or {}).get("ladipage_auto_push") or "") == "1"
     except Exception:
         auto_push = False
+    # Đối soát POS (chức năng GỐC: soi đơn nào sale chưa lên POS) LUÔN chạy.
+    # Đẩy đơn sang POS chỉ là phần BỔ SUNG, không thay thế.
+    # Trước đây hai việc này là if/else nên bật auto_push là tắt mất đối soát.
+    # Chạy tuần tự trong 1 thread, dò TRƯỚC rồi đẩy SAU: _mark của bước đẩy
+    # ghi match_status='co_pos' (đơn do mình tạo nên chắc chắn có trên POS),
+    # để sau cùng thì không bị run_match ghi đè ngược thành 'chua_co_pos'.
     if auto_push:
-        threading.Thread(target=_push_async, args=(row_id, str(pos_shop_id)),
-                         daemon=True).start()
+        def _doi_soat_roi_day():
+            _match_async(row_id)
+            _push_async(row_id, str(pos_shop_id))
+        threading.Thread(target=_doi_soat_roi_day, daemon=True).start()
     else:
         threading.Thread(target=_match_async, args=(row_id,), daemon=True).start()
     return jsonify({"ok": True, "id": row_id}), 200
