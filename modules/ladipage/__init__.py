@@ -174,6 +174,22 @@ def _parse_price(text: str) -> int:
     return total
 
 
+def _parse_ship(text: str) -> int:
+    """Phí ship tách từ chuỗi combo. '299k + 30k Ship' → 30000.
+
+    'miễn phí ship' / 'MIỄN SHIP' → 0 (không có số trước chữ ship).
+    Cắt phần '( Giá gốc ... )' trước khi dò, cùng lý do như _parse_price.
+    """
+    s = re.split(r"gia\s*goc", _nod(text), maxsplit=1)[0]
+    m = re.search(r"(\d[\d\.]*)\s*k\s*(?:phi\s+)?ship", s)
+    if not m:
+        return 0
+    try:
+        return int(float(m.group(1).replace(".", ""))) * 1000
+    except Exception:
+        return 0
+
+
 def _parse_qty(text: str) -> int:
     m = re.search(r"mua\s*(\d+)", _nod(text))
     if m:
@@ -417,6 +433,35 @@ def _push_to_pos(shop: dict, rec: dict):
     wid = shop.get("warehouse_id") or _default_warehouse(pos_shop_id, api_key)
     items = _resolve_item(pos_shop_id, api_key, rec.get("sku"),
                           rec.get("size"), rec.get("mau"), rec.get("so_luong"))
+
+    # ── Tiền: Pancake TỰ TÍNH COD, bỏ qua số mình gửi ────────────────
+    # Thử nghiệm trên shop test cho thấy Pancake:
+    #   - BỎ QUA `cod`, `money_to_collect`, `total_discount`, và `retail_price`
+    #     truyền kèm item (nó luôn lấy giá trong danh mục sản phẩm)
+    #   - CHỈ nhận `shipping_fee` (cộng vào) và `discount_each_product` (trừ ra)
+    # Phải dùng 2 đòn bẩy đó để COD khớp ĐÚNG số khách đồng ý trả (`tien`),
+    # nếu không combo giảm giá sẽ thu sai: "2 áo 580k" mà POS thu 598.000đ
+    # (= giá lẻ 299k × 2), càng nhiều áo càng lệch (4 áo lệch +296.000đ).
+    tien = int(rec.get("tien") or 0)
+    ship = _parse_ship(rec.get("combo") or "")
+    hang = max(0, tien - ship)                  # tiền HÀNG khách trả (đã trừ ship)
+    if items and hang > 0:
+        sl = max(1, int(items[0].get("quantity") or 1))
+        gia_pos = int(items[0].get("retail_price") or 0)
+        can = gia_pos * sl                      # POS sẽ tính ra số này
+        if can > hang:
+            items[0]["discount_each_product"] = int(round((can - hang) / sl))
+        elif can < hang and gia_pos > 0:
+            # Giá trong POS THẤP hơn giá landing → không giảm giá âm được,
+            # bù phần thiếu vào phí ship để khách vẫn trả đúng số tiền.
+            # Đây là dấu hiệu GIÁ SP TRONG POS ĐẶT SAI: nên đặt bằng giá bán
+            # 1 cái trên landing (giá đơn vị cao nhất), khi đó combo tự khớp
+            # bằng discount và phí ship hiện đúng con số thật.
+            logger.warning(
+                "push_to_pos: gia POS (%s x%s = %s) THAP hon tien hang %s "
+                "-> bu %s vao shipping_fee. Nen sua gia SP trong POS cho khop.",
+                gia_pos, sl, can, hang, hang - can)
+            ship += hang - can
     body = {
         "bill_full_name": rec.get("ho_ten") or "Khách Ladipage",
         "bill_phone_number": rec.get("so_dien_thoai") or "",
@@ -430,8 +475,10 @@ def _push_to_pos(shop: dict, rec: dict):
         "status": 0,
         "warehouse_id": wid,
         "order_sources_name": "Ladipage",
-        "cod": rec.get("tien") or 0,
-        "money_to_collect": rec.get("tien") or 0,
+        "shipping_fee": ship,
+        # Gửi kèm cho đủ nghĩa, dù Pancake tự tính lại từ items + shipping_fee
+        "cod": tien,
+        "money_to_collect": tien,
         "items": items,
     }
     try:
