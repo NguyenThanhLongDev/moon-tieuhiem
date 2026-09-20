@@ -442,6 +442,15 @@ def _push_to_pos(shop: dict, rec: dict):
     # Phải dùng 2 đòn bẩy đó để COD khớp ĐÚNG số khách đồng ý trả (`tien`),
     # nếu không combo giảm giá sẽ thu sai: "2 áo 580k" mà POS thu 598.000đ
     # (= giá lẻ 299k × 2), càng nhiều áo càng lệch (4 áo lệch +296.000đ).
+    # KHÔNG đẩy đơn không dò ra sản phẩm. Pancake tính COD từ mặt hàng +
+    # shipping_fee; đơn rỗng thì total=0 nên COD chỉ còn bằng phí ship —
+    # đơn 359.000đ hoá ra thu 30.000đ. Thà để đơn nằm lại "chưa lên POS"
+    # cho sale lên tay, còn hơn tạo đơn POS thu sai tiền khách.
+    if not items:
+        return False, "", ("Chưa dò ra sản phẩm (thiếu mã SKU của landing, hoặc "
+                           "không khớp biến thể size/màu) — không đẩy để tránh "
+                           "COD sai. Sale lên đơn tay.")
+
     tien = int(rec.get("tien") or 0)
     ship = _parse_ship(rec.get("combo") or "")
     hang = max(0, tien - ship)                  # tiền HÀNG khách trả (đã trừ ship)
@@ -505,6 +514,14 @@ def _push_to_pos(shop: dict, rec: dict):
 
 def _push_async(row_id: int, pos_shop_id: str):
     """Chạy nền: đọc đơn, đẩy POS, cập nhật trạng thái."""
+    # Chặn theo shop NGAY TẠI ĐÂY, không chỉ ở route repush — vì
+    # `ladipage_auto_push` gọi thẳng hàm này cho MỌI đơn mới, bất kể shop.
+    # Không có guard thì bật auto_push là đơn của shop thật (~90 đơn/ngày)
+    # cũng tự chảy vào POS.
+    if str(pos_shop_id) not in _push_shops():
+        logger.info("push_async: shop %s khong nam trong ladipage_push_shops "
+                    "-> bo qua don %s", pos_shop_id, row_id)
+        return
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
