@@ -427,8 +427,11 @@ def _resolve_item(pos_shop_id, api_key, sku, size, mau, qty):
     return []
 
 
-def _push_to_pos(shop: dict, rec: dict):
-    """Tạo đơn POS. Trả (ok, pos_order_id, error)."""
+def _push_to_pos(shop: dict, rec: dict, cho_don_trong: bool = False):
+    """Tạo đơn POS. Trả (ok, pos_order_id, error).
+
+    `cho_don_trong`: cho phép đẩy cả đơn không dò ra sản phẩm (chế độ test).
+    """
     pos_shop_id, api_key = shop["pos_shop_id"], shop["pos_api_key"]
     wid = shop.get("warehouse_id") or _default_warehouse(pos_shop_id, api_key)
     items = _resolve_item(pos_shop_id, api_key, rec.get("sku"),
@@ -451,7 +454,7 @@ def _push_to_pos(shop: dict, rec: dict):
     # thể khớp size+màu khách chọn. Báo lỗi để sửa, và KHÔNG đẩy: Pancake
     # tính COD từ mặt hàng + shipping_fee, đơn rỗng có total=0 nên COD chỉ
     # còn bằng phí ship (đơn 359.000đ hoá ra thu 30.000đ).
-    if not items:
+    if not items and not cho_don_trong:
         return False, "", (
             "Mã SP '%s' không ra sản phẩm/biến thể khớp size '%s' màu '%s' "
             "trong POS — không đẩy để tránh COD sai. Kiểm Mã sản phẩm và tên "
@@ -521,11 +524,16 @@ def _push_to_pos(shop: dict, rec: dict):
 
 def _push_async(row_id: int, pos_shop_id: str):
     """Chạy nền: đọc đơn, đẩy POS, cập nhật trạng thái."""
+    # CHẾ ĐỘ TEST: có `ladipage_push_force_shop` thì mọi đơn đẩy sang shop
+    # đó, bất kể đơn thuộc shop nào, và đẩy cả đơn không có sản phẩm.
+    force = _push_force_shop()
+    if force:
+        pos_shop_id = force
     # Chặn theo shop NGAY TẠI ĐÂY, không chỉ ở route repush — vì
     # `ladipage_auto_push` gọi thẳng hàm này cho MỌI đơn mới, bất kể shop.
     # Không có guard thì bật auto_push là đơn của shop thật (~90 đơn/ngày)
     # cũng tự chảy vào POS.
-    if str(pos_shop_id) not in _push_shops():
+    elif str(pos_shop_id) not in _push_shops():
         logger.info("push_async: shop %s khong nam trong ladipage_push_shops "
                     "-> bo qua don %s", pos_shop_id, row_id)
         return
@@ -551,11 +559,12 @@ def _push_async(row_id: int, pos_shop_id: str):
             # đánh dấu failed thì mọi đơn của 280 landing đều hiện dòng lỗi
             # đỏ trên giao diện (~90 đơn/ngày). Sale vẫn thấy đơn ở tab
             # "chưa lên POS" như luồng cũ.
-            if not str(rec.get("sku") or "").strip():
+            # Chế độ test thì vẫn đẩy, đơn sẽ lên POS trống mặt hàng.
+            if not str(rec.get("sku") or "").strip() and not force:
                 logger.info("push_async: don %s chua co ma SKU (landing chua "
                             "khai) -> bo qua", row_id)
                 return
-        ok, oid, err = _push_to_pos(shop, rec)
+        ok, oid, err = _push_to_pos(shop, rec, cho_don_trong=bool(force))
         with get_conn() as conn:
             _mark(conn, row_id, ok, oid, err)
     except Exception as e:
@@ -682,6 +691,27 @@ def _sheet_url() -> str:
     try:
         from app_ctx import load_config
         return str((load_config() or {}).get("ladipage_sheet_url") or "").strip()
+    except Exception:
+        return ""
+
+
+def _push_force_shop() -> str:
+    """Shop đích CƯỠNG CHẾ — app_config `ladipage_push_force_shop`.
+
+    CHẾ ĐỘ TEST: đặt shop này thì MỌI đơn ladipage đều đẩy sang đây, bất kể
+    `pos_shop_id` của đơn (vốn do URL webhook của landing quyết định), và
+    đẩy CẢ đơn không dò ra sản phẩm (đơn lên POS trống mặt hàng).
+
+    ⚠️ Chỉ dùng cho shop TEST. Đơn trống mặt hàng làm Pancake tính
+    COD = 0 + shipping_fee, tức COD SAI — vô hại trên shop test vì không ai
+    giao hàng từ đó, nhưng KHÔNG được bật cho shop đang kinh doanh.
+
+    Rỗng = tắt, quay về hành vi thường (đẩy theo shop của đơn, chặn theo
+    `ladipage_push_shops`, và từ chối đơn không có sản phẩm).
+    """
+    try:
+        from app_ctx import load_config
+        return str((load_config() or {}).get("ladipage_push_force_shop") or "").strip()
     except Exception:
         return ""
 
@@ -993,7 +1023,7 @@ def repush(row_id):
                 return redirect(url_for("ladipage.index"))
             # Chỉ đẩy shop đã bật trong app_config ladipage_push_shops.
             # Chặn ở SERVER, không chỉ ẩn nút — nút ẩn vẫn POST tay được.
-            if str(r[0]) not in _push_shops():
+            if not _push_force_shop() and str(r[0]) not in _push_shops():
                 flash("Shop %s chưa được bật đẩy POS. Thêm pos_shop_id vào "
                       "app_config → ladipage_push_shops nếu muốn bật." % r[0],
                       "error")
