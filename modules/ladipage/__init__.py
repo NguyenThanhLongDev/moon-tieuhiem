@@ -541,6 +541,25 @@ def _sheet_url() -> str:
         return ""
 
 
+def _push_shops() -> set:
+    """Shop ĐƯỢC PHÉP đẩy đơn sang POS — app_config `ladipage_push_shops`.
+
+    Danh sách pos_shop_id cách nhau bằng phẩy, vd "1635328509".
+    Rỗng = KHÔNG shop nào đẩy được (mặc định an toàn).
+
+    Có cái này vì `ladipage_auto_push` là công tắc CHUNG, bật là đẩy hết mọi
+    shop — muốn test riêng shop test mà không đụng đơn shop thật thì phải
+    chặn theo shop. Dùng cho cả nút "Đẩy POS" trên giao diện và guard trong
+    route repush (không để bypass bằng POST tay).
+    """
+    try:
+        from app_ctx import load_config
+        raw = str((load_config() or {}).get("ladipage_push_shops") or "")
+    except Exception:
+        return set()
+    return {x.strip() for x in raw.split(",") if x.strip()}
+
+
 # ── trang kiểm tra ──────────────────────────────────────────────────────────
 @ladipage_bp.route("/")
 def index():
@@ -800,6 +819,7 @@ def index():
         status=status, q=q, dom=dom, dom_list=dom_list, lp=lp, lp_list=lp_list,
         nv=nv, nv_list=nv_list,
         pos_shop_id="1720128057", canh_bao_gio=_CANH_BAO_GIO,
+        push_shops=_push_shops(),
         n_days=n_days, moc_counts=moc_counts,
         sheet_url=_sheet_url(), users_ds=users_ds, presets=presets,
         page=page, per_page=per_page, total_pages=total_pages,
@@ -826,6 +846,13 @@ def repush(row_id):
             if not r:
                 flash("Không tìm thấy đơn", "error")
                 return redirect(url_for("ladipage.index"))
+            # Chỉ đẩy shop đã bật trong app_config ladipage_push_shops.
+            # Chặn ở SERVER, không chỉ ẩn nút — nút ẩn vẫn POST tay được.
+            if str(r[0]) not in _push_shops():
+                flash("Shop %s chưa được bật đẩy POS. Thêm pos_shop_id vào "
+                      "app_config → ladipage_push_shops nếu muốn bật." % r[0],
+                      "error")
+                return redirect(url_for("ladipage.index", **request.args))
             cur.execute("UPDATE ladipage_inbound_orders SET pos_status='pending' "
                         "WHERE id=%s", (row_id,))
         conn.commit()

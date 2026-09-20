@@ -641,6 +641,12 @@
             <td class="act">
               {% if r.match_status in ('chua_co_pos','cho_kiem_tra','khach_cu') %}
                 <div class="act-row">
+                  {% if r.pos_shop_id in push_shops %}
+                  <form method="post" action="{{ url_for('ladipage.repush', row_id=r.id, **request.args) }}"
+                        onsubmit="return confirm('Đẩy đơn #{{ r.id }} — COD {{ r.tien or 0 }}đ — sang POS? Việc này TẠO ĐƠN THẬT trên POS.')">
+                    <button class="ibtn" style="color:#0d6efd" title="Đẩy đơn này sang POS"><i class="bi bi-upload"></i></button>
+                  </form>
+                  {% endif %}
                   <form method="post" action="{{ url_for('ladipage.do_lai', row_id=r.id, **request.args) }}">
                     <button class="ibtn" title="Dò lại trên POS"><i class="bi bi-arrow-repeat"></i></button>
                   </form>
