@@ -446,10 +446,17 @@ def _push_to_pos(shop: dict, rec: dict):
     # shipping_fee; đơn rỗng thì total=0 nên COD chỉ còn bằng phí ship —
     # đơn 359.000đ hoá ra thu 30.000đ. Thà để đơn nằm lại "chưa lên POS"
     # cho sale lên tay, còn hơn tạo đơn POS thu sai tiền khách.
+    # Tới đây chắc chắn đơn CÓ mã SKU (đã lọc ở _push_async). Không ra mặt
+    # hàng nghĩa là sai cấu hình — mã không có trong POS, hoặc không có biến
+    # thể khớp size+màu khách chọn. Báo lỗi để sửa, và KHÔNG đẩy: Pancake
+    # tính COD từ mặt hàng + shipping_fee, đơn rỗng có total=0 nên COD chỉ
+    # còn bằng phí ship (đơn 359.000đ hoá ra thu 30.000đ).
     if not items:
-        return False, "", ("Chưa dò ra sản phẩm (thiếu mã SKU của landing, hoặc "
-                           "không khớp biến thể size/màu) — không đẩy để tránh "
-                           "COD sai. Sale lên đơn tay.")
+        return False, "", (
+            "Mã SP '%s' không ra sản phẩm/biến thể khớp size '%s' màu '%s' "
+            "trong POS — không đẩy để tránh COD sai. Kiểm Mã sản phẩm và tên "
+            "biến thể bên POS, hoặc sale lên đơn tay."
+            % (rec.get("sku"), rec.get("size"), rec.get("mau")))
 
     tien = int(rec.get("tien") or 0)
     ship = _parse_ship(rec.get("combo") or "")
@@ -538,6 +545,15 @@ def _push_async(row_id: int, pos_shop_id: str):
                 shop = _shop_by_pos_id(cur, pos_shop_id)
             if not shop or not shop.get("pos_api_key"):
                 _mark(conn, row_id, False, "", "Shop chưa có API key POS")
+                return
+            # Landing CHƯA khai mã SKU → bỏ qua im lặng, KHÔNG đánh dấu lỗi.
+            # Đây là trạng thái bình thường của landing chưa cấu hình, mà
+            # đánh dấu failed thì mọi đơn của 280 landing đều hiện dòng lỗi
+            # đỏ trên giao diện (~90 đơn/ngày). Sale vẫn thấy đơn ở tab
+            # "chưa lên POS" như luồng cũ.
+            if not str(rec.get("sku") or "").strip():
+                logger.info("push_async: don %s chua co ma SKU (landing chua "
+                            "khai) -> bo qua", row_id)
                 return
         ok, oid, err = _push_to_pos(shop, rec)
         with get_conn() as conn:
