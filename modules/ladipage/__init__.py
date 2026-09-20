@@ -91,7 +91,15 @@ def _sp_ten(lp: str) -> str:
 
 
 def _nod(s: str) -> str:
-    return "".join(c for c in unicodedata.normalize("NFD", s or "")
+    """Bỏ dấu + lowercase để so chuỗi tiếng Việt.
+
+    Phải xử lý Đ/đ RIÊNG: NFD chỉ tách được dấu dạng ký tự tổ hợp (category Mn),
+    còn "Đ" (U+0110) là ký tự liền không phân tách → "Đen" ra "đen" chứ không
+    ra "den". Vì _KNOWN_COLORS ghi "den"/"do" nên trước đây màu ĐEN và ĐỎ
+    không bao giờ khớp được biến thể.
+    """
+    s = (s or "").replace("Đ", "D").replace("đ", "d")
+    return "".join(c for c in unicodedata.normalize("NFD", s)
                    if unicodedata.category(c) != "Mn").lower().strip()
 
 
@@ -305,6 +313,44 @@ def _extract(payload, form_dict, referer: str) -> dict:
 
 
 # ── đẩy POS ────────────────────────────────────────────────────────────────
+def _size_token(s: str) -> str:
+    """Rút token size chuẩn: 'Size XL (Từ 61- 66 kg)' → 'xl'. Không có → ''."""
+    m = re.search(r"\b(\dxl|xxl|xl|[sml])\b", _nod(s))
+    return m.group(1) if m else ""
+
+
+def _mau_token(s: str) -> str:
+    """Rút tên màu chuẩn: 'MÀU XANH THAN' → 'xanh than'.
+
+    Lấy màu DÀI NHẤT khớp được, vì _KNOWN_COLORS có cả 'xanh' lẫn 'xanh than' /
+    'xanh nhat' — nếu lấy bừa thì 'XANH THAN' có thể rơi vào biến thể 'Xanh nhạt'.
+    """
+    n = _nod(s)
+    hit = [c for c in _KNOWN_COLORS if c and c in n]
+    return max(hit, key=len) if hit else ""
+
+
+def _variation_size_mau(v: dict) -> tuple:
+    """(size, màu) của 1 biến thể, đọc từ `fields` có cấu trúc của Pancake.
+
+    Pancake trả fields=[{"name":"Size","value":"M"},{"name":"Màu","value":"Trắng"}].
+    Đọc thẳng field chính xác hơn dò chữ trong display_id: display_id CHỈ chứa
+    size/màu khi sản phẩm được tạo bằng giao diện Pancake. Tạo qua API thì
+    Pancake ghi đè display_id thành số thứ tự ('1','2',...) → dò text luôn
+    trượt → rơi về biến thể đầu tiên → khách đặt XL Đen mà POS ghi M Trắng.
+    """
+    size = mau = ""
+    for f in (v.get("fields") or []):
+        n, val = _nod(f.get("name")), str(f.get("value") or "").strip()
+        if not val:
+            continue
+        if "size" in n or "kich" in n:
+            size = size or val
+        elif "mau" in n or "color" in n:
+            mau = mau or val
+    return size, mau
+
+
 def _resolve_item(pos_shop_id, api_key, sku, size, mau, qty):
     """Nếu có SKU → tìm product + biến thể khớp size/màu. Trả [item] hoặc []."""
     if not sku:
@@ -319,24 +365,35 @@ def _resolve_item(pos_shop_id, api_key, sku, size, mau, qty):
                 if _nod(p.get("custom_id")) != _nod(sku):
                     continue
                 vs = p.get("variations") or []
-                want = {t for t in [_nod(size), _nod(mau)] if t}
-                # rút gọn size (M/L/XL/2XL/3XL) + màu về token
-                size_tok = ""
-                m = re.search(r"\b(\dxl|xxl|xl|[sml])\b", _nod(size))
-                if m:
-                    size_tok = m.group(1)
+                size_tok, mau_tok = _size_token(size), _mau_token(mau)
                 best = None
                 for v in vs:
-                    vn = _nod(v.get("display_id") or v.get("name") or "")
-                    ok_size = (size_tok and size_tok in re.split(r"[-\s]", vn))
-                    ok_mau = any(c and c in vn for c in [_nod(mau)] if c) or \
-                             any(c in vn for c in _KNOWN_COLORS if c in _nod(mau))
-                    if size_tok and _nod(mau):
+                    v_size, v_mau = _variation_size_mau(v)
+                    if v_size or v_mau:
+                        # Đường CHÍNH: so theo fields có cấu trúc — chính xác
+                        ok_size = bool(size_tok) and size_tok == _size_token(v_size)
+                        ok_mau = bool(mau_tok) and mau_tok == _mau_token(v_mau)
+                    else:
+                        # DỰ PHÒNG (giữ cách cũ) cho SP không có fields: dò chữ
+                        # trong display_id kiểu "DH-LOC-CHILOW-1- XANH-M".
+                        vn = _nod(v.get("display_id") or v.get("name") or "")
+                        ok_size = bool(size_tok) and size_tok in re.split(r"[-\s]", vn)
+                        ok_mau = bool(mau_tok) and mau_tok in vn
+                    if size_tok and mau_tok:
                         if ok_size and ok_mau:
                             best = v
                             break
                     elif ok_size or ok_mau:
                         best = best or v
+                # Khách CÓ chọn size/màu mà không biến thể nào khớp → KHÔNG gắn
+                # hàng. Trước đây rơi về vs[0] nên đơn lên POS sai size/màu mà
+                # không ai biết; thà để trống cho sale thấy và xử lý tay còn hơn
+                # giao sai hàng rồi khách hoàn.
+                if not best and (size_tok or mau_tok):
+                    logger.warning(
+                        "resolve_item: sku=%s khong co bien the khop size=%r mau=%r "
+                        "(%d bien the) -> bo trong hang", sku, size, mau, len(vs))
+                    return []
                 v = best or (vs[0] if vs else None)
                 if not v:
                     return []
