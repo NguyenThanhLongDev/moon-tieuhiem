@@ -148,7 +148,15 @@ _KNOWN_COLORS = {"trang", "xanh", "hong", "tim", "do", "den", "nau", "xam",
 
 
 def _parse_price(text: str) -> int:
-    """Tổng các số kèm 'k' trong chuỗi → đồng. VD '299k + 30k' → 329000."""
+    """Tổng các số kèm 'k' trong chuỗi → đồng. VD '299k + 30k' → 329000.
+
+    Cắt bỏ phần "( Giá gốc 599k )" trước khi cộng: đó là giá niêm yết để khách
+    thấy mình được giảm, KHÔNG phải tiền khách trả. Trước đây cộng cả vào nên
+    COD phồng thêm 599k — 221 đơn bị sai, vd "339k + 30k Ship ( Giá gốc 599k )"
+    ra 968k thay vì 369k. Quan trọng vì _push_to_pos lấy thẳng số này làm
+    cod/money_to_collect → shipper thu sai tiền của khách.
+    """
+    text = re.split(r"gia\s*goc", _nod(text), maxsplit=1)[0]
     total = 0
     for m in re.finditer(r"(\d[\d\.]*)\s*k", _nod(text)):
         try:
