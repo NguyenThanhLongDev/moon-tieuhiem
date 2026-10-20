@@ -136,11 +136,64 @@ def get_acb_usd_vnd_sell(force_refresh: bool = False) -> float:
     return rate
 
 
+# Tiền tệ ngoài USD mà các TK QC đang tiêu (hiện có TWD — Đài Loan).
+# Giá trị = tỷ giá DỰ PHÒNG (1 đơn vị → VND) khi API lỗi, và (min, max) để chặn
+# số rác từ API. Muốn hỗ trợ thêm tiền khác thì thêm 1 dòng ở đây.
+_OTHER_CCY = {
+    "TWD": {"fallback": 800.0, "bounds": (500.0, 1200.0)},
+}
+
+
+def get_vnd_rate(currency: str, force_refresh: bool = False) -> Optional[float]:
+    """Tỷ giá 1 <currency> → VND cho tiền ngoài USD (open.er-api.com, cache 1h).
+
+    Tính chéo qua USD: rates[VND] / rates[currency]. Trả None nếu tiền này
+    chưa được khai ở _OTHER_CCY (caller giữ nguyên số và ghi cảnh báo).
+    """
+    cur = (currency or "").upper().strip()
+    cfg = _OTHER_CCY.get(cur)
+    if not cfg:
+        return None
+    lo, hi = cfg["bounds"]
+    key = f"fb:vnd_rate:{cur}"
+    if not force_refresh and _HAS_REDIS:
+        try:
+            client = redis_cache.get_redis_client()
+            cached = client.get(key) if client else None
+            if cached and lo <= float(cached) <= hi:
+                return float(cached)
+        except Exception:
+            pass
+    rate: Optional[float] = None
+    try:
+        r = requests.get("https://open.er-api.com/v6/latest/USD", timeout=10)
+        if r.status_code == 200:
+            rates = r.json().get("rates", {})
+            vnd, ccy = float(rates.get("VND") or 0), float(rates.get(cur) or 0)
+            if vnd > 0 and ccy > 0 and lo <= vnd / ccy <= hi:
+                rate = vnd / ccy
+    except Exception as e:
+        log.warning("[fb_currency] %s->VND api fail: %s", cur, e)
+    source = "open.er-api"
+    if rate is None:
+        rate, source = cfg["fallback"], "fallback_fixed"
+    log.info("[fb_currency] %s/VND rate: %s (source=%s)", cur, rate, source)
+    if _HAS_REDIS:
+        try:
+            client = redis_cache.get_redis_client()
+            if client:
+                client.setex(key, _CACHE_TTL, str(rate))
+        except Exception:
+            pass
+    return rate
+
+
 def convert_to_vnd(amount: float, currency: str) -> float:
     """Convert số tiền theo currency → VND.
 
     - currency='VND' (hoặc rỗng/None) → trả nguyên amount
     - currency='USD' → amount × tỷ giá ACB bán ra
+    - currency trong _OTHER_CCY (TWD) → amount × tỷ giá thị trường
     - currency khác → log warning, trả nguyên amount (caller xử lý)
     """
     if not amount:
@@ -150,6 +203,9 @@ def convert_to_vnd(amount: float, currency: str) -> float:
         return float(amount)
     if cur == "USD":
         return float(amount) * get_acb_usd_vnd_sell()
+    rate = get_vnd_rate(cur)
+    if rate:
+        return float(amount) * rate
     log.warning("[fb_currency] unknown currency '%s', giữ nguyên amount", cur)
     return float(amount)
 
