@@ -925,17 +925,19 @@ def settings_page():
                         except Exception as _e:
                             messages.append({"level": "Cảnh báo", "text": f"Lưu shops DB thất bại: {_e}"})
                     if db_ok is True:
-                        # Ghi wh_shops để có api_key
+                        # Ghi wh_shops để có api_key (moon dùng chung Postgres db_cpqc —
+                        # module kho_vat_ly SQLite đã bị cắt, xài get_db_conn thay)
                         try:
-#                            from modules.kho_vat_ly.wh_db import wh_db as _wh_db
-                            with _wh_db() as _conn:
-                                _conn.execute("""
-                                    INSERT INTO wh_shops (shop_key, shop_name, pos_shop_id, pos_api_key, status)
-                                    VALUES (%s,%s,%s,%s,%s)
-                                    ON CONFLICT (shop_key) DO UPDATE
-                                      SET shop_name=EXCLUDED.shop_name, pos_shop_id=EXCLUDED.pos_shop_id,
-                                          pos_api_key=EXCLUDED.pos_api_key, status=EXCLUDED.status
-                                """, (shop_key, shop_name, shop_id, pos_api_key or None, norm_status))
+                            with get_db_conn() as _conn:
+                                with _conn.cursor() as _cur:
+                                    _cur.execute("""
+                                        INSERT INTO wh_shops (shop_key, shop_name, pos_shop_id, pos_api_key, status)
+                                        VALUES (%s,%s,%s,%s,%s)
+                                        ON CONFLICT (shop_key) DO UPDATE
+                                          SET shop_name=EXCLUDED.shop_name, pos_shop_id=EXCLUDED.pos_shop_id,
+                                              pos_api_key=EXCLUDED.pos_api_key, status=EXCLUDED.status
+                                    """, (shop_key, shop_name, shop_id, pos_api_key or None, norm_status))
+                                _conn.commit()
                             try:
                                 import pancake_auth as _pa; _pa.clear_cache()
                             except Exception:
@@ -1071,12 +1073,13 @@ def settings_page():
                     # Đồng bộ wh_shops
                     if toggled:
                         try:
-#                            from modules.kho_vat_ly.wh_db import wh_db as _wh_db
-                            with _wh_db() as _conn:
-                                _conn.execute(
-                                    "UPDATE wh_shops SET status=%s WHERE shop_key=%s",
-                                    (new_status, shop_key)
-                                )
+                            with get_db_conn() as _conn:
+                                with _conn.cursor() as _cur:
+                                    _cur.execute(
+                                        "UPDATE wh_shops SET status=%s WHERE shop_key=%s",
+                                        (new_status, shop_key)
+                                    )
+                                _conn.commit()
                         except Exception:
                             pass
                         # Backup JSON
@@ -1102,12 +1105,17 @@ def settings_page():
                     messages.append({"level": "Lỗi", "text": "Thiếu shop_key."})
                 else:
                     try:
-#                        from modules.kho_vat_ly.wh_db import wh_db as _wh_db
-                        with _wh_db() as _conn:
-                            _conn.execute(
-                                "UPDATE wh_shops SET pos_api_key=%s WHERE shop_key=%s",
-                                (pos_api_key or None, shop_key)
-                            )
+                        with get_db_conn() as _conn:
+                            with _conn.cursor() as _cur:
+                                # Đảm bảo có record wh_shops (shop mới thêm trước khi fix bug
+                                # có thể chưa có dòng); INSERT ... ON CONFLICT đi thẳng.
+                                _cur.execute("""
+                                    INSERT INTO wh_shops (shop_key, shop_name, pos_shop_id, pos_api_key, status)
+                                    SELECT s.shop_key, s.shop_name, s.pancake_shop_id, %s, s.status::text
+                                      FROM shops s WHERE s.shop_key=%s
+                                    ON CONFLICT (shop_key) DO UPDATE SET pos_api_key=EXCLUDED.pos_api_key
+                                """, (pos_api_key or None, shop_key))
+                            _conn.commit()
                         try:
                             import pancake_auth as _pa; _pa.clear_cache()
                         except Exception:
@@ -1176,24 +1184,37 @@ def settings_page():
                             messages.append({"level": "Cảnh báo", "text": f"Cập nhật DB thất bại: {_e}"})
                     # Đồng bộ wh_shops (tên, pos_shop_id, status, api_key)
                     try:
-#                        from modules.kho_vat_ly.wh_db import wh_db as _wh_db
-                        with _wh_db() as _conn:
-                            _wh_fields = ["shop_name=?"]
-                            _wh_vals = [new_shop_name]
-                            if new_pancake_id:
-                                _wh_fields.append("pos_shop_id=?")
-                                _wh_vals.append(new_pancake_id)
-                            if new_status:
-                                _wh_fields.append("status=?")
-                                _wh_vals.append(new_status)
-                            if new_api_key:
-                                _wh_fields.append("pos_api_key=?")
-                                _wh_vals.append(new_api_key)
-                            _wh_vals.append(shop_key)
-                            _conn.execute(
-                                f"UPDATE wh_shops SET {', '.join(_wh_fields)} WHERE shop_key=?",
-                                _wh_vals
-                            )
+                        with get_db_conn() as _conn:
+                            with _conn.cursor() as _cur:
+                                _wh_fields = ["shop_name=%s"]
+                                _wh_vals = [new_shop_name]
+                                if new_pancake_id:
+                                    _wh_fields.append("pos_shop_id=%s")
+                                    _wh_vals.append(new_pancake_id)
+                                if new_status:
+                                    _wh_fields.append("status=%s")
+                                    _wh_vals.append(new_status)
+                                if new_api_key:
+                                    _wh_fields.append("pos_api_key=%s")
+                                    _wh_vals.append(new_api_key)
+                                _wh_vals.append(shop_key)
+                                # UPSERT: shop_key có thể chưa có record wh_shops (đã có
+                                # trong shops nhưng chưa có bên này do bug cũ). Thử UPDATE
+                                # trước; nếu rowcount=0 thì INSERT mới theo shops.
+                                _cur.execute(
+                                    f"UPDATE wh_shops SET {', '.join(_wh_fields)} WHERE shop_key=%s",
+                                    _wh_vals
+                                )
+                                if _cur.rowcount == 0:
+                                    _cur.execute("""
+                                        INSERT INTO wh_shops (shop_key, shop_name, pos_shop_id, pos_api_key, status)
+                                        SELECT s.shop_key, %s, COALESCE(%s, s.pancake_shop_id),
+                                               %s, COALESCE(%s, s.status::text)
+                                          FROM shops s WHERE s.shop_key=%s
+                                        ON CONFLICT (shop_key) DO NOTHING
+                                    """, (new_shop_name, new_pancake_id or None,
+                                          new_api_key or None, new_status or None, shop_key))
+                            _conn.commit()
                     except Exception:
                         pass
                     # Backup JSON
@@ -1334,14 +1355,15 @@ def settings_page():
     users = load_users()
     _shops_base = sorted(load_shop_meta_map().values(), key=lambda x: x.get("shop_name", ""))
     try:
-#        from modules.kho_vat_ly.wh_db import wh_db as _wh_db
-        with _wh_db() as _wconn:
-            _wh_rows = _wconn.execute(
-                "SELECT shop_key, pos_api_key, pos_shop_id, last_webhook_at FROM wh_shops"
-            ).fetchall()
-        _api_key_map = {str(r["shop_key"]): str(r["pos_api_key"] or "") for r in _wh_rows}
-        _webhook_map = {str(r["shop_key"]): r["last_webhook_at"] for r in _wh_rows}
-        _pos_shop_id_map = {str(r["shop_key"]): str(r["pos_shop_id"] or "") for r in _wh_rows}
+        with get_db_conn() as _wconn:
+            with _wconn.cursor() as _wcur:
+                _wcur.execute(
+                    "SELECT shop_key, pos_api_key, pos_shop_id, last_webhook_at FROM wh_shops"
+                )
+                _wh_rows = _wcur.fetchall()
+        _api_key_map = {str(r[0]): str(r[1] or "") for r in _wh_rows}
+        _webhook_map = {str(r[0]): r[3] for r in _wh_rows}
+        _pos_shop_id_map = {str(r[0]): str(r[2] or "") for r in _wh_rows}
     except Exception:
         _api_key_map = {}
         _webhook_map = {}
@@ -1489,17 +1511,21 @@ def settings_page():
     # Shop có API key invalid (≠ 32 hex) → sync silent skip
     invalid_apikey_shops = []
     try:
-#        from modules.kho_vat_ly.wh_db import wh_db as _wh_db_check
-        with _wh_db_check() as _ck:
-            invalid_apikey_shops = [dict(r) for r in _ck.execute("""
-                SELECT shop_name, pos_shop_id, pos_api_key
-                FROM wh_shops
-                WHERE COALESCE(status,'active') = 'active'
-                  AND pos_api_key IS NOT NULL AND pos_api_key != ''
-                  AND (LENGTH(pos_api_key) != 32
-                       OR pos_api_key !~ '^[0-9a-fA-F]+$')
-                ORDER BY shop_name
-            """).fetchall()]
+        with get_db_conn() as _ck:
+            with _ck.cursor() as _ckcur:
+                _ckcur.execute("""
+                    SELECT shop_name, pos_shop_id, pos_api_key
+                    FROM wh_shops
+                    WHERE COALESCE(status,'active') = 'active'
+                      AND pos_api_key IS NOT NULL AND pos_api_key != ''
+                      AND (LENGTH(pos_api_key) != 32
+                           OR pos_api_key !~ '^[0-9a-fA-F]+$')
+                    ORDER BY shop_name
+                """)
+                invalid_apikey_shops = [
+                    {"shop_name": r[0], "pos_shop_id": r[1], "pos_api_key": r[2]}
+                    for r in _ckcur.fetchall()
+                ]
     except Exception:
         pass
 
