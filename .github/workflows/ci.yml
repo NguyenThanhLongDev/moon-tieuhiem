@@ -1,0 +1,22 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt pytest
+      - name: Kiểm tra cú pháp
+        run: python -m compileall -q web_app.py blueprints modules scripts
+      - name: Unit test (không cần DB)
+        run: python -m pytest tests/test_ads_mapping_engine.py tests/test_facebook_ads_tokens.py tests/test_telegram_access.py -q
+      - name: Build Docker image
+        run: docker build -t moon:ci .

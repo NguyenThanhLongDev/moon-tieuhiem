@@ -1,0 +1,94 @@
+# Moon (CPQC) — 1 khách = 1 thư mục + 1 file deploy/docker.env (copy từ docker.env.example)
+#   docker compose --env-file deploy/docker.env up -d --build
+#
+# Ghi chú: bridge Zalo chỉ lắng nghe 127.0.0.1 nên bridge + scheduler dùng CHUNG
+# network namespace với web (network_mode: service:web) => web gọi được 127.0.0.1:5071.
+name: ${COMPOSE_PROJECT_NAME:-moon}
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-moon}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?đặt DB_PASSWORD trong deploy/docker.env}
+      POSTGRES_DB: ${DB_NAME:-db_moon}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-moon} -d ${DB_NAME:-db_moon}"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: deploy/docker.env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-moon}:${DB_PASSWORD}@db:5432/${DB_NAME:-db_moon}
+      REDIS_URL: redis://redis:6379/0
+      WEB_SCHEDULER_DISABLED: "1"
+      PORT: "5060"
+    ports:
+      - "127.0.0.1:${HOST_PORT:-5060}:5060"
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "curl", "-s", "-o", "/dev/null", "http://127.0.0.1:5060/"]
+      interval: 30s
+      retries: 3
+    mem_limit: 1g
+
+  scheduler:
+    build: .
+    restart: always
+    command: ["python3", "run_scheduler_standalone.py"]
+    env_file: deploy/docker.env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-moon}:${DB_PASSWORD}@db:5432/${DB_NAME:-db_moon}
+      REDIS_URL: redis://redis:6379/0
+    network_mode: "service:web"
+    depends_on:
+      web: {condition: service_started}
+    mem_limit: 1500m
+
+  # Thay cho crontab admin1: nhẹ mỗi 30' (7h-22h), đầy lúc 1h sáng.
+  cron:
+    build: .
+    restart: always
+    command: ["python3", "scripts/docker_cron.py"]
+    env_file: deploy/docker.env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-moon}:${DB_PASSWORD}@db:5432/${DB_NAME:-db_moon}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - cronlogs:/home/admin1/cpqc/logs
+    depends_on:
+      db: {condition: service_healthy}
+    mem_limit: 800m
+
+  zalo-bridge:
+    build: ./zalo_bridge
+    restart: always
+    # zalo_bridge/.env: cookie/imei/UA phiên Zalo (không commit). Tuỳ chọn — bỏ profile nếu khách không dùng Lan.
+    profiles: ["zalo"]
+    env_file: zalo_bridge/.env
+    environment:
+      FLASK_URL: http://127.0.0.1:5060/api/zalo-bridge/inbound
+      OUTBOUND_PORT: "5071"
+    network_mode: "service:web"
+    depends_on:
+      web: {condition: service_started}
+    mem_limit: 300m
+
+volumes:
+  pgdata:
+  redisdata:
+  cronlogs:

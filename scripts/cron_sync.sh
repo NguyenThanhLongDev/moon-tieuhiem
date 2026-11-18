@@ -7,15 +7,16 @@
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
+# Trong Docker env đã được compose nạp sẵn -> không có file này thì bỏ qua.
 set -a
 # shellcheck disable=SC1091
-source deploy/cpqc.env
+[[ -f deploy/cpqc.env ]] && source deploy/cpqc.env
 set +a
 export SKIP_SYNC_PRODUCTS=1
 
 mkdir -p logs
 LOG="logs/cron_sync.log"
-PY=".venv/bin/python"
+if [[ -x .venv/bin/python ]]; then PY=".venv/bin/python"; else PY="python3"; fi
 TODAY="$(date +%F)"
 YDAY="$(date -d 'yesterday' +%F 2>/dev/null || date +%F)"
 
